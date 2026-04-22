@@ -339,6 +339,7 @@ const serviceMeta = {
 const providerPresets = {
   text: {
     chatfire: { label: 'ChatFire 推荐', baseUrl: 'https://api.chatfire.site', models: ['gemini-3-pro-preview'] },
+    minimax: { label: 'MiniMax 推荐', baseUrl: 'https://api.minimaxi.com', models: ['MiniMax-Text-01'] },
     openrouter: { label: 'OpenRouter 推荐', baseUrl: 'https://openrouter.ai/api', models: ['google/gemini-3-flash-preview'] },
     openai: { label: 'OpenAI 推荐', baseUrl: 'https://api.openai.com', models: ['gpt-4.1-mini'] },
   },
@@ -357,7 +358,7 @@ const endpointPrefixes = {
   chatfire: '/v1',
   openai: '/v1',
   openrouter: '/v1',
-  minimax: '/v1',
+  minimax: '/anthropic',
   gemini: '/v1beta',
   volcengine: '/api/v3',
   ali: '/api/v1',

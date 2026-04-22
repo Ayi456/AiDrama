@@ -7,6 +7,7 @@ import { logTaskProgress, logTaskWarn } from '../utils/task-logger.js'
 import { joinProviderUrl } from './adapters/url.js'
 
 export type ServiceType = 'text' | 'image' | 'video'
+export type TextProviderProtocol = 'openai' | 'anthropic'
 
 export interface AIConfig {
   provider: string
@@ -15,8 +16,26 @@ export interface AIConfig {
   model: string
 }
 
+export function getTextProviderProtocol(config: AIConfig): TextProviderProtocol {
+  const provider = config.provider.toLowerCase()
+
+  if (provider === 'anthropic' || provider === 'minimax') {
+    return 'anthropic'
+  }
+
+  return 'openai'
+}
+
 export function getTextProviderBaseUrl(config: AIConfig) {
   const provider = config.provider.toLowerCase()
+  const protocol = getTextProviderProtocol(config)
+
+  if (protocol === 'anthropic') {
+    if (provider === 'minimax') {
+      return joinProviderUrl(config.baseUrl, '/anthropic', '')
+    }
+    return config.baseUrl
+  }
 
   if (provider === 'openai' || provider === 'openrouter' || provider === 'chatfire') {
     return joinProviderUrl(config.baseUrl, '/v1', '')

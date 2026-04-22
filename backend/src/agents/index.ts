@@ -4,10 +4,11 @@
  * 从 agent_configs 表读取 prompt/model/temperature 配置
  */
 import { Agent } from '@mastra/core/agent'
+import { createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenAI } from '@ai-sdk/openai'
 import { eq, isNull, and } from 'drizzle-orm'
 import { db, schema } from '../db/index.js'
-import { getTextConfig, getTextProviderBaseUrl } from '../services/ai.js'
+import { getTextConfig, getTextProviderBaseUrl, getTextProviderProtocol } from '../services/ai.js'
 import { logTaskProgress } from '../utils/task-logger.js'
 import { createScriptTools } from './tools/script-tools.js'
 import { createExtractTools } from './tools/extract-tools.js'
@@ -166,16 +167,28 @@ function getAgentConfig(agentType: string) {
 function getModel(dbConfig: any) {
   const textConfig = getTextConfig()
   const resolvedBaseURL = getTextProviderBaseUrl(textConfig)
+  const protocol = getTextProviderProtocol(textConfig)
+  const modelName = dbConfig?.model || textConfig.model
+
   logTaskProgress('AIConfig', 'text-model-endpoint', {
     provider: textConfig.provider,
+    protocol,
     baseUrl: resolvedBaseURL,
-    model: dbConfig?.model || textConfig.model,
+    model: modelName,
   })
+
+  if (protocol === 'anthropic') {
+    const provider = createAnthropic({
+      baseURL: resolvedBaseURL,
+      apiKey: textConfig.apiKey,
+    } as any)
+    return provider(modelName)
+  }
+
   const provider = createOpenAI({
     baseURL: resolvedBaseURL,
     apiKey: textConfig.apiKey,
   } as any)
-  const modelName = dbConfig?.model || textConfig.model
   return provider.chat(modelName)
 }
 
