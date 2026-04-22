@@ -13,7 +13,7 @@
           <span class="studio-episode-chip">第 {{ episodeNumber }} 集</span>
           <div class="studio-meta-row">
             <span class="studio-meta-pill">{{ currentSubStageLabel }}</span>
-            <span class="studio-meta-pill is-progress">{{ pipelineProgress }}/11</span>
+            <span class="studio-meta-pill is-progress">{{ pipelineProgress }}/8</span>
             <span class="studio-meta-inline">{{ chars.length }} 角色 · {{ sbs.length }} 镜头</span>
           </div>
         </div>
@@ -66,10 +66,10 @@
         <div class="progress-wrap">
           <div class="progress-head">
             <span class="progress-label">制作进度</span>
-            <span class="progress-val">{{ pipelineProgress }}/11</span>
+            <span class="progress-val">{{ pipelineProgress }}/8</span>
           </div>
           <div class="progress-track">
-            <div class="progress-fill" :style="{ width: (pipelineProgress / 11 * 100) + '%' }"></div>
+            <div class="progress-fill" :style="{ width: (pipelineProgress / 8 * 100) + '%' }"></div>
           </div>
         </div>
         <div class="sidebar-jumper" v-if="sidebarJumpSteps.length">
@@ -226,7 +226,7 @@
                   <strong>{{ scenes.length }}</strong>
                 </div>
               </div>
-              <div class="extract-summary-note">如果角色描述过于简短，后续分配音色和生成形象时建议先补充人物特征。</div>
+              <div class="extract-summary-note">如果角色描述过于简短，后续生成角色形象时建议先补充人物特征。</div>
             </aside>
 
             <div class="card extract-card">
@@ -273,138 +273,12 @@
           </div>
         </div>
 
-        <!-- Step 3: Voice Assignment -->
+        <!-- Step 3: Storyboard -->
         <div v-else-if="scriptStep === 3" class="step-editor">
           <div class="step-toolbar">
             <div class="toolbar-left">
               <div class="step-indicator">
                 <span class="step-num">04</span>
-                <span class="step-name">分配音色</span>
-              </div>
-            </div>
-            <div class="toolbar-right">
-              <span v-if="charsVoiced" class="char-count">{{ charsVoiced }}/{{ chars.length }} 已分配</span>
-              <span v-if="voiceSampleCount" class="char-count">{{ voiceSampleCount }}/{{ charsVoiced }} 试听文件</span>
-              <button v-if="charsVoiced" class="btn btn-sm" @click="doVoice" :disabled="rn">
-                <Loader2 v-if="rn && rt === 'voice_assigner'" :size="11" class="animate-spin" />
-                <svg v-else width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
-                重新分配
-              </button>
-              <button v-if="charsVoiced" class="btn btn-sm" @click="batchGenSamples">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19 5v14"/></svg>
-                生成试听文件
-              </button>
-            </div>
-          </div>
-
-          <div v-if="!charsVoiced && !rn" class="step-empty">
-            <div class="empty-visual">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
-            </div>
-            <div class="empty-title">为角色分配合适的音色</div>
-            <div class="empty-desc">AI 根据角色特征自动分配最匹配的 TTS 音色</div>
-            <button class="btn btn-primary" @click="doVoice">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-              AI 自动分配
-            </button>
-          </div>
-          <div v-else-if="rn && rt === 'voice_assigner'" class="step-loading">
-            <Loader2 :size="24" class="animate-spin" style="color:var(--accent)" />
-            <div class="loading-text">正在分配音色...</div>
-          </div>
-          <div v-else class="voice-stage">
-            <aside class="card voice-stage-panel">
-              <div class="voice-stage-kicker">Voice Casting</div>
-              <div class="voice-stage-title">角色声音分配台</div>
-              <div class="voice-stage-desc">先为每个角色选择合适音色，再生成试听。音色标签会帮助你快速区分旁白、主角、反派和配角的表达方向。</div>
-              <div class="voice-stage-stats">
-                <div class="voice-stage-stat">
-                  <span class="voice-stage-stat-label">已分配</span>
-                  <strong>{{ charsVoiced }}/{{ chars.length }}</strong>
-                </div>
-                <div class="voice-stage-stat">
-                  <span class="voice-stage-stat-label">试听文件</span>
-                  <strong>{{ voiceSampleCount }}/{{ charsVoiced }}</strong>
-                </div>
-              </div>
-              <div class="voice-library-meta">
-                <span>音色库</span>
-                <span>{{ voiceProfiles.length }} 条</span>
-              </div>
-              <div class="voice-library">
-                <div v-for="voice in voiceProfiles" :key="voice.id" class="voice-library-item">
-                  <div class="voice-library-head">
-                    <span class="voice-library-name">{{ voice.label }}</span>
-                    <span class="tag">{{ voice.gender }}</span>
-                  </div>
-                  <div class="voice-library-traits">{{ voice.traits }}</div>
-                  <div class="voice-library-fit">{{ voice.suitable }}</div>
-                </div>
-              </div>
-            </aside>
-
-            <div class="voice-grid">
-              <div v-for="c in chars" :key="c.id" class="card voice-card">
-                <div class="voice-card-head">
-                  <div class="voice-char">
-                    <div class="char-avatar lg">{{ c.name?.[0] || '?' }}</div>
-                    <div class="voice-name">
-                      <div class="voice-name-row">
-                        <div class="extract-name">{{ c.name }}</div>
-                        <span class="tag" :class="(c.voice_style || c.voiceStyle) ? 'tag-success' : ''">{{ (c.voice_style || c.voiceStyle) ? '已分配' : '待分配' }}</span>
-                      </div>
-                      <div class="extract-meta">{{ c.role || '角色' }}</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="voice-card-copy">
-                  <div class="voice-card-text">{{ c.description || c.personality || c.appearance || '暂无角色描述，可根据人物定位手动挑选音色。' }}</div>
-                </div>
-
-                <div class="voice-select-block">
-                  <span class="voice-block-label">选择音色</span>
-                  <BaseSelect
-                    :model-value="c.voice_style || c.voiceStyle || ''"
-                    :options="voiceSelectOptions"
-                    placeholder="选择音色"
-                    searchable
-                    style="width:100%"
-                    @update:model-value="updateCharVoice(c.id, $event)"
-                  />
-                </div>
-
-                <div v-if="getVoiceProfile(c.voice_style || c.voiceStyle)" class="voice-profile-card">
-                  <div class="voice-profile-head">
-                    <span class="voice-profile-name">{{ getVoiceProfile(c.voice_style || c.voiceStyle)?.label }}</span>
-                    <span class="tag">{{ getVoiceProfile(c.voice_style || c.voiceStyle)?.gender }}</span>
-                  </div>
-                  <div class="voice-profile-traits">{{ getVoiceProfile(c.voice_style || c.voiceStyle)?.traits }}</div>
-                  <div class="voice-profile-fit">{{ getVoiceProfile(c.voice_style || c.voiceStyle)?.suitable }}</div>
-                </div>
-
-                <div class="voice-actions-row">
-                  <button class="btn btn-sm" :disabled="!(c.voice_style || c.voiceStyle)" @click="genSample(c.id)">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-                    {{ (c.voice_sample_url || c.voiceSampleUrl) ? '重新试听' : '生成试听' }}
-                  </button>
-                  <span class="dim" style="font-size:11px">{{ (c.voice_sample_url || c.voiceSampleUrl) ? '已生成声音样本，可直接播放' : '生成后可快速确认角色声音' }}</span>
-                </div>
-
-                <div v-if="c.voice_sample_url || c.voiceSampleUrl" class="voice-player">
-                  <audio :src="'/' + (c.voice_sample_url || c.voiceSampleUrl)" controls preload="none" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Step 4: Storyboard -->
-        <div v-else-if="scriptStep === 4" class="step-editor">
-          <div class="step-toolbar">
-            <div class="toolbar-left">
-              <div class="step-indicator">
-                <span class="step-num">05</span>
                 <span class="step-name">分镜列表</span>
               </div>
             </div>
@@ -811,54 +685,6 @@
                   <span :class="['dot', (s.image_url || s.imageUrl) && 'ok', isPendingSceneImage(s.id) && 'pending']" />
                   <span class="dim" style="font-size:10px">{{ (s.image_url || s.imageUrl) ? '已生成' : (isPendingSceneImage(s.id) ? '生成中' : '待生成') }}</span>
                   <button class="btn btn-sm ml-auto" :disabled="isPendingSceneImage(s.id)" @click="genSceneImg(s.id)">{{ isPendingSceneImage(s.id) ? '生成中' : '生成' }}</button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Sub: Dubbing -->
-          <div v-else-if="prodTab === 'dubbing'" class="prod-content">
-            <div class="prod-section-bar">
-              <span class="dim" style="font-size:12px">{{ ttsEligibleCount }} 条可生成配音</span>
-              <span class="tag mono">{{ ttsGeneratedCount }}/{{ ttsEligibleCount }} 已生成</span>
-              <span class="tag">{{ lockedAudioConfigLabel }}</span>
-              <div class="ml-auto flex gap-1">
-                <button class="btn btn-sm" @click="batchShotTTS">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
-                  批量生成
-                </button>
-              </div>
-            </div>
-
-            <div v-if="!ttsEligibleCount" class="step-empty" style="min-height:260px">
-              <div class="empty-visual">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
-              </div>
-              <div class="empty-title">当前没有可生成的配音</div>
-              <div class="empty-desc">先在分镜里填写“角色名：台词”或“旁白：文案”，这里就会出现待生成的语音镜头。</div>
-            </div>
-
-            <div v-else class="dub-grid">
-                <div v-for="(sb, i) in sbs.filter(hasDialogue)" :key="sb.id" class="card dub-card">
-                  <div class="dub-head">
-                    <div class="dub-copy">
-                    <div class="dub-title">
-                      <span class="frame-num">#{{ String(sb.storyboard_number || sb.storyboardNumber || i + 1).padStart(2, '0') }}</span>
-                      <span class="frame-badge">{{ getDialogueSpeaker(sb) }}</span>
-                    </div>
-                    <div class="dub-desc">{{ getDialogueText(sb) || '未填写文本' }}</div>
-                    </div>
-                    <span class="tag" :class="hasTTS(sb) ? 'tag-success' : ''">{{ hasTTS(sb) ? '已生成' : '待生成' }}</span>
-                  </div>
-                <div class="dub-meta">
-                  <span class="dim">{{ sb.shot_type || sb.shotType || '未设景别' }}</span>
-                  <span class="dim">{{ sb.duration || 10 }}s</span>
-                  <span class="dim">{{ sb.location || '未设地点' }}</span>
-                </div>
-                <div class="dub-foot">
-                  <audio v-if="hasTTS(sb)" :src="'/' + getTTSUrl(sb)" controls preload="none" class="dub-audio" />
-                  <div v-else class="dim" style="font-size:12px">尚未生成语音文件</div>
-                  <button class="btn btn-sm ml-auto" @click="genShotTTS(sb)">生成配音</button>
                 </div>
               </div>
             </div>
@@ -1290,7 +1116,6 @@
                   <div class="prod-meta-line">{{ sb.shot_type || sb.shotType || '未设景别' }} · {{ sb.duration || 10 }}s</div>
                   <div class="prod-dots">
                     <span :class="['dot', hasVid(sb) && 'ok']" /><span style="font-size:10px">视频</span>
-                    <span :class="['dot', hasTTS(sb) && 'ok']" /><span style="font-size:10px">配音</span>
                     <span :class="['dot', hasComposed(sb) && 'ok', isPendingCompose(sb.id) && 'pending']" /><span style="font-size:10px">{{ isPendingCompose(sb.id) ? '合成中' : '合成' }}</span>
                   </div>
                   <div v-if="composeFailMessage(sb.id)" class="prod-error">{{ composeFailMessage(sb.id) }}</div>
@@ -1438,9 +1263,9 @@
 <script setup>
 import { toast } from 'vue-sonner'
 import {
-  Users, MapPin, Video, ImageIcon, Layers, Mic2, FileText, FolderKanban, Clapperboard, Download,
+  Users, MapPin, Video, ImageIcon, Layers, FileText, FolderKanban, Clapperboard, Download,
 } from 'lucide-vue-next'
-import { dramaAPI, episodeAPI, storyboardAPI, characterAPI, sceneAPI, imageAPI, videoAPI, composeAPI, mergeAPI, gridAPI, aiConfigAPI, voicesAPI } from '~/composables/useApi'
+import { dramaAPI, episodeAPI, storyboardAPI, characterAPI, sceneAPI, imageAPI, videoAPI, composeAPI, mergeAPI, gridAPI, aiConfigAPI } from '~/composables/useApi'
 import { useAgent } from '~/composables/useAgent'
 import BaseSelect from '~/components/BaseSelect.vue'
 
@@ -1460,8 +1285,6 @@ const scriptContent = computed(() => episode.value?.script_content || episode.va
 const epId = computed(() => episode.value?.id || 0)
 const rawLen = computed(() => localRaw.value.replace(/\s/g, '').length || 0)
 const scriptLen = computed(() => localScript.value.replace(/\s/g, '').length || 0)
-const charsVoiced = computed(() => chars.value.filter(c => c.voice_style || c.voiceStyle).length)
-const voiceSampleCount = computed(() => chars.value.filter(c => c.voice_sample_url || c.voiceSampleUrl).length)
 const composedCount = computed(() => sbs.value.filter(s => s.composed_video_url || s.composedVideoUrl).length)
 const mergeUrl = computed(() => mergeData.value?.merged_url || mergeData.value?.mergedUrl || null)
 
@@ -1472,16 +1295,6 @@ const prodTabIdx = computed({
   set: (v) => { prodTab.value = prodTabDefs.value[v]?.id || 'chars' },
 })
 const frameMode = ref('first')
-const fallbackVoiceProfiles = [
-  { id: 'alloy', label: 'Alloy', gender: '中性', traits: '平衡、自然、克制', suitable: '通用叙述、旁白、需要稳定输出的角色' },
-  { id: 'echo', label: 'Echo', gender: '男声', traits: '低沉、稳重、冷静', suitable: '成熟男性、父辈、旁白、压迫感角色' },
-  { id: 'fable', label: 'Fable', gender: '男声', traits: '温暖、讲述感、表现力强', suitable: '男主、成长型角色、叙事担当' },
-  { id: 'onyx', label: 'Onyx', gender: '男声', traits: '深沉、有力、权威', suitable: '反派、强势角色、掌控型人物' },
-  { id: 'nova', label: 'Nova', gender: '女声', traits: '温柔、甜润、亲和', suitable: '女主、母亲、柔和配角' },
-  { id: 'shimmer', label: 'Shimmer', gender: '女声', traits: '明亮、活泼、年轻', suitable: '少女、轻快角色、跳脱配角' },
-]
-const voiceProfiles = ref(fallbackVoiceProfiles)
-const voiceSelectOptions = computed(() => voiceProfiles.value.map(v => ({ label: `${v.label} · ${v.traits}`, value: v.id })))
 const videoConfigSelectOptions = computed(() => videoConfigs.value.map(c => {
   let modelName = ''
   try { const m = JSON.parse(c.model || '[]'); modelName = Array.isArray(m) ? (m[0] || '') : (m || '') } catch { modelName = c.model || '' }
@@ -1497,7 +1310,6 @@ const gridLayoutOptions = [
 ]
 const imageConfigs = ref([])
 const videoConfigs = ref([])
-const audioConfigs = ref([])
 const pendingCharImageIds = ref([])
 const pendingSceneImageIds = ref([])
 const pendingShotFrameKeys = ref([])
@@ -1576,11 +1388,8 @@ const visualChars = computed(() => chars.value.filter(c => !isNarratorCharacter(
 
 const lockedImageConfigId = computed(() => episode.value?.image_config_id || episode.value?.imageConfigId || null)
 const lockedVideoConfigId = computed(() => episode.value?.video_config_id || episode.value?.videoConfigId || null)
-const lockedAudioConfigId = computed(() => episode.value?.audio_config_id || episode.value?.audioConfigId || null)
-const lockedAudioProvider = computed(() => audioConfigs.value.find(c => c.id === lockedAudioConfigId.value)?.provider || '')
 const lockedImageConfigLabel = computed(() => configLabel(imageConfigs.value.find(c => c.id === lockedImageConfigId.value)))
 const lockedVideoConfigLabel = computed(() => configLabel(videoConfigs.value.find(c => c.id === lockedVideoConfigId.value)))
-const lockedAudioConfigLabel = computed(() => configLabel(audioConfigs.value.find(c => c.id === lockedAudioConfigId.value)))
 
 // Grid tool state
 const gridDialog = ref(false)
@@ -1755,7 +1564,6 @@ const gridBlankStyle = computed(() => {
 function prodStepDone(id) {
   if (id === 'chars') return !visualCharTotal.value || charImgCount.value === visualCharTotal.value
   if (id === 'scenes') return !!scenes.value.length && sceneImgCount.value === scenes.value.length
-  if (id === 'dubbing') return !!sbs.value.length && (!ttsEligibleCount.value || ttsGeneratedCount.value === ttsEligibleCount.value)
   if (id === 'shots') return !!sbs.value.length && shotImgCount.value === sbs.value.length
   if (id === 'videos') return !!sbs.value.length && shotVidCount.value === sbs.value.length
   if (id === 'compose') return !!sbs.value.length && composedCount.value === sbs.value.length
@@ -1771,25 +1579,24 @@ function goNextProd() {
 }
 
 // Script step navigation
-const stepLabels = ['原始内容', 'AI 改写', '提取', '音色', '分镜']
+const stepLabels = ['原始内容', 'AI 改写', '提取', '分镜']
 const prevStepLabel = computed(() => scriptStep.value > 0 ? stepLabels[scriptStep.value - 1] : '')
 const nextStepLabel = computed(() => {
-  if (scriptStep.value === 4) return '进入制作'
+  if (scriptStep.value === 3) return '进入制作'
   return stepLabels[scriptStep.value + 1] || ''
 })
 const canGoNext = computed(() => {
   if (scriptStep.value === 0) return !!localRaw.value.trim()
   if (scriptStep.value === 1) return !!localScript.value.trim() || !!scriptContent.value
   if (scriptStep.value === 2) return chars.value.length > 0
-  if (scriptStep.value === 3) return charsVoiced.value > 0
-  if (scriptStep.value === 4) return sbs.value.length > 0
+  if (scriptStep.value === 3) return sbs.value.length > 0
   return false
 })
 function goPrevStep() { if (scriptStep.value > 0) scriptStep.value-- }
 function goNextStep() {
   if (scriptStep.value === 0 && localRaw.value.trim()) { saveRaw() }
   if (scriptStep.value === 1 && localScript.value.trim()) { saveScr() }
-  if (scriptStep.value === 4) { panel.value = 'production'; return }
+  if (scriptStep.value === 3) { panel.value = 'production'; return }
   if (canGoNext.value) scriptStep.value++
 }
 
@@ -2074,8 +1881,6 @@ async function doGridSplit() {
 
 const charImgCount = computed(() => visualChars.value.filter(c => c.image_url || c.imageUrl).length)
 const sceneImgCount = computed(() => scenes.value.filter(s => s.image_url || s.imageUrl).length)
-const ttsEligibleCount = computed(() => sbs.value.filter(s => hasDialogue(s)).length)
-const ttsGeneratedCount = computed(() => sbs.value.filter(s => hasDialogue(s) && hasTTS(s)).length)
 const shotImgCount = computed(() => sbs.value.filter(s => s.first_frame_image || s.firstFrameImage || s.last_frame_image || s.lastFrameImage || s.composed_image || s.composedImage).length)
 const shotVidCount = computed(() => sbs.value.filter(s => s.video_url || s.videoUrl).length)
 const visualCharTotal = computed(() => visualChars.value.length)
@@ -2083,7 +1888,6 @@ const visualCharTotal = computed(() => visualChars.value.length)
 const prodTabDefs = computed(() => [
   { id: 'chars', label: '角色形象', icon: Users, badge: visualCharTotal.value ? `${charImgCount.value}/${visualCharTotal.value}` : '' },
   { id: 'scenes', label: '场景图片', icon: MapPin, badge: sceneImgCount.value ? `${sceneImgCount.value}/${scenes.value.length}` : '' },
-  { id: 'dubbing', label: '配音生成', icon: Mic2, badge: '' },
   { id: 'shots', label: '镜头图片', icon: ImageIcon, badge: shotImgCount.value ? `${shotImgCount.value}/${sbs.value.length}` : '' },
   { id: 'videos', label: '视频生成', icon: Video, badge: shotVidCount.value ? `${shotVidCount.value}/${sbs.value.length}` : '' },
   { id: 'compose', label: '视频合成', icon: Layers, badge: composedCount.value ? `${composedCount.value}/${sbs.value.length}` : '' },
@@ -2091,7 +1895,7 @@ const prodTabDefs = computed(() => [
 
 const mainStageDefs = [
   { id: 'script', label: '剧本', desc: '内容改写与整理', icon: FileText },
-  { id: 'assets', label: '资产', desc: '角色、场景与音色', icon: FolderKanban },
+  { id: 'assets', label: '资产', desc: '角色与场景', icon: FolderKanban },
   { id: 'storyboard', label: '分镜', desc: '镜头制作与合成', icon: Clapperboard },
   { id: 'export', label: '导出', desc: '拼接与成片输出', icon: Download },
 ]
@@ -2104,7 +1908,6 @@ const sidebarSections = computed(() => ([
       { key: 'script:raw', label: '原始内容', desc: '', icon: FileText, done: !!rawContent.value },
       { key: 'script:rewrite', label: 'AI 改写', desc: '', icon: FileText, done: !!scriptContent.value },
       { key: 'script:extract', label: '提取', desc: '', icon: Users, done: !!chars.value.length },
-      { key: 'script:voice', label: '音色', desc: '', icon: Mic2, done: !!chars.value.length && charsVoiced.value === chars.value.length },
       { key: 'script:storyboard', label: '分镜', desc: '', icon: Clapperboard, done: !!sbs.value.length },
     ],
   },
@@ -2114,7 +1917,6 @@ const sidebarSections = computed(() => ([
     items: [
       { key: 'prod:chars', label: '角色形象', desc: '', icon: Users, done: prodStepDone('chars') },
       { key: 'prod:scenes', label: '场景图片', desc: '', icon: MapPin, done: prodStepDone('scenes') },
-      { key: 'prod:dubbing', label: '配音生成', desc: '', icon: Mic2, done: prodStepDone('dubbing') },
       { key: 'prod:shots', label: '镜头图片', desc: '', icon: ImageIcon, done: prodStepDone('shots') },
       { key: 'prod:videos', label: '视频生成', desc: '', icon: Video, done: prodStepDone('videos') },
       { key: 'prod:compose', label: '视频合成', desc: '', icon: Layers, done: prodStepDone('compose') },
@@ -2135,23 +1937,21 @@ const activeMainStage = computed(() => {
     return ['chars', 'scenes'].includes(prodTab.value) ? 'assets' : 'storyboard'
   }
   if (scriptStep.value <= 1) return 'script'
-  if (scriptStep.value <= 3) return 'assets'
+  if (scriptStep.value <= 2) return 'assets'
   return 'storyboard'
 })
 
 function mainStageDone(stageId) {
   if (stageId === 'script') return !!scriptContent.value
   if (stageId === 'assets') {
-    const charsReady = !!chars.value.length && charsVoiced.value === chars.value.length
+    const charsReady = !!chars.value.length
     const charImagesReady = !visualCharTotal.value || charImgCount.value === visualCharTotal.value
     const sceneImagesReady = !scenes.value.length || sceneImgCount.value === scenes.value.length
     return charsReady && charImagesReady && sceneImagesReady
   }
   if (stageId === 'storyboard') {
     if (!sbs.value.length) return false
-    const ttsReady = !ttsEligibleCount.value || ttsGeneratedCount.value === ttsEligibleCount.value
-    return ttsReady
-      && shotImgCount.value === sbs.value.length
+    return shotImgCount.value === sbs.value.length
       && shotVidCount.value === sbs.value.length
       && composedCount.value === sbs.value.length
   }
@@ -2180,11 +1980,11 @@ function goMainStage(stageId) {
   }
   if (stageId === 'storyboard') {
     if (panel.value === 'production') {
-      prodTab.value = ['dubbing', 'shots', 'videos', 'compose'].includes(prodTab.value) ? prodTab.value : 'dubbing'
+      prodTab.value = ['shots', 'videos', 'compose'].includes(prodTab.value) ? prodTab.value : 'shots'
       return
     }
     panel.value = 'script'
-    scriptStep.value = 4
+    scriptStep.value = 3
     return
   }
   panel.value = 'export'
@@ -2200,7 +2000,6 @@ const activeSubSteps = computed(() => {
   if (activeMainStage.value === 'assets') {
     return [
       { key: 'script:extract', label: '提取角色场景', done: !!chars.value.length },
-      { key: 'script:voice', label: '分配音色', done: !!chars.value.length && charsVoiced.value === chars.value.length },
       { key: 'prod:chars', label: '角色形象', done: !visualCharTotal.value || charImgCount.value === visualCharTotal.value },
       { key: 'prod:scenes', label: '场景图片', done: !scenes.value.length || sceneImgCount.value === scenes.value.length },
     ]
@@ -2208,7 +2007,6 @@ const activeSubSteps = computed(() => {
   if (activeMainStage.value === 'storyboard') {
     return [
       { key: 'script:storyboard', label: '分镜拆解', done: !!sbs.value.length },
-      { key: 'prod:dubbing', label: '配音生成', done: !ttsEligibleCount.value || ttsGeneratedCount.value === ttsEligibleCount.value },
       { key: 'prod:shots', label: '镜头图片', done: !!sbs.value.length && shotImgCount.value === sbs.value.length },
       { key: 'prod:videos', label: '视频生成', done: !!sbs.value.length && shotVidCount.value === sbs.value.length },
       { key: 'prod:compose', label: '视频合成', done: !!sbs.value.length && composedCount.value === sbs.value.length },
@@ -2224,7 +2022,6 @@ const activeSubStepKey = computed(() => {
     if (scriptStep.value === 0) return 'script:raw'
     if (scriptStep.value === 1) return 'script:rewrite'
     if (scriptStep.value === 2) return 'script:extract'
-    if (scriptStep.value === 3) return 'script:voice'
     return 'script:storyboard'
   }
   if (panel.value === 'production') return `prod:${prodTab.value}`
@@ -2242,7 +2039,6 @@ const bubbleSteps = computed(() => {
       { key: 'script:raw', label: '原始内容', done: !!rawContent.value },
       { key: 'script:rewrite', label: 'AI 改写', done: !!scriptContent.value },
       { key: 'script:extract', label: '提取', done: !!chars.value.length },
-      { key: 'script:voice', label: '音色', done: !!chars.value.length && charsVoiced.value === chars.value.length },
       { key: 'script:storyboard', label: '分镜', done: !!sbs.value.length },
     ]
   }
@@ -2271,8 +2067,7 @@ function goSubStep(key) {
       'script:raw': 0,
       'script:rewrite': 1,
       'script:extract': 2,
-      'script:voice': 3,
-      'script:storyboard': 4,
+      'script:storyboard': 3,
     }
     scriptStep.value = stepMap[key] ?? 0
     return
@@ -2290,9 +2085,7 @@ const pipelineProgress = computed(() => {
   if (rawContent.value) p++
   if (scriptContent.value) p++
   if (chars.value.length) p++
-  if (charsVoiced.value) p++
   if (sbs.value.length) p++
-  if (sbs.value.length && (!ttsEligibleCount.value || ttsGeneratedCount.value === ttsEligibleCount.value)) p++
   if (sbs.value.some(s => s.composed_image || s.composedImage)) p++
   if (sbs.value.some(s => s.video_url || s.videoUrl)) p++
   if (sbs.value.length && composedCount.value === sbs.value.length) p++
@@ -2316,21 +2109,6 @@ const currentSubStageLabel = computed(() => {
   return current?.label || currentStageLabel.value
 })
 
-function updateCharVoice(charId, voiceId) {
-  characterAPI.update(charId, { voice_style: voiceId, voice_provider: lockedAudioProvider.value || undefined })
-  const c = chars.value.find(ch => ch.id === charId)
-  if (c) {
-    c.voice_style = voiceId
-    c.voiceStyle = voiceId
-    c.voice_provider = lockedAudioProvider.value || ''
-    c.voiceProvider = lockedAudioProvider.value || ''
-    c.voice_sample_url = ''
-    c.voiceSampleUrl = ''
-  }
-}
-function getVoiceProfile(voiceId) {
-  return voiceProfiles.value.find(v => v.id === voiceId) || null
-}
 const totalDuration = computed(() => sbs.value.reduce((s, sb) => s + (sb.duration || 10), 0))
 
 const selectedSb = ref(null)
@@ -2395,14 +2173,12 @@ async function deleteShot(sb) {
 const scriptSteps = computed(() => {
   const hasScript = !!scriptContent.value
   const hasChars = chars.value.length > 0 && hasScript
-  const hasVoice = charsVoiced.value > 0 && hasChars
   const hasSbs = sbs.value.length > 0
   return [
     { label: '原始内容', state: rawContent.value ? 'done' : 'active', spinning: false },
     { label: 'AI 改写', state: hasScript ? 'done' : (rawContent.value ? 'active' : ''), spinning: rt.value === 'script_rewriter' },
     { label: '提取', state: hasChars ? 'done' : (hasScript ? 'active' : ''), spinning: rt.value === 'extractor' },
-    { label: '音色', state: hasVoice ? 'done' : (hasChars ? 'active' : ''), spinning: rt.value === 'voice_assigner' },
-    { label: '分镜', state: hasSbs ? 'done' : (hasVoice ? 'active' : ''), spinning: rt.value === 'storyboard_breaker' },
+    { label: '分镜', state: hasSbs ? 'done' : (hasChars ? 'active' : ''), spinning: rt.value === 'storyboard_breaker' },
   ]
 })
 
@@ -2424,8 +2200,7 @@ async function refresh() {
       const epHasScript = !!(episode.value?.script_content || episode.value?.scriptContent)
       const epHasSbs = sbs.value.length > 0
 
-      if (epHasSbs) scriptStep.value = 4
-      else if (epHasScript && chars.value.some(c => c.voice_style || c.voiceStyle)) scriptStep.value = 3
+      if (epHasSbs) scriptStep.value = 3
       else if (epHasScript && chars.value.length) scriptStep.value = 2
       else if (epHasScript || epHasContent) scriptStep.value = 1
       else scriptStep.value = 0
@@ -2452,26 +2227,11 @@ function skipRewrite() {
   scriptStep.value = 2
 }
 function doExtract() { saveScr(); runAgent('extractor', '请从剧本中提取所有角色和场景信息，提取时自动与项目已有数据进行去重合并', dramaId, epId.value, refresh) }
-function doVoice() { runAgent('voice_assigner', '请为所有角色分配合适的音色', dramaId, epId.value, refresh) }
-async function batchGenSamples() {
-  const pending = chars.value.filter(c => (c.voice_style || c.voiceStyle) && !(c.voice_sample_url || c.voiceSampleUrl))
-  if (!pending.length) {
-    toast.info(charsVoiced.value ? '所有角色的试听文件已生成' : '请先分配音色')
-    return
-  }
-  const results = await Promise.allSettled(pending.map(c => characterAPI.voiceSample(c.id, epId.value)))
-  const okCount = results.filter(r => r.status === 'fulfilled').length
-  const failCount = results.length - okCount
-  if (okCount) toast.success(`已生成 ${okCount} 份试听文件`)
-  if (failCount) toast.error(`${failCount} 份试听文件生成失败`)
-  await refresh()
-}
 function doBreakdown() {
   const cfg = videoConfigs.value.find(c => c.id === lockedVideoConfigId.value)
   const label = cfg ? `${cfg.name} (${cfg.provider})` : '默认'
   runAgent('storyboard_breaker', `请拆解分镜并生成视频提示词。视频模型：${label}，请根据该模型的特性和时长限制生成合适的视频提示词。`, dramaId, epId.value, refresh)
 }
-async function genSample(id) { try { await characterAPI.voiceSample(id, epId.value); toast.success('试听已生成'); refresh() } catch (e) { toast.error(e.message) } }
 async function addShot() { await storyboardAPI.create({ episode_id: epId.value, storyboard_number: sbs.value.length + 1, title: `镜头${sbs.value.length + 1}`, duration: 10 }); refresh() }
 
 function sleep(ms) {
@@ -2552,59 +2312,6 @@ function batchSceneImages() {
     if (done) pendingSceneImageIds.value = pendingSceneImageIds.value.filter(item => item !== id)
     return done
   }), 36)
-}
-
-const IGNORE_TTS_SPEAKERS = /^(环境音|环境声|音效|效果音|sfx|sound ?effect|bgm|背景音|背景音乐|ambient)$/i
-const IGNORE_TTS_TEXT = /^(无|无对白|无台词|无旁白|无需配音|无需对白|none|null|n\/a|na|环境音|环境声|音效|效果音|纯音效|纯环境音|只有环境音|仅环境音|背景音|背景音乐|bgm|sfx|ambient)$/i
-
-function getDialogueSpeakerRaw(sb) {
-  const dialogue = sb?.dialogue?.trim() || ''
-  const match = dialogue.match(/^(.+?)[:：]/)
-  return match ? match[1].replace(/[（(].+?[)）]/g, '').trim() : ''
-}
-
-function getDialogueText(sb) {
-  const dialogue = sb?.dialogue?.trim() || ''
-  return dialogue ? dialogue.replace(/^.+?[:：]\s*/, '').trim() : ''
-}
-
-function isTTSIgnorable(sb) {
-  const speaker = getDialogueSpeakerRaw(sb)
-  const text = getDialogueText(sb)
-  if (!sb?.dialogue?.trim()) return true
-  if (speaker && IGNORE_TTS_SPEAKERS.test(speaker)) return true
-  if (!text) return true
-  if (IGNORE_TTS_TEXT.test(text)) return true
-  return false
-}
-
-function hasDialogue(sb) { return !isTTSIgnorable(sb) }
-function hasTTS(sb) { return !!(sb?.tts_audio_url || sb?.ttsAudioUrl) }
-function getTTSUrl(sb) { return sb?.tts_audio_url || sb?.ttsAudioUrl || '' }
-function getDialogueSpeaker(sb) {
-  const speaker = getDialogueSpeakerRaw(sb)
-  if (!speaker) return '旁白'
-  return speaker
-}
-async function genShotTTS(sb) {
-  try {
-    await storyboardAPI.generateTTS(sb.id)
-    toast.success(`镜头 #${sb.storyboard_number || sb.storyboardNumber || sb.id} 配音已生成`)
-    await refresh()
-  } catch (e) { toast.error(e.message) }
-}
-async function batchShotTTS() {
-  const pending = sbs.value.filter(sb => hasDialogue(sb) && !hasTTS(sb))
-  if (!pending.length) {
-    toast.info(ttsEligibleCount.value ? '所有镜头配音已生成' : '当前没有可生成的对白或旁白')
-    return
-  }
-  const results = await Promise.allSettled(pending.map(sb => storyboardAPI.generateTTS(sb.id)))
-  const okCount = results.filter(r => r.status === 'fulfilled').length
-  const failCount = results.length - okCount
-  if (okCount) toast.success(`已生成 ${okCount} 条镜头配音`)
-  if (failCount) toast.error(`${failCount} 条镜头配音生成失败`)
-  await refresh()
 }
 
 function getFirstFrame(s) { return s?.first_frame_image || s?.firstFrameImage || null }
@@ -2846,48 +2553,16 @@ function getRefs(sb) {
 
 async function loadConfigs() {
   try {
-    const [imgCfgs, vidCfgs, audCfgs] = await Promise.all([
+    const [imgCfgs, vidCfgs] = await Promise.all([
       aiConfigAPI.list('image'),
       aiConfigAPI.list('video'),
-      aiConfigAPI.list('audio'),
     ])
     imageConfigs.value = imgCfgs || []
     videoConfigs.value = vidCfgs || []
-    audioConfigs.value = audCfgs || []
   } catch (e) { console.error('Failed to load AI configs', e) }
 }
 
-function inferVoiceGender(name, desc = []) {
-  const text = `${name} ${Array.isArray(desc) ? desc.join(' ') : ''}`
-  if (/[男|青年|大爷|学长|boy|man|male]/i.test(text)) return '男声'
-  if (/[女|少女|御姐|奶奶|girl|woman|female]/i.test(text)) return '女声'
-  return '中性'
-}
-
-function mapVoiceProfile(v) {
-  const desc = Array.isArray(v.description) ? v.description : []
-  return {
-    id: v.voice_id,
-    label: v.voice_name || v.voice_id,
-    gender: inferVoiceGender(v.voice_name || v.voice_id, desc),
-    traits: desc.length ? desc.slice(0, 2).join('、') : `${v.language || '多语言'}音色`,
-    suitable: desc.length > 2 ? desc.slice(2).join('、') : `${v.language || '通用'}角色`,
-  }
-}
-
-async function loadVoices() {
-  try {
-    const provider = lockedAudioProvider.value || 'minimax'
-    const rows = await voicesAPI.list(provider)
-    voiceProfiles.value = rows?.length ? rows.map(mapVoiceProfile) : fallbackVoiceProfiles
-  } catch (e) {
-    console.error('Failed to load voices', e)
-    voiceProfiles.value = fallbackVoiceProfiles
-  }
-}
-
-watch([lockedAudioConfigId, audioConfigs], () => { loadVoices() }, { deep: true })
-onMounted(() => { refresh(); loadConfigs(); loadVoices() })
+onMounted(() => { refresh(); loadConfigs() })
 </script>
 
 <style scoped>
@@ -3366,69 +3041,6 @@ onMounted(() => { refresh(); loadConfigs(); loadVoices() })
 .extract-meta { font-size: 11px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .extract-meta.wrap { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
-/* Voice grid */
-.voice-stage { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px; display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 12px; }
-.voice-stage-panel {
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  align-self: start;
-  position: sticky;
-  top: 0;
-  min-height: 0;
-  max-height: calc(100vh - 210px);
-  overflow: hidden;
-}
-.voice-stage-kicker { font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); }
-.voice-stage-title { font-size: 20px; line-height: 1.05; font-family: var(--font-display); color: var(--text-0); }
-.voice-stage-desc { font-size: 12px; color: var(--text-2); line-height: 1.7; }
-.voice-stage-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.voice-stage-stat { padding: 10px 12px; border-radius: 14px; background: rgba(19, 51, 121, 0.05); border: 1px solid rgba(19, 51, 121, 0.08); display: flex; flex-direction: column; gap: 3px; }
-.voice-stage-stat-label { font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; }
-.voice-stage-stat strong { font-size: 18px; color: var(--text-0); font-family: var(--font-display); }
-.voice-library-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-3);
-}
-.voice-library {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-height: 0;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-.voice-library-item { padding: 10px 12px; border-radius: 14px; background: rgba(255,255,255,0.56); border: 1px solid rgba(27, 41, 64, 0.08); display: flex; flex-direction: column; gap: 4px; }
-.voice-library-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.voice-library-name { font-size: 13px; font-weight: 700; color: var(--text-0); }
-.voice-library-traits { font-size: 11px; color: var(--text-1); }
-.voice-library-fit { font-size: 10px; color: var(--text-3); line-height: 1.5; }
-
-.voice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; align-content: start; }
-.voice-card { padding: 16px; display: flex; flex-direction: column; gap: 12px; border-radius: 22px; min-height: 0; }
-.voice-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.voice-char { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
-.voice-name { min-width: 0; flex: 1; }
-.voice-name-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.voice-card-copy { min-height: 58px; }
-.voice-card-text { font-size: 12px; line-height: 1.7; color: var(--text-2); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.voice-select-block { display: flex; flex-direction: column; gap: 6px; }
-.voice-block-label { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); }
-.voice-profile-card { padding: 12px; border-radius: 16px; background: linear-gradient(135deg, rgba(19, 51, 121, 0.08), rgba(255,255,255,0.78)); border: 1px solid rgba(19, 51, 121, 0.1); display: flex; flex-direction: column; gap: 4px; }
-.voice-profile-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.voice-profile-name { font-size: 13px; font-weight: 700; color: var(--accent-text); }
-.voice-profile-traits { font-size: 11px; color: var(--text-1); }
-.voice-profile-fit { font-size: 10px; color: var(--text-2); line-height: 1.5; }
-.voice-actions-row { display: flex; align-items: center; gap: 8px; }
-.voice-player audio { width: 100%; height: 30px; border-radius: var(--radius); }
 .char-avatar.lg { width: 38px; height: 38px; font-size: 16px; }
 
 /* Split layout (storyboard) */
@@ -4245,13 +3857,8 @@ onMounted(() => { refresh(); loadConfigs(); loadVoices() })
   }
 
   .extract-grid,
-  .voice-grid,
   .asset-grid,
   .prod-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .voice-stage {
     grid-template-columns: 1fr;
   }
 
@@ -4261,12 +3868,6 @@ onMounted(() => { refresh(); loadConfigs(); loadVoices() })
 
   .extract-summary {
     position: static;
-  }
-
-  .voice-stage-panel {
-    position: static;
-    max-height: none;
-    overflow: visible;
   }
 
   .frame-row {

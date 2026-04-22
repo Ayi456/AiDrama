@@ -37,48 +37,8 @@
             </div>
           </div>
           <h2 class="settings-title">AI 服务配置</h2>
-          <p class="settings-desc">先用推荐模板快速落配置，再按服务类型微调。工作台创建集时会锁定所选图片、视频和音频能力。</p>
+          <p class="settings-desc">这里只保留文本、图片、视频三类 AI 服务配置，供剧本拆解、资产生成与纯视频合成流程使用。</p>
         </div>
-        <section class="setup-panel card">
-          <div class="setup-panel-head">
-            <div>
-              <div class="setup-kicker">Quick Setup</div>
-              <div class="setup-title">AiDrama 推荐配置</div>
-              <div class="setup-desc">一键写入文本、图片、视频、音频四类推荐配置，适合作为开箱默认方案。</div>
-            </div>
-            <button class="btn btn-primary" @click="presetDialog = true">
-              <Sparkles :size="14" /> AiDrama 一键配置
-            </button>
-          </div>
-          <div class="preset-grid">
-            <article v-for="preset in aiDramaPresetCards" :key="preset.serviceType" class="preset-card">
-              <div class="preset-card-top">
-                <span class="preset-service">{{ preset.label }}</span>
-                <span class="tag tag-accent">{{ preset.provider }}</span>
-              </div>
-              <div class="preset-model mono">{{ preset.model }}</div>
-              <div class="preset-base mono">{{ preset.baseUrl }}</div>
-            </article>
-          </div>
-        </section>
-        <section class="setup-panel card">
-          <div class="setup-panel-head compact">
-            <div>
-              <div class="setup-title">快捷模板</div>
-              <div class="setup-desc">选择服务类型后，直接用模板填充推荐的 `provider / base URL / model`。</div>
-            </div>
-          </div>
-          <div class="template-row">
-            <button
-              v-for="st in serviceTypes"
-              :key="st.type"
-              class="template-type-chip"
-              @click="startAddCfg(st.type)"
-            >
-              {{ st.label }}
-            </button>
-          </div>
-        </section>
         <div class="sections">
           <section v-for="st in serviceTypes" :key="st.type">
             <div class="section-head">
@@ -318,41 +278,6 @@
       </form>
     </div>
 
-    <!-- AiDrama Preset Dialog -->
-    <div v-if="presetDialog" class="overlay" @click.self="presetDialog = false">
-      <form class="modal card config-modal" @submit.prevent="applyAiDramaPreset">
-        <div class="config-modal-head">
-          <div>
-            <div class="setup-kicker">AiDrama Preset</div>
-            <h2 class="modal-title">AiDrama 一键配置</h2>
-            <div class="modal-note">按 AiDrama 推荐链路自动创建或更新 4 条服务配置，并同时初始化 5 个 Agent 的默认模型。</div>
-          </div>
-          <span class="tag tag-success">推荐</span>
-        </div>
-        <div class="aidrama-grid">
-          <label class="field">
-            <span class="field-label">AiDrama API Key <span class="dim">(统一用于文本 / 图片 / 视频 / 音频)</span></span>
-            <input v-model="aidramaForm.apiKey" class="input" type="password" placeholder="用于 api.chatfire.site 全链路服务" />
-            <span class="field-hint">还没有账号？<a href="https://api.chatfire.site/" target="_blank" rel="noopener">立即注册 →</a></span>
-          </label>
-        </div>
-        <div class="preset-grid compact">
-          <article v-for="preset in aiDramaPresetCards" :key="`${preset.serviceType}-${preset.provider}`" class="preset-card">
-            <div class="preset-card-top">
-              <span class="preset-service">{{ preset.label }}</span>
-              <span class="tag tag-accent">{{ preset.provider }}</span>
-            </div>
-            <div class="preset-model mono">{{ preset.model }}</div>
-            <div class="preset-base mono">{{ preset.baseUrl }}</div>
-          </article>
-        </div>
-        <div class="modal-actions">
-          <button type="button" class="btn" @click="presetDialog = false">取消</button>
-          <button type="submit" class="btn btn-primary">创建并启用</button>
-        </div>
-      </form>
-    </div>
-
     <!-- Add Skill Dialog -->
     <div v-if="addSkillDialog" class="overlay" @click.self="addSkillDialog = false">
       <form class="modal card" @submit.prevent="confirmAddSkill">
@@ -379,7 +304,7 @@
 </template>
 
 <script setup>
-import { Plus, Pencil, Trash2, FileText, ChevronDown, Check, Loader2, Bot, Cpu, Sparkles } from 'lucide-vue-next'
+import { Plus, Pencil, Trash2, FileText, ChevronDown, Check, Loader2, Bot, Cpu } from 'lucide-vue-next'
 import BaseSelect from '~/components/BaseSelect.vue'
 import { toast } from 'vue-sonner'
 import { aiConfigAPI, agentConfigAPI, skillsAPI } from '~/composables/useApi'
@@ -400,19 +325,16 @@ watch(showAdvanced, (v) => {
 const cfgs = ref([])
 const cfgDialog = ref(false)
 const cfgEditId = ref(null)
-const presetDialog = ref(false)
 const cfgTesting = ref(false)
 const cfgTestResult = ref(null)
 const cfgForm = reactive({ name: '', provider: '', api_key: '', base_url: '', modelStr: '', service_type: 'text', priority: 0 })
-const aidramaForm = reactive({ apiKey: '' })
-const serviceTypes = [{ type: 'text', label: '文本' }, { type: 'image', label: '图片' }, { type: 'video', label: '视频' }, { type: 'audio', label: '音频' }]
+const serviceTypes = [{ type: 'text', label: '文本' }, { type: 'image', label: '图片' }, { type: 'video', label: '视频' }]
 const providers = ['ali', 'chatfire', 'gemini', 'minimax', 'openai', 'openrouter', 'vidu', 'volcengine']
 const providerSelectOptions = computed(() => providers.map(p => ({ label: p, value: p })))
 const serviceMeta = {
   text: { label: '文本', desc: '剧本改写、角色场景提取、分镜拆解等 Agent 文本能力' },
   image: { label: '图片', desc: '角色图、场景图、镜头图与首尾帧等静态图像生成' },
   video: { label: '视频', desc: '镜头视频生成，支持单图、多图和首尾帧模式' },
-  audio: { label: '音频', desc: '角色试听、旁白与对白语音生成' },
 }
 const providerPresets = {
   text: {
@@ -430,16 +352,7 @@ const providerPresets = {
     vidu: { label: 'Vidu 推荐', baseUrl: 'https://api.vidu.com', models: ['viduq3-turbo'] },
     ali: { label: '阿里推荐', baseUrl: 'https://dashscope.aliyuncs.com', models: ['wan2.6-i2v-flash'] },
   },
-  audio: {
-    minimax: { label: 'AiDrama 音频', baseUrl: 'https://api.chatfire.site/minimax', models: ['speech-2.8-hd'] },
-  },
 }
-const aiDramaPresetCards = [
-  { serviceType: 'text', label: '文本', provider: 'chatfire', baseUrl: 'https://api.chatfire.site', model: 'gemini-3-pro-preview', priority: 100 },
-  { serviceType: 'image', label: '图片', provider: 'gemini', baseUrl: 'https://api.chatfire.site', model: 'gemini-3-pro-image-preview', priority: 99 },
-  { serviceType: 'video', label: '视频', provider: 'volcengine', baseUrl: 'https://api.chatfire.site/volcengine', model: 'doubao-seedance-1-5-pro-251215', priority: 98 },
-  { serviceType: 'audio', label: '音频', provider: 'minimax', baseUrl: 'https://api.chatfire.site/minimax', model: 'speech-2.8-hd', priority: 97 },
-]
 const endpointPrefixes = {
   chatfire: '/v1',
   openai: '/v1',
@@ -540,22 +453,6 @@ async function saveCfg() {
     cfgDialog.value = false; toast.success('已保存'); loadCfgs()
   } catch (e) { toast.error(e.message) }
 }
-async function applyAiDramaPreset() {
-  if (!aidramaForm.apiKey) {
-    toast.warning('请填写 AiDrama API Key')
-    return
-  }
-  try {
-    await aiConfigAPI.aidramaPreset(aidramaForm.apiKey)
-    await loadCfgs()
-    await loadAgents()
-    presetDialog.value = false
-    toast.success('AiDrama 推荐配置与默认 Agent LLM 已写入')
-  } catch (e) {
-    toast.error(e.message)
-  }
-}
-
 // ===== Agent Configs =====
 const agentCfgs = ref([])
 const editingAgent = ref(null)
@@ -567,7 +464,6 @@ const agentDefs = [
   { type: 'script_rewriter', label: '剧本改写', icon: '📝' },
   { type: 'extractor', label: '角色场景提取', icon: '🔍' },
   { type: 'storyboard_breaker', label: '分镜拆解', icon: '🎬' },
-  { type: 'voice_assigner', label: '音色分配', icon: '🎙' },
   { type: 'grid_prompt_generator', label: '图片提示词生成', icon: '🖼' },
 ]
 
@@ -611,16 +507,7 @@ const defaultPrompts = {
 1. 调用 read_storyboard_context 读取剧本、角色列表、场景列表
 2. 将剧本拆解为镜头序列（每个镜头 10-15 秒）
 3. 为每个镜头生成视频提示词（video_prompt）
-4. 调用 save_storyboards 保存所有分镜`,
-  voice_assigner: `你是配音导演，擅长为角色选择合适的音色。
-
-工作流程：
-1. 调用 list_voices 获取可用音色列表
-2. 调用 get_characters 获取所有角色信息
-3. 根据每个角色的性别、性格、年龄、角色定位，选择最匹配的音色
-4. 对每个角色调用 assign_voice 分配音色，并说明选择理由
-
-注意：每个角色都必须分配音色，不要遗漏。`,
+  4. 调用 save_storyboards 保存所有分镜`,
   grid_prompt_generator: `你是专业的 AI 图像提示词工程师，擅长为角色、场景和宫格图生成高质量的英文提示词。
 
 你将收到用户的请求，告知要生成哪种类型的提示词：

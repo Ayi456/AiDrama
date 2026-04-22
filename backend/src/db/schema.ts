@@ -35,7 +35,6 @@ export const episodes = sqliteTable('episodes', {
   thumbnail: text('thumbnail'),
   imageConfigId: integer('image_config_id'),
   videoConfigId: integer('video_config_id'),
-  audioConfigId: integer('audio_config_id'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
   deletedAt: text('deleted_at'),
@@ -49,14 +48,11 @@ export const characters = sqliteTable('characters', {
   description: text('description'),
   appearance: text('appearance'),
   personality: text('personality'),
-  voiceStyle: text('voice_style'),
   imageUrl: text('image_url'),
   referenceImages: text('reference_images'),
   seedValue: text('seed_value'),
   sortOrder: integer('sort_order'),
   localPath: text('local_path'),
-  voiceSampleUrl: text('voice_sample_url'),
-  voiceProvider: text('voice_provider'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
   deletedAt: text('deleted_at'),
@@ -167,16 +163,6 @@ export const aiServiceProviders = sqliteTable('ai_service_providers', {
   isActive: integer('is_active', { mode: 'boolean' }).default(true),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
-})
-
-export const aiVoices = sqliteTable('ai_voices', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  voiceId: text('voice_id').notNull().unique(),   // MiniMax voice_id
-  voiceName: text('voice_name').notNull(),         // 中文名
-  description: text('description'),                // 描述数组 JSON
-  language: text('language'),                     // 语言标签
-  provider: text('provider').notNull(),           // minimax
-  createdAt: text('created_at').notNull(),
 })
 
 export const agentConfigs = sqliteTable('agent_configs', {

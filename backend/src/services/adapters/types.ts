@@ -124,20 +124,3 @@ export interface VideoPollResponse {
   error?: string
 }
 
-/**
- * TTS 语音合成 Provider Adapter
- */
-export interface TTSProviderAdapter {
-  provider: string
-
-  buildGenerateRequest(config: AIConfig, params: any): ProviderRequest
-
-  parseResponse(result: any): {
-    audioHex: string
-    audioLength: number
-    sampleRate: number
-    bitrate: number
-    format: string
-    channel: number
-  }
-}

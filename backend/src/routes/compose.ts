@@ -84,7 +84,7 @@ app.get('/episodes/:id/compose-status', async (c) => {
       storyboardNumber: sb.storyboardNumber,
       status: sb.status || 'pending',
       composedVideoUrl: sb.composedVideoUrl,
-      errorMsg: sb.status === 'compose_failed' ? '视频合成失败，请检查视频、配音或字幕素材' : '',
+      errorMsg: sb.status === 'compose_failed' ? '视频合成失败，请检查镜头视频素材是否可用' : '',
     })),
   })
 })

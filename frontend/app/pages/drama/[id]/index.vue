@@ -92,14 +92,13 @@
               <div class="dialog-title">创建新集</div>
               <span class="dialog-badge">配置将锁定</span>
             </div>
-            <div class="dialog-sub">为这一集预先锁定图片、视频和音频生成服务。创建后，这些生成链路将始终跟随当前集配置。</div>
+            <div class="dialog-sub">为这一集预先锁定图片和视频生成服务。创建后，这些生成链路将始终跟随当前集配置。</div>
           </div>
           <button class="back-btn" @click="addDialog = false">取消</button>
         </div>
         <div class="dialog-summary">
           <div class="summary-chip">图片 · {{ imageConfigs.length }} 可选</div>
           <div class="summary-chip">视频 · {{ videoConfigs.length }} 可选</div>
-          <div class="summary-chip">音频 · {{ audioConfigs.length }} 可选</div>
         </div>
         <div class="dialog-body">
           <div class="dialog-section">
@@ -130,16 +129,11 @@
                 <span class="field-label">视频配置</span>
                 <BaseSelect v-model="newEpisodeVideoConfigId" :options="videoConfigOptions" placeholder="选择视频服务" searchable />
               </label>
-              <label class="config-card">
-                <span class="config-card-kicker">AUDIO</span>
-                <span class="field-label">音频配置</span>
-                <BaseSelect v-model="newEpisodeAudioConfigId" :options="audioConfigOptions" placeholder="选择音频服务" searchable />
-              </label>
             </div>
           </div>
         </div>
         <div class="dialog-foot">
-          <div class="dialog-foot-copy">创建后，工作台中的图片、视频、音频生成入口都会锁定到当前集。</div>
+          <div class="dialog-foot-copy">创建后，工作台中的图片与视频生成入口都会锁定到当前集。</div>
           <button class="btn btn-primary" :disabled="creatingEpisode || !canCreateEpisode" @click="addEpisode">
             {{ creatingEpisode ? '创建中...' : '创建并锁定配置' }}
           </button>
@@ -161,10 +155,8 @@ const creatingEpisode = ref(false)
 const newEpisodeTitle = ref('')
 const imageConfigs = ref([])
 const videoConfigs = ref([])
-const audioConfigs = ref([])
 const newEpisodeImageConfigId = ref(null)
 const newEpisodeVideoConfigId = ref(null)
-const newEpisodeAudioConfigId = ref(null)
 
 function hasScript(ep) { return !!(ep.script_content || ep.scriptContent) }
 
@@ -177,8 +169,7 @@ function configLabel(config) {
 
 const imageConfigOptions = computed(() => imageConfigs.value.map(c => ({ label: configLabel(c), value: c.id })))
 const videoConfigOptions = computed(() => videoConfigs.value.map(c => ({ label: configLabel(c), value: c.id })))
-const audioConfigOptions = computed(() => audioConfigs.value.map(c => ({ label: configLabel(c), value: c.id })))
-const canCreateEpisode = computed(() => !!(newEpisodeImageConfigId.value && newEpisodeVideoConfigId.value && newEpisodeAudioConfigId.value))
+const canCreateEpisode = computed(() => !!(newEpisodeImageConfigId.value && newEpisodeVideoConfigId.value))
 
 async function load() {
   try {
@@ -190,17 +181,14 @@ async function load() {
 
 async function loadConfigs() {
   try {
-    const [imgs, vids, auds] = await Promise.all([
+    const [imgs, vids] = await Promise.all([
       aiConfigAPI.list('image'),
       aiConfigAPI.list('video'),
-      aiConfigAPI.list('audio'),
     ])
     imageConfigs.value = imgs || []
     videoConfigs.value = vids || []
-    audioConfigs.value = auds || []
     if (!newEpisodeImageConfigId.value && imageConfigs.value.length) newEpisodeImageConfigId.value = imageConfigs.value[0].id
     if (!newEpisodeVideoConfigId.value && videoConfigs.value.length) newEpisodeVideoConfigId.value = videoConfigs.value[0].id
-    if (!newEpisodeAudioConfigId.value && audioConfigs.value.length) newEpisodeAudioConfigId.value = audioConfigs.value[0].id
   } catch (e) {
     toast.error(e.message)
   }
@@ -219,7 +207,6 @@ async function addEpisode() {
       title: newEpisodeTitle.value || undefined,
       image_config_id: newEpisodeImageConfigId.value,
       video_config_id: newEpisodeVideoConfigId.value,
-      audio_config_id: newEpisodeAudioConfigId.value,
     })
     toast.success('已添加新集')
     addDialog.value = false

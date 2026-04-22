@@ -12,7 +12,6 @@ import { logTaskProgress } from '../utils/task-logger.js'
 import { createScriptTools } from './tools/script-tools.js'
 import { createExtractTools } from './tools/extract-tools.js'
 import { createStoryboardTools } from './tools/storyboard-tools.js'
-import { createVoiceTools } from './tools/voice-tools.js'
 import { createGridPromptTools } from './tools/grid-prompt-tools.js'
 import { loadAgentSkills } from './skills.js'
 
@@ -103,21 +102,9 @@ const DEFAULT_PROMPTS: Record<string, { name: string; instructions: string }> = 
 额外要求：
 - 优先复用 read_storyboard_context 返回的 scene_id，不要凭空创造新场景
 - 镜头角色绑定必须来自 read_storyboard_context 返回的角色列表；无角色的空镜头可传空数组
-- 镜头描述必须能支撑后续图片、视频、配音、音效、合成流程
+- 镜头描述必须能支撑后续图片、视频、合成流程
 - 若一个镜头没有对白，可将 dialogue 置空，但 description / action / video_prompt / image_prompt 仍必须完整
 - 如果已有 existing_storyboards，仅在用户明确要求增量修改时参考；默认按当前剧本重新完整生成并保存整集分镜。`,
-  },
-  voice_assigner: {
-    name: '角色音色分配',
-    instructions: `你是配音导演，擅长为角色选择合适的音色。
-
-工作流程：
-1. 调用 list_voices 获取可用音色列表
-2. 调用 get_characters 获取所有角色信息
-3. 根据每个角色的性别、性格、年龄、角色定位，选择最匹配的音色
-4. 对每个角色调用 assign_voice 分配音色，并说明选择理由
-
-注意：每个角色都必须分配音色，不要遗漏。`,
   },
   grid_prompt_generator: {
     name: '图片提示词生成',
@@ -210,7 +197,6 @@ export function createAgent(type: string, episodeId: number, dramaId: number): A
     case 'script_rewriter': tools = createScriptTools(episodeId); break
     case 'extractor': tools = createExtractTools(episodeId, dramaId); break
     case 'storyboard_breaker': tools = createStoryboardTools(episodeId, dramaId); break
-    case 'voice_assigner': tools = createVoiceTools(episodeId, dramaId); break
     case 'grid_prompt_generator': tools = createGridPromptTools(episodeId, dramaId); break
     default: return null
   }

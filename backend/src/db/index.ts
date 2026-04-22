@@ -46,7 +46,6 @@ sqlite.exec(`
     thumbnail TEXT,
     image_config_id INTEGER,
     video_config_id INTEGER,
-    audio_config_id INTEGER,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT
@@ -60,14 +59,11 @@ sqlite.exec(`
     description TEXT,
     appearance TEXT,
     personality TEXT,
-    voice_style TEXT,
     image_url TEXT,
     reference_images TEXT,
     seed_value TEXT,
     sort_order INTEGER,
     local_path TEXT,
-    voice_sample_url TEXT,
-    voice_provider TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT
@@ -186,16 +182,6 @@ sqlite.exec(`
     is_active INTEGER DEFAULT 1,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS ai_voices (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    voice_id TEXT NOT NULL UNIQUE,
-    voice_name TEXT NOT NULL,
-    description TEXT,
-    language TEXT,
-    provider TEXT NOT NULL,
-    created_at TEXT NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS agent_configs (
@@ -357,7 +343,6 @@ function ensureColumn(table: string, column: string, definition: string) {
 
 ensureColumn('episodes', 'image_config_id', 'INTEGER')
 ensureColumn('episodes', 'video_config_id', 'INTEGER')
-ensureColumn('episodes', 'audio_config_id', 'INTEGER')
 
 export const db = drizzle(sqlite, { schema })
 export { schema }

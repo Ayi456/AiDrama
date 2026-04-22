@@ -92,7 +92,6 @@ export function createStoryboardTools(episodeId: number, dramaId: number) {
           description: c.description || '',
           appearance: c.appearance || '',
           personality: c.personality || '',
-          voice_style: c.voiceStyle || '',
           image_url: c.imageUrl || '',
           reference_images: c.referenceImages || '',
         }))

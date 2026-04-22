@@ -1,5 +1,5 @@
 services:
-  huobao-drama:
+  aidrama:
     build: .
     ports:
       - "5679:5679"
