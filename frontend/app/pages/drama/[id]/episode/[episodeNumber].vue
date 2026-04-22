@@ -1606,7 +1606,7 @@ const gridHistory = ref([])
 const showAllGridHistory = ref(false)
 const activeGridCell = ref(0)
 const gridAssignmentPage = ref(0)
-const gridStorageKey = computed(() => `huobao:grid:${dramaId}:${epId.value || episodeNumber}`)
+const gridStorageKey = computed(() => `aidrama:grid:${dramaId}:${epId.value || episodeNumber}`)
 
 const gridModes = [
   { id: 'first_frame', label: '首帧', desc: '每格=一个镜头的首帧' },

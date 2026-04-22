@@ -74,5 +74,5 @@ app.use('*', serveStatic({ root: distPath }))
 app.get('*', serveStatic({ root: distPath, path: 'index.html' }))
 
 const port = Number(process.env.PORT || 5679)
-console.log(`🚀 Huobao Drama TS server on http://localhost:${port}`)
+console.log(`🚀 AiDrama TS server on http://localhost:${port}`)
 serve({ fetch: app.fetch, port })

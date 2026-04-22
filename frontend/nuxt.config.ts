@@ -7,12 +7,8 @@ export default defineNuxtConfig({
   },
   app: {
     head: {
-      title: '火宝短剧',
+      title: 'AiDrama',
       meta: [{ name: 'viewport', content: 'width=device-width, initial-scale=1' }],
-      link: [
-        { rel: 'icon', type: 'image/png', href: '/favicon.png' },
-        { rel: 'shortcut icon', type: 'image/png', href: '/favicon.png' },
-      ],
     },
   },
   vite: {

@@ -1,5 +1,5 @@
 app:
-  name: "Huobao Drama API"
+  name: "AiDrama API"
   version: "1.0.0"
   debug: true
   language: "zh" # 系统语言：zh(中文) 或 en(英文)
@@ -14,7 +14,7 @@ server:
 
 database:
   type: "sqlite"
-  path: "./data/huobao_drama.db"
+  path: "./data/aidrama.db"
   max_idle: 10
   max_open: 100
 

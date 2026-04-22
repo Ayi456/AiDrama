@@ -31,13 +31,9 @@
       <div v-if="tab === 'ai'" class="settings-scroll">
         <div class="settings-head">
           <div class="settings-brand">
-            <div class="settings-brand-mark">
-              <img v-if="showBrandImage" :src="brandLogo" alt="火宝短剧" class="settings-brand-logo" @error="showBrandImage = false" />
-              <span v-else class="settings-brand-fallback">火</span>
-            </div>
             <div class="settings-brand-copy">
-              <div class="settings-brand-kicker">Huobao Shorts</div>
-              <div class="settings-brand-name">火宝短剧</div>
+              <div class="settings-brand-kicker">AI Drama Studio</div>
+              <div class="settings-brand-name">AiDrama</div>
             </div>
           </div>
           <h2 class="settings-title">AI 服务配置</h2>
@@ -47,15 +43,15 @@
           <div class="setup-panel-head">
             <div>
               <div class="setup-kicker">Quick Setup</div>
-              <div class="setup-title">火宝推荐配置</div>
+              <div class="setup-title">AiDrama 推荐配置</div>
               <div class="setup-desc">一键写入文本、图片、视频、音频四类推荐配置，适合作为开箱默认方案。</div>
             </div>
             <button class="btn btn-primary" @click="presetDialog = true">
-              <Sparkles :size="14" /> 火宝一键配置
+              <Sparkles :size="14" /> AiDrama 一键配置
             </button>
           </div>
           <div class="preset-grid">
-            <article v-for="preset in huobaoPresetCards" :key="preset.serviceType" class="preset-card">
+            <article v-for="preset in aiDramaPresetCards" :key="preset.serviceType" class="preset-card">
               <div class="preset-card-top">
                 <span class="preset-service">{{ preset.label }}</span>
                 <span class="tag tag-accent">{{ preset.provider }}</span>
@@ -121,13 +117,9 @@
       <div v-else-if="tab === 'agents'" class="settings-scroll">
         <div class="settings-head">
           <div class="settings-brand">
-            <div class="settings-brand-mark">
-              <img v-if="showBrandImage" :src="brandLogo" alt="火宝短剧" class="settings-brand-logo" @error="showBrandImage = false" />
-              <span v-else class="settings-brand-fallback">火</span>
-            </div>
             <div class="settings-brand-copy">
-              <div class="settings-brand-kicker">Huobao Shorts</div>
-              <div class="settings-brand-name">火宝短剧</div>
+              <div class="settings-brand-kicker">AI Drama Studio</div>
+              <div class="settings-brand-name">AiDrama</div>
             </div>
           </div>
           <h2 class="settings-title">Agent 配置</h2>
@@ -200,13 +192,9 @@
         <div class="settings-scroll skills-main">
           <div class="settings-head">
             <div class="settings-brand">
-              <div class="settings-brand-mark">
-                <img v-if="showBrandImage" :src="brandLogo" alt="火宝短剧" class="settings-brand-logo" @error="showBrandImage = false" />
-                <span v-else class="settings-brand-fallback">火</span>
-              </div>
               <div class="settings-brand-copy">
-                <div class="settings-brand-kicker">Huobao Shorts</div>
-                <div class="settings-brand-name">火宝短剧</div>
+                <div class="settings-brand-kicker">AI Drama Studio</div>
+                <div class="settings-brand-name">AiDrama</div>
               </div>
             </div>
             <div style="display:flex;align-items:center;gap:10px">
@@ -294,7 +282,7 @@
         </div>
         <label class="field">
           <span class="field-label">配置名称</span>
-          <input v-model="cfgForm.name" class="input" placeholder="如 火宝默认图像服务" />
+          <input v-model="cfgForm.name" class="input" placeholder="如 AiDrama 默认图像服务" />
         </label>
         <label class="field"><span class="field-label">服务商</span>
           <BaseSelect v-model="cfgForm.provider" :options="providerSelectOptions" placeholder="选择服务商" searchable />
@@ -330,26 +318,26 @@
       </form>
     </div>
 
-    <!-- Huobao Preset Dialog -->
+    <!-- AiDrama Preset Dialog -->
     <div v-if="presetDialog" class="overlay" @click.self="presetDialog = false">
-      <form class="modal card config-modal" @submit.prevent="applyHuobaoPreset">
+      <form class="modal card config-modal" @submit.prevent="applyAiDramaPreset">
         <div class="config-modal-head">
           <div>
-            <div class="setup-kicker">Huobao Preset</div>
-            <h2 class="modal-title">火宝一键配置</h2>
-            <div class="modal-note">按火宝推荐链路自动创建或更新 4 条服务配置，并同时初始化 5 个 Agent 的默认模型。</div>
+            <div class="setup-kicker">AiDrama Preset</div>
+            <h2 class="modal-title">AiDrama 一键配置</h2>
+            <div class="modal-note">按 AiDrama 推荐链路自动创建或更新 4 条服务配置，并同时初始化 5 个 Agent 的默认模型。</div>
           </div>
           <span class="tag tag-success">推荐</span>
         </div>
-        <div class="huobao-grid">
+        <div class="aidrama-grid">
           <label class="field">
-            <span class="field-label">Huobao API Key <span class="dim">(统一用于文本 / 图片 / 视频 / 音频)</span></span>
-            <input v-model="huobaoForm.apiKey" class="input" type="password" placeholder="用于 api.chatfire.site 全链路服务" />
+            <span class="field-label">AiDrama API Key <span class="dim">(统一用于文本 / 图片 / 视频 / 音频)</span></span>
+            <input v-model="aidramaForm.apiKey" class="input" type="password" placeholder="用于 api.chatfire.site 全链路服务" />
             <span class="field-hint">还没有账号？<a href="https://api.chatfire.site/" target="_blank" rel="noopener">立即注册 →</a></span>
           </label>
         </div>
         <div class="preset-grid compact">
-          <article v-for="preset in huobaoPresetCards" :key="`${preset.serviceType}-${preset.provider}`" class="preset-card">
+          <article v-for="preset in aiDramaPresetCards" :key="`${preset.serviceType}-${preset.provider}`" class="preset-card">
             <div class="preset-card-top">
               <span class="preset-service">{{ preset.label }}</span>
               <span class="tag tag-accent">{{ preset.provider }}</span>
@@ -395,9 +383,6 @@ import { Plus, Pencil, Trash2, FileText, ChevronDown, Check, Loader2, Bot, Cpu, 
 import BaseSelect from '~/components/BaseSelect.vue'
 import { toast } from 'vue-sonner'
 import { aiConfigAPI, agentConfigAPI, skillsAPI } from '~/composables/useApi'
-import brandLogo from '~/assets/huobao-logo.png'
-
-const showBrandImage = ref(true)
 const tab = ref('ai')
 const showAdvanced = ref(false)
 const baseTabs = [
@@ -419,7 +404,7 @@ const presetDialog = ref(false)
 const cfgTesting = ref(false)
 const cfgTestResult = ref(null)
 const cfgForm = reactive({ name: '', provider: '', api_key: '', base_url: '', modelStr: '', service_type: 'text', priority: 0 })
-const huobaoForm = reactive({ apiKey: '' })
+const aidramaForm = reactive({ apiKey: '' })
 const serviceTypes = [{ type: 'text', label: '文本' }, { type: 'image', label: '图片' }, { type: 'video', label: '视频' }, { type: 'audio', label: '音频' }]
 const providers = ['ali', 'chatfire', 'gemini', 'minimax', 'openai', 'openrouter', 'vidu', 'volcengine']
 const providerSelectOptions = computed(() => providers.map(p => ({ label: p, value: p })))
@@ -441,15 +426,15 @@ const providerPresets = {
     volcengine: { label: '火山推荐', baseUrl: 'https://ark.cn-beijing.volces.com', models: ['doubao-seedream-4-0-250828'] },
   },
   video: {
-    volcengine: { label: '火宝视频', baseUrl: 'https://api.chatfire.site/volcengine', models: ['doubao-seedance-1-5-pro-251215'] },
+    volcengine: { label: 'AiDrama 视频', baseUrl: 'https://api.chatfire.site/volcengine', models: ['doubao-seedance-1-5-pro-251215'] },
     vidu: { label: 'Vidu 推荐', baseUrl: 'https://api.vidu.com', models: ['viduq3-turbo'] },
     ali: { label: '阿里推荐', baseUrl: 'https://dashscope.aliyuncs.com', models: ['wan2.6-i2v-flash'] },
   },
   audio: {
-    minimax: { label: '火宝音频', baseUrl: 'https://api.chatfire.site/minimax', models: ['speech-2.8-hd'] },
+    minimax: { label: 'AiDrama 音频', baseUrl: 'https://api.chatfire.site/minimax', models: ['speech-2.8-hd'] },
   },
 }
-const huobaoPresetCards = [
+const aiDramaPresetCards = [
   { serviceType: 'text', label: '文本', provider: 'chatfire', baseUrl: 'https://api.chatfire.site', model: 'gemini-3-pro-preview', priority: 100 },
   { serviceType: 'image', label: '图片', provider: 'gemini', baseUrl: 'https://api.chatfire.site', model: 'gemini-3-pro-image-preview', priority: 99 },
   { serviceType: 'video', label: '视频', provider: 'volcengine', baseUrl: 'https://api.chatfire.site/volcengine', model: 'doubao-seedance-1-5-pro-251215', priority: 98 },
@@ -555,17 +540,17 @@ async function saveCfg() {
     cfgDialog.value = false; toast.success('已保存'); loadCfgs()
   } catch (e) { toast.error(e.message) }
 }
-async function applyHuobaoPreset() {
-  if (!huobaoForm.apiKey) {
-    toast.warning('请填写 Huobao API Key')
+async function applyAiDramaPreset() {
+  if (!aidramaForm.apiKey) {
+    toast.warning('请填写 AiDrama API Key')
     return
   }
   try {
-    await aiConfigAPI.huobaoPreset(huobaoForm.apiKey)
+    await aiConfigAPI.aidramaPreset(aidramaForm.apiKey)
     await loadCfgs()
     await loadAgents()
     presetDialog.value = false
-    toast.success('火宝推荐配置与默认 Agent LLM 已写入')
+    toast.success('AiDrama 推荐配置与默认 Agent LLM 已写入')
   } catch (e) {
     toast.error(e.message)
   }
@@ -893,30 +878,6 @@ onMounted(() => { loadCfgs(); loadAgents(); loadAllSkills() })
   gap: 12px;
   margin-bottom: 12px;
 }
-.settings-brand-mark {
-  width: 42px;
-  height: 42px;
-  border-radius: 15px;
-  border: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(242,247,255,0.9));
-  box-shadow: var(--shadow-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.settings-brand-logo {
-  width: 26px;
-  height: 26px;
-  object-fit: contain;
-  display: block;
-}
-.settings-brand-fallback {
-  font-family: var(--font-display);
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--accent-text);
-  line-height: 1;
-}
 .settings-brand-copy {
   display: flex;
   flex-direction: column;
@@ -1156,17 +1117,17 @@ onMounted(() => { loadCfgs(); loadAgents(); loadAllSkills() })
   color: var(--text-3);
   word-break: break-all;
 }
-.huobao-grid {
+.aidrama-grid {
   display: grid;
   grid-template-columns: repeat(1, minmax(0, 1fr));
   gap: 10px;
 }
-.huobao-grid .field-hint a {
+.aidrama-grid .field-hint a {
   color: var(--accent);
   text-decoration: none;
   font-weight: 500;
 }
-.huobao-grid .field-hint a:hover {
+.aidrama-grid .field-hint a:hover {
   text-decoration: underline;
 }
 

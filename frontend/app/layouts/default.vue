@@ -4,13 +4,9 @@
     <header class="header">
       <div class="header-left">
         <button class="brand" @click="navigateTo('/')">
-          <div class="brand-mark">
-            <img v-if="showBrandImage" :src="brandLogo" alt="火宝短剧" class="brand-logo" @error="showBrandImage = false" />
-            <span v-else class="brand-fallback">火</span>
-          </div>
           <div class="brand-text">
-            <span class="brand-name">火宝短剧</span>
-            <span class="brand-sub">Huobao Shorts</span>
+            <span class="brand-name">AiDrama</span>
+            <span class="brand-sub">AI Drama Studio</span>
           </div>
         </button>
       </div>
@@ -48,10 +44,7 @@
 </template>
 
 <script setup>
-import brandLogo from '~/assets/huobao-logo.png'
-
 const route = useRoute()
-const showBrandImage = ref(true)
 </script>
 
 <style scoped>
@@ -80,26 +73,6 @@ const showBrandImage = ref(true)
   transition: opacity 0.15s;
 }
 .brand:hover { opacity: 0.75; }
-.brand-mark {
-  width: 32px; height: 32px;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--bg-2); border-radius: var(--radius);
-  border: 1px solid var(--border);
-  overflow: hidden;
-}
-.brand-logo {
-  width: 22px;
-  height: 22px;
-  object-fit: contain;
-  display: block;
-}
-.brand-fallback {
-  font-family: var(--font-display);
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--accent-text);
-  line-height: 1;
-}
 .brand-text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1; }
 .brand-name {
   font-family: var(--font-display);

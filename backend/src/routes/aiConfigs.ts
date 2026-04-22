@@ -8,14 +8,14 @@ import { redactUrl, logTaskError, logTaskProgress, logTaskSuccess } from '../uti
 
 const app = new Hono()
 
-const HUOBAO_PRESET_SERVICES = [
+const AIDRAMA_PRESET_SERVICES = [
   { serviceType: 'text', label: '文本', provider: 'chatfire', baseUrl: 'https://api.chatfire.site', model: 'gemini-3-pro-preview', priority: 100 },
   { serviceType: 'image', label: '图片', provider: 'gemini', baseUrl: 'https://api.chatfire.site', model: 'gemini-3-pro-image-preview', priority: 99 },
   { serviceType: 'video', label: '视频', provider: 'volcengine', baseUrl: 'https://api.chatfire.site/volcengine', model: 'doubao-seedance-1-5-pro-251215', priority: 98 },
   { serviceType: 'audio', label: '音频', provider: 'minimax', baseUrl: 'https://api.chatfire.site/minimax', model: 'speech-2.8-hd', priority: 97 },
 ] as const
 
-const HUOBAO_AGENT_DEFAULTS = [
+const AIDRAMA_AGENT_DEFAULTS = [
   { agentType: 'script_rewriter', name: '剧本改写' },
   { agentType: 'extractor', name: '角色场景提取' },
   { agentType: 'storyboard_breaker', name: '分镜拆解' },
@@ -23,7 +23,7 @@ const HUOBAO_AGENT_DEFAULTS = [
   { agentType: 'grid_prompt_generator', name: '图片提示词生成' },
 ] as const
 
-const HUOBAO_AGENT_MODEL = 'gemini-3-pro-preview'
+const AIDRAMA_AGENT_MODEL = 'gemini-3-pro-preview'
 
 function bearerHeaders(apiKey?: string, withJson = false) {
   const headers: Record<string, string> = {}
@@ -167,22 +167,22 @@ app.post('/', async (c) => {
   })
 })
 
-// POST /ai-configs/huobao-preset
-app.post('/huobao-preset', async (c) => {
+// POST /ai-configs/aidrama-preset
+app.post('/aidrama-preset', async (c) => {
   const body = await c.req.json()
   const apiKey = String(body.api_key || '').trim()
   if (!apiKey) return badRequest(c, 'api_key is required')
 
   const ts = now()
 
-  for (const preset of HUOBAO_PRESET_SERVICES) {
+  for (const preset of AIDRAMA_PRESET_SERVICES) {
     const [existing] = db.select().from(schema.aiServiceConfigs).where(eq(schema.aiServiceConfigs.serviceType, preset.serviceType)).all()
       .filter(row => row.provider === preset.provider)
 
     const values = {
       serviceType: preset.serviceType,
       provider: preset.provider,
-      name: `火宝默认${preset.label}服务`,
+      name: `AiDrama 默认${preset.label}服务`,
       baseUrl: preset.baseUrl,
       apiKey,
       model: JSON.stringify([preset.model]),
@@ -201,11 +201,11 @@ app.post('/huobao-preset', async (c) => {
     }
   }
 
-  for (const agent of HUOBAO_AGENT_DEFAULTS) {
+  for (const agent of AIDRAMA_AGENT_DEFAULTS) {
     const [existing] = db.select().from(schema.agentConfigs).where(eq(schema.agentConfigs.agentType, agent.agentType)).all()
     const values = {
       name: agent.name,
-      model: HUOBAO_AGENT_MODEL,
+      model: AIDRAMA_AGENT_MODEL,
       isActive: true,
       updatedAt: ts,
     }
@@ -216,7 +216,7 @@ app.post('/huobao-preset', async (c) => {
       db.insert(schema.agentConfigs).values({
         agentType: agent.agentType,
         description: '',
-        model: HUOBAO_AGENT_MODEL,
+        model: AIDRAMA_AGENT_MODEL,
         name: agent.name,
         systemPrompt: '',
         temperature: 0.7,
@@ -235,15 +235,15 @@ app.post('/huobao-preset', async (c) => {
   }))
   const agents = db.select().from(schema.agentConfigs).all().map(row => toSnakeCase(row))
 
-  logTaskSuccess('AIConfig', 'huobao-preset-applied', {
-    serviceCount: HUOBAO_PRESET_SERVICES.length,
-    agentCount: HUOBAO_AGENT_DEFAULTS.length,
+  logTaskSuccess('AIConfig', 'aidrama-preset-applied', {
+    serviceCount: AIDRAMA_PRESET_SERVICES.length,
+    agentCount: AIDRAMA_AGENT_DEFAULTS.length,
   })
 
   return success(c, {
     configs,
     agents,
-    agent_model: HUOBAO_AGENT_MODEL,
+    agent_model: AIDRAMA_AGENT_MODEL,
   })
 })
 
