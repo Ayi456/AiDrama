@@ -215,7 +215,7 @@
             <aside class="card extract-summary">
               <div class="extract-summary-kicker">Extraction Board</div>
               <div class="extract-summary-title">角色与场景结果</div>
-              <div class="extract-summary-desc">从剧本里提取出的角色和场景已经入库。这里先确认命名、定位和描述是否可直接进入后续制作。</div>
+              <div class="extract-summary-desc">从剧本里提取出的角色和场景已经入库。这里仅做结果预览，确认无误后直接进入后续制作。</div>
               <div class="extract-summary-stats">
                 <div class="extract-summary-stat">
                   <span>角色</span>
@@ -226,7 +226,7 @@
                   <strong>{{ scenes.length }}</strong>
                 </div>
               </div>
-              <div class="extract-summary-note">如果角色描述过于简短，后续生成角色形象时建议先补充人物特征。</div>
+              <div class="extract-summary-note">提取阶段不再做人工修改；角色描述词和场景图片提示词放到后续制作阶段调整。</div>
             </aside>
 
             <div class="card extract-card">
@@ -236,14 +236,14 @@
                 <span class="tag tag-accent">{{ chars.length }}</span>
               </div>
               <div class="extract-list">
-                <div v-for="c in chars" :key="c.id" class="extract-row extract-row-editable">
+                <div v-for="c in chars" :key="c.id" class="extract-row">
                   <div class="char-avatar">{{ c.name?.[0] || '?' }}</div>
-                  <div class="extract-info extract-info-editable">
+                  <div class="extract-info">
                     <div class="extract-name-row">
-                      <input class="extract-edit-input extract-edit-name" :value="c.name" @blur="updateCharField(c, 'name', $event.target.value)" placeholder="角色名" />
-                      <input class="extract-edit-input extract-edit-role" :value="c.role || ''" @blur="updateCharField(c, 'role', $event.target.value)" placeholder="角色定位" />
+                      <span class="extract-name">{{ c.name || '未命名角色' }}</span>
+                      <span class="extract-role-chip">{{ c.role || '角色' }}</span>
                     </div>
-                    <textarea class="extract-edit-textarea" :value="mergeCharDesc(c)" @blur="saveMergedCharDesc(c, $event.target.value)" placeholder="角色完整描述（外貌、性格、背景等）" rows="4" />
+                    <div class="extract-meta wrap">{{ mergeCharDesc(c) || '暂无角色描述' }}</div>
                   </div>
                 </div>
               </div>
@@ -256,16 +256,16 @@
                 <span class="tag tag-accent">{{ scenes.length }}</span>
               </div>
               <div class="extract-list">
-                <div v-for="s in scenes" :key="s.id" class="extract-row extract-row-editable">
+                <div v-for="s in scenes" :key="s.id" class="extract-row">
                   <div class="scene-icon">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
                   </div>
-                  <div class="extract-info extract-info-editable">
+                  <div class="extract-info">
                     <div class="extract-name-row">
-                      <input class="extract-edit-input extract-edit-name" :value="s.location" @blur="updateSceneField(s, 'location', $event.target.value)" placeholder="场景地点" />
-                      <input class="extract-edit-input extract-edit-role" :value="s.time || ''" @blur="updateSceneField(s, 'time', $event.target.value)" placeholder="时间段" />
+                      <span class="extract-name">{{ s.location || '未命名场景' }}</span>
+                      <span class="extract-role-chip">{{ s.time || '未设时间' }}</span>
                     </div>
-                    <textarea class="extract-edit-textarea" :value="s.prompt || s.description || ''" @blur="updateSceneField(s, 'prompt', $event.target.value)" placeholder="场景描述（光线、色调、氛围等视觉信息）" rows="2" />
+                    <div class="extract-meta wrap">{{ s.prompt || s.description || '暂无场景描述' }}</div>
                   </div>
                 </div>
               </div>
@@ -317,13 +317,18 @@
                   @click="selectedSb = sb"
                 >
                   <div class="shot-item-header">
-                    <div class="shot-num">#{{ String(i+1).padStart(2,'0') }}</div>
-                    <span class="tag" style="font-size:10px">{{ sb.shot_type || sb.shotType || '—' }}</span>
-                    <span v-if="getStoryboardCharacterIds(sb).length" class="tag" style="font-size:10px">{{ getStoryboardCharacterIds(sb).length }} 角色</span>
-                    <div class="shot-status">
-                      <div v-if="sb.imageUrl || sb.composedImage || sb.firstFrameImage" class="shot-dot has-img" title="已生成图片"></div>
-                      <div v-if="sb.videoUrl || sb.composedVideoUrl" class="shot-dot has-video" title="已生成视频"></div>
-                      <div v-if="sb.dialogue" class="shot-dot has-dialogue" title="有对白"></div>
+                    <div class="shot-item-labels">
+                      <div class="shot-num">#{{ String(i+1).padStart(2,'0') }}</div>
+                      <span class="tag" style="font-size:10px">{{ sb.shot_type || sb.shotType || '—' }}</span>
+                      <span v-if="getStoryboardCharacterIds(sb).length" class="tag" style="font-size:10px">{{ getStoryboardCharacterIds(sb).length }} 角色</span>
+                    </div>
+                    <div class="shot-item-status-wrap">
+                      <span :class="['shot-state-pill', getStoryboardStateClass(sb)]">{{ getStoryboardStateText(sb) }}</span>
+                      <div class="shot-status">
+                        <div v-if="sb.imageUrl || sb.composedImage || sb.firstFrameImage" class="shot-dot has-img" title="已生成图片"></div>
+                        <div v-if="sb.videoUrl || sb.composedVideoUrl" class="shot-dot has-video" title="已生成视频"></div>
+                        <div v-if="sb.dialogue" class="shot-dot has-dialogue" title="有对白"></div>
+                      </div>
                     </div>
                   </div>
                   <div class="shot-body">
@@ -344,10 +349,13 @@
                 <div class="detail-head">
                   <div class="detail-head-copy">
                     <span class="detail-head-title">镜头 #{{ sbs.indexOf(selectedSb) + 1 }}</span>
-                  <span class="detail-head-sub">{{ selectedSb.title || `镜头 ${sbs.indexOf(selectedSb) + 1}` }} · {{ selectedSb.shot_type || selectedSb.shotType || '未设置景别' }}</span>
+                    <span class="detail-head-sub">{{ selectedSb.title || `镜头 ${sbs.indexOf(selectedSb) + 1}` }} · {{ selectedSb.shot_type || selectedSb.shotType || '未设置景别' }}</span>
                   </div>
-                  <span class="tag mono">{{ (selectedSb.duration || 10) }}s</span>
-                  <button class="btn btn-ghost btn-icon ml-auto" style="color:var(--error)" @click="deleteShot(selectedSb)">
+                  <div class="detail-head-status">
+                    <span class="tag mono">{{ (selectedSb.duration || 10) }}s</span>
+                    <span :class="['detail-head-pill', getStoryboardStateClass(selectedSb)]">{{ getStoryboardStateText(selectedSb) }}</span>
+                  </div>
+                  <button class="btn btn-ghost btn-icon" style="color:var(--error)" @click="deleteShot(selectedSb)">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
                   </button>
               </div>
@@ -620,6 +628,7 @@
             :has-narrator-only="chars.length > visualChars.length"
             @batch-generate="batchCharImages"
             @generate="genCharImg"
+            @update-character-description="handleCharacterDescriptionUpdate"
             @open-image-viewer="handleGalleryViewerOpen"
           />
 
@@ -642,9 +651,15 @@
             :sbs="sbs"
             :shot-img-count="shotImgCount"
             :locked-image-config-label="lockedImageConfigLabel"
+            :locked-image-provider="lockedImageProvider"
             :selected-sb-id="selectedSb?.id || 0"
             :frame-mode="frameMode"
             :frame-mode-options="frameModeOptions"
+            :shot-image-aspect-ratio="shotImageAspectRatio"
+            :shot-image-aspect-ratio-options="shotImageAspectRatioOptions"
+            :shot-image-size-preset="shotImageSizePreset"
+            :shot-image-size-preset-options="shotImageSizePresetOptions"
+            :shot-image-resolved-size="shotImageResolvedSize"
             :grid-image-path="gridImagePath"
             :grid-actual-layout="gridActualLayout"
             :grid-recovered-mode="gridRecoveredMode"
@@ -686,12 +701,15 @@
             :grid-cell-label="gridCellLabel"
             :grid-cell-title="gridCellTitle"
             @change-frame-mode="handleFrameModeChange"
+            @change-shot-image-aspect-ratio="handleShotImageAspectRatioChange"
+            @change-shot-image-size-preset="handleShotImageSizePresetChange"
             @open-grid-tool="openGridTool"
             @reopen-grid-preview="reopenGridPreview"
             @continue-grid-split="continueGridSplit"
             @toggle-grid-history="handleGridHistoryToggle"
             @select-grid-history="selectGridHistory"
             @select-shot="handleShotSelection"
+            @open-storyboard="handleStoryboardOpen"
             @generate-shot-frame="handleShotFrameGenerate"
             @open-image-viewer="handleGalleryViewerOpen"
             @close-grid-dialog="gridDialog = false"
@@ -713,9 +731,18 @@
           <!-- Sub: Videos -->
           <div v-else-if="prodTab === 'videos'" class="prod-content">
             <div class="prod-section-bar">
-              <span class="dim" style="font-size:12px">{{ sbs.length }} 个镜头</span>
-              <span class="tag mono">{{ shotVidCount }}/{{ sbs.length }} 已生成</span>
-              <div class="ml-auto flex gap-1">
+              <div class="prod-section-copy">
+                <div class="prod-section-title-row">
+                  <span class="prod-section-title">镜头视频生成</span>
+                  <span class="tag">{{ lockedVideoConfigLabel }}</span>
+                </div>
+                <div class="prod-section-desc">基于分镜提示词与参考帧生成镜头视频；已有视频时可直接重新生成。</div>
+              </div>
+              <div class="prod-section-stats">
+                <span class="tag mono">{{ shotVidCount }}/{{ sbs.length }} 已生成</span>
+                <span class="tag">{{ sbs.length }} 个镜头</span>
+              </div>
+              <div class="prod-section-actions">
                 <button class="btn btn-sm" @click="batchVideos">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
                   批量视频
@@ -723,7 +750,7 @@
               </div>
             </div>
             <div class="prod-grid">
-              <div v-for="(sb, i) in sbs" :key="sb.id" class="card prod-card">
+              <div v-for="(sb, i) in sbs" :key="sb.id" class="card prod-card prod-card--video">
                 <div class="prod-cover">
                   <video
                     v-if="hasVid(sb)"
@@ -746,8 +773,13 @@
                   <span v-if="hasComposed(sb)" class="prod-overlay-badge">已合成</span>
                 </div>
                 <div class="prod-info">
-                  <div class="prod-desc truncate">{{ sb.description || sb.title || '—' }}</div>
+                  <div class="prod-title-row">
+                    <div class="prod-title">{{ sb.title || `镜头 ${String(i + 1).padStart(2, '0')}` }}</div>
+                    <span :class="['prod-state-pill', getVideoStateClass(sb)]">{{ getVideoStateText(sb) }}</span>
+                  </div>
+                  <div class="prod-desc">{{ sb.description || sb.title || '—' }}</div>
                   <div class="prod-meta-line">{{ sb.shot_type || sb.shotType || '未设景别' }} · {{ sb.duration || 10 }}s</div>
+                  <div class="prod-caption">{{ getVideoReferenceSummary(sb) }}</div>
                   <div class="prod-dots">
                     <span :class="['dot', hasImg(sb) && 'ok']" /><span style="font-size:10px">图</span>
                     <span :class="['dot', hasVid(sb) && 'ok', isPendingVideo(sb.id) && 'pending']" /><span style="font-size:10px">{{ isPendingVideo(sb.id) ? '视频生成中' : '视频' }}</span>
@@ -755,9 +787,9 @@
                   <div v-if="videoFailMessage(sb.id)" class="prod-error">{{ videoFailMessage(sb.id) }}</div>
                 </div>
                 <div class="prod-actions">
-                  <button class="btn btn-sm" :disabled="isPendingVideo(sb.id)" @click="genVid(sb)">
+                  <button class="btn btn-primary btn-sm" :disabled="isPendingVideo(sb.id)" @click="genVid(sb)">
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-                    {{ isPendingVideo(sb.id) ? '生成中' : '生成视频' }}
+                    {{ getVideoGenerateActionLabel(sb) }}
                   </button>
                 </div>
               </div>
@@ -767,9 +799,18 @@
           <!-- Sub: Compose -->
           <div v-else-if="prodTab === 'compose'" class="prod-content">
             <div class="prod-section-bar">
-              <span class="dim" style="font-size:12px">{{ sbs.length }} 个镜头</span>
-              <span class="tag mono">{{ composedCount }}/{{ sbs.length }} 已合成</span>
-              <div class="ml-auto flex gap-1">
+              <div class="prod-section-copy">
+                <div class="prod-section-title-row">
+                  <span class="prod-section-title">镜头视频合成</span>
+                  <span class="tag mono">{{ composedCount }}/{{ sbs.length }} 已合成</span>
+                </div>
+                <div class="prod-section-desc">把已生成镜头视频整理为可导出的合成片段；已有结果可再次合成覆盖。</div>
+              </div>
+              <div class="prod-section-stats">
+                <span class="tag">{{ sbs.length }} 个镜头</span>
+                <span class="tag">{{ shotVidCount }} 个已有源视频</span>
+              </div>
+              <div class="prod-section-actions">
                 <button class="btn btn-sm" @click="batchCompose">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
                   批量合成
@@ -777,7 +818,7 @@
               </div>
             </div>
             <div class="prod-grid">
-              <div v-for="(sb, i) in sbs" :key="sb.id" class="card prod-card">
+              <div v-for="(sb, i) in sbs" :key="sb.id" class="card prod-card prod-card--compose">
                 <div class="prod-cover">
                   <video
                     v-if="hasComposed(sb)"
@@ -808,8 +849,13 @@
                   <span v-if="hasComposed(sb)" class="prod-overlay-badge">已合成</span>
                 </div>
                 <div class="prod-info">
-                  <div class="prod-desc truncate">{{ sb.description || sb.title || '—' }}</div>
+                  <div class="prod-title-row">
+                    <div class="prod-title">{{ sb.title || `镜头 ${String(i + 1).padStart(2, '0')}` }}</div>
+                    <span :class="['prod-state-pill', getComposeStateClass(sb)]">{{ getComposeStateText(sb) }}</span>
+                  </div>
+                  <div class="prod-desc">{{ sb.description || sb.title || '—' }}</div>
                   <div class="prod-meta-line">{{ sb.shot_type || sb.shotType || '未设景别' }} · {{ sb.duration || 10 }}s</div>
+                  <div class="prod-caption">{{ getComposeSourceSummary(sb) }}</div>
                   <div class="prod-dots">
                     <span :class="['dot', hasVid(sb) && 'ok']" /><span style="font-size:10px">视频</span>
                     <span :class="['dot', hasComposed(sb) && 'ok', isPendingCompose(sb.id) && 'pending']" /><span style="font-size:10px">{{ isPendingCompose(sb.id) ? '合成中' : '合成' }}</span>
@@ -817,9 +863,9 @@
                   <div v-if="composeFailMessage(sb.id)" class="prod-error">{{ composeFailMessage(sb.id) }}</div>
                 </div>
                 <div class="prod-actions">
-                  <button class="btn btn-sm" :disabled="!hasVid(sb) || isPendingCompose(sb.id)" @click="doCompose(sb)">
+                  <button class="btn btn-primary btn-sm" :disabled="!hasVid(sb) || isPendingCompose(sb.id)" @click="doCompose(sb)">
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-                    {{ isPendingCompose(sb.id) ? '合成中' : (hasComposed(sb) ? '重新合成' : '开始合成') }}
+                    {{ getComposeActionLabel(sb) }}
                   </button>
                 </div>
               </div>
@@ -951,6 +997,7 @@
           </div>
         </div>
       </div>
+
     </main>
     </div>
   </div>
@@ -967,6 +1014,13 @@ import ProductionCharacterGallery from '~/components/episode/ProductionCharacter
 import ProductionSceneGallery from '~/components/episode/ProductionSceneGallery.vue'
 import ProductionShotFrames from '~/components/episode/ProductionShotFrames.vue'
 import { useImageGenerationMonitor } from '~/composables/useImageGenerationMonitor'
+import {
+  SHOT_IMAGE_ASPECT_RATIO_OPTIONS,
+  SHOT_IMAGE_SIZE_PRESET_OPTIONS,
+  isShotImageAspectRatio,
+  isShotImageSizePreset,
+  resolveShotImageSize,
+} from '~/utils/shot-image-size'
 
 definePageMeta({ layout: 'studio' })
 
@@ -994,6 +1048,8 @@ const prodTabIdx = computed({
   set: (v) => { prodTab.value = prodTabDefs.value[v]?.id || 'chars' },
 })
 const frameMode = ref('first')
+const shotImageAspectRatio = ref('16:9')
+const shotImageSizePreset = ref('2K')
 const videoConfigSelectOptions = computed(() => videoConfigs.value.map(c => {
   let modelName = ''
   try { const m = JSON.parse(c.model || '[]'); modelName = Array.isArray(m) ? (m[0] || '') : (m || '') } catch { modelName = c.model || '' }
@@ -1001,6 +1057,8 @@ const videoConfigSelectOptions = computed(() => videoConfigs.value.map(c => {
   return { label, value: c.id }
 }))
 const frameModeOptions = [{ label: '仅首帧', value: 'first' }, { label: '首尾帧', value: 'first_last' }]
+const shotImageAspectRatioOptions = SHOT_IMAGE_ASPECT_RATIO_OPTIONS.map(option => ({ ...option }))
+const shotImageSizePresetOptions = SHOT_IMAGE_SIZE_PRESET_OPTIONS.map(option => ({ ...option }))
 const gridLayoutOptions = [
   { label: '2x2', value: '2x2' },
   { label: '3x3', value: '3x3' },
@@ -1024,6 +1082,27 @@ function configLabel(config) {
   let modelName = ''
   try { const m = JSON.parse(config.model || '[]'); modelName = Array.isArray(m) ? (m[0] || '') : (m || '') } catch { modelName = config.model || '' }
   return modelName ? `${config.name} · ${modelName} (${config.provider})` : `${config.name} (${config.provider})`
+}
+
+function restoreShotImagePreferences() {
+  if (!import.meta.client) return
+  try {
+    const raw = localStorage.getItem(shotImagePrefsKey.value)
+    if (!raw) return
+    const parsed = JSON.parse(raw)
+    if (isShotImageAspectRatio(parsed?.aspectRatio)) shotImageAspectRatio.value = parsed.aspectRatio
+    if (isShotImageSizePreset(parsed?.sizePreset)) shotImageSizePreset.value = parsed.sizePreset
+  } catch {}
+}
+
+function handleShotImageAspectRatioChange(value) {
+  if (!isShotImageAspectRatio(value)) return
+  shotImageAspectRatio.value = value
+}
+
+function handleShotImageSizePresetChange(value) {
+  if (!isShotImageSizePreset(value)) return
+  shotImageSizePreset.value = value
 }
 
 function isPendingCharImage(id) {
@@ -1101,6 +1180,81 @@ function composeFailMessage(id) {
   return failedComposeMessages.value[id] || ''
 }
 
+function getStoryboardStateText(sb) {
+  if (!sb) return '待制作'
+  if (hasComposed(sb)) return '已合成'
+  if (isPendingCompose(sb.id)) return '合成中'
+  if (hasVid(sb)) return '已生成视频'
+  if (isPendingVideo(sb.id)) return '视频生成中'
+  if (getFirstFrame(sb) || getLastFrame(sb)) return '已出帧'
+  return '待制作'
+}
+
+function getStoryboardStateClass(sb) {
+  const text = getStoryboardStateText(sb)
+  if (text === '已合成' || text === '已生成视频') return 'is-ready'
+  if (text === '合成中' || text === '视频生成中') return 'is-pending'
+  if (text === '已出帧') return 'is-warm'
+  return 'is-empty'
+}
+
+function getVideoGenerateActionLabel(sb) {
+  if (isPendingVideo(sb.id)) return '生成中'
+  return hasVid(sb) ? '重新生成视频' : '生成视频'
+}
+
+function getVideoStateText(sb) {
+  if (isPendingVideo(sb.id)) return '生成中'
+  if (hasVid(sb)) return '已生成'
+  if (hasImg(sb)) return '待生成'
+  return '仅文本'
+}
+
+function getVideoStateClass(sb) {
+  const text = getVideoStateText(sb)
+  if (text === '已生成') return 'is-ready'
+  if (text === '生成中') return 'is-pending'
+  if (text === '待生成') return 'is-warm'
+  return 'is-empty'
+}
+
+function getVideoReferenceSummary(sb) {
+  const first = !!getFirstFrame(sb)
+  const last = !!getLastFrame(sb)
+  const refCount = getRefs(sb).length
+  if (first && last) return '首尾帧驱动生成'
+  if (first && refCount) return `首帧 + ${refCount} 张参考图`
+  if (first) return '单首帧驱动'
+  if (refCount) return `${refCount} 张参考图辅助`
+  return '仅提示词生成'
+}
+
+function getComposeStateText(sb) {
+  if (isPendingCompose(sb.id)) return '合成中'
+  if (hasComposed(sb)) return '已合成'
+  if (hasVid(sb)) return '待合成'
+  return '缺少源视频'
+}
+
+function getComposeStateClass(sb) {
+  const text = getComposeStateText(sb)
+  if (text === '已合成') return 'is-ready'
+  if (text === '合成中') return 'is-pending'
+  if (text === '待合成') return 'is-warm'
+  return 'is-empty'
+}
+
+function getComposeActionLabel(sb) {
+  if (isPendingCompose(sb.id)) return '合成中'
+  return hasComposed(sb) ? '重新合成' : '开始合成'
+}
+
+function getComposeSourceSummary(sb) {
+  if (hasComposed(sb)) return '已输出合成片段'
+  if (hasVid(sb)) return '已具备镜头源视频'
+  return '等待镜头视频生成'
+}
+
 function isNarratorCharacter(char) {
   const text = `${char?.name || ''} ${char?.role || ''}`.toLowerCase()
   return text.includes('旁白') || text.includes('narrator') || text.includes('画外音')
@@ -1110,8 +1264,21 @@ const visualChars = computed(() => chars.value.filter(c => !isNarratorCharacter(
 
 const lockedImageConfigId = computed(() => episode.value?.image_config_id || episode.value?.imageConfigId || null)
 const lockedVideoConfigId = computed(() => episode.value?.video_config_id || episode.value?.videoConfigId || null)
+const lockedImageProvider = computed(() => imageConfigs.value.find(c => c.id === lockedImageConfigId.value)?.provider || '')
 const lockedImageConfigLabel = computed(() => configLabel(imageConfigs.value.find(c => c.id === lockedImageConfigId.value)))
 const lockedVideoConfigLabel = computed(() => configLabel(videoConfigs.value.find(c => c.id === lockedVideoConfigId.value)))
+const shotImageResolvedSize = computed(() => resolveShotImageSize(shotImageAspectRatio.value, shotImageSizePreset.value))
+const shotImagePrefsKey = computed(() => `aidrama:shot-image-prefs:${dramaId}:${epId.value || episodeNumber}`)
+
+watch([shotImageAspectRatio, shotImageSizePreset, shotImagePrefsKey], () => {
+  if (!import.meta.client) return
+  try {
+    localStorage.setItem(shotImagePrefsKey.value, JSON.stringify({
+      aspectRatio: shotImageAspectRatio.value,
+      sizePreset: shotImageSizePreset.value,
+    }))
+  } catch {}
+})
 
 // Grid tool state
 const gridDialog = ref(false)
@@ -1328,6 +1495,11 @@ function handleFrameModeChange(value) {
 
 function handleShotSelection(sb) {
   selectedSb.value = sb
+}
+
+function handleStoryboardOpen(sb) {
+  selectedSb.value = sb
+  goSubStep('script:storyboard')
 }
 
 function handleGridHistoryToggle() {
@@ -1916,18 +2088,16 @@ function saveMergedCharDesc(c, value) {
   characterAPI.update(c.id, { description: value, appearance: '', personality: '' })
 }
 
-function updateCharField(c, field, value) {
-  const current = c[field] ?? ''
-  if (current === value) return
-  c[field] = value
-  characterAPI.update(c.id, { [field]: value })
-}
-
 function updateSceneField(s, field, value) {
   const current = s[field] ?? ''
   if (current === value) return
   s[field] = value
   sceneAPI.update(s.id, { [field]: value })
+}
+
+function handleCharacterDescriptionUpdate(payload) {
+  if (!payload?.character) return
+  saveMergedCharDesc(payload.character, payload.value || '')
 }
 
 function handleSceneFieldUpdate(payload) {
@@ -2154,7 +2324,7 @@ function getShotReferenceImages(sb) {
   return refs.filter(Boolean).slice(0, 6)
 }
 
-function buildShotImagePrompt(sb, frameType) {
+function buildShotImagePrompt(sb, frameType, aspectRatio = shotImageAspectRatio.value) {
   const title = sb.title || ''
   const description = sb.image_prompt || sb.imagePrompt || sb.description || ''
   const shotType = sb.shot_type || sb.shotType || ''
@@ -2180,12 +2350,13 @@ function buildShotImagePrompt(sb, frameType) {
     time ? `时间：${time}` : '',
     action ? `动作：${action}` : '',
     atmosphere ? `氛围：${atmosphere}` : '',
+    aspectRatio ? `画幅比例：${aspectRatio}` : '',
     frameHint,
   ].filter(Boolean).join('；')
 }
 
 async function genShotFrame(sb, frameType) {
-  const prompt = buildShotImagePrompt(sb, frameType)
+  const prompt = buildShotImagePrompt(sb, frameType, shotImageAspectRatio.value)
   const referenceImages = getShotReferenceImages(sb)
   const key = framePendingKey(sb.id, frameType)
   const previousImage = frameType === 'first_frame' ? getFirstFrame(sb) : getLastFrame(sb)
@@ -2196,6 +2367,7 @@ async function genShotFrame(sb, frameType) {
       storyboard_id: sb.id,
       drama_id: dramaId,
       prompt,
+      size: shotImageResolvedSize.value,
       frame_type: frameType,
       reference_images: referenceImages.length ? referenceImages : undefined,
     }
@@ -2379,7 +2551,11 @@ async function loadConfigs() {
   } catch (e) { console.error('Failed to load AI configs', e) }
 }
 
-onMounted(() => { refresh(); loadConfigs() })
+onMounted(() => {
+  restoreShotImagePreferences()
+  refresh()
+  loadConfigs()
+})
 </script>
 
 <style>

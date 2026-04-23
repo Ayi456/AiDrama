@@ -1,3 +1,5 @@
+import type { ImageJobSpec, VideoJobSpec } from '../provider-spec.js'
+
 /**
  * 图片生成 Provider Adapter 接口
  */
@@ -73,6 +75,7 @@ export interface AIConfig {
   baseUrl: string
   apiKey: string
   model: string
+  settings?: Record<string, unknown>
 }
 
 export interface ImageGenerationRecord {
@@ -82,6 +85,7 @@ export interface ImageGenerationRecord {
   size?: string | null
   frameType?: string | null
   referenceImages?: string | null
+  normalizedSpec?: ImageJobSpec | null
   // ... 其他字段
 }
 
@@ -96,6 +100,7 @@ export interface VideoGenerationRecord {
   referenceImageUrls?: string | null
   duration?: number | null
   aspectRatio?: string | null
+  normalizedSpec?: VideoJobSpec | null
   // ... 其他字段
 }
 

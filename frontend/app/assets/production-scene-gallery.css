@@ -121,6 +121,7 @@
   position: absolute;
   inset: 0;
   background: linear-gradient(180deg, rgba(8, 14, 24, 0.02), rgba(8, 14, 24, 0.34));
+  pointer-events: none;
 }
 
 .scene-gallery__image {
@@ -166,6 +167,7 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: 12px;
+  pointer-events: none;
 }
 
 .scene-gallery__cover-copy {

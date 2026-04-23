@@ -14,6 +14,19 @@ export interface AIConfig {
   baseUrl: string
   apiKey: string
   model: string
+  settings: Record<string, unknown>
+}
+
+function parseSettings(raw: string | null | undefined): Record<string, unknown> {
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : {}
+  } catch {
+    return {}
+  }
 }
 
 export function getTextProviderProtocol(config: AIConfig): TextProviderProtocol {
@@ -78,6 +91,7 @@ export function getActiveConfig(serviceType: ServiceType): AIConfig | null {
     baseUrl: active.baseUrl,
     apiKey: active.apiKey,
     model: models[0] || '',
+    settings: parseSettings(active.settings),
   }
 }
 
@@ -106,5 +120,6 @@ export function getConfigById(id: number): AIConfig | null {
     baseUrl: row.baseUrl,
     apiKey: row.apiKey,
     model: models[0] || '',
+    settings: parseSettings(row.settings),
   }
 }

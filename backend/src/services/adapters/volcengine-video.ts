@@ -11,43 +11,57 @@ import type {
   VideoGenResponse,
   VideoPollResponse,
 } from './types'
-import { joinProviderUrl } from './url'
+import { joinProviderUrl } from './url.js'
 
 export class VolcEngineVideoAdapter implements VideoProviderAdapter {
   provider = 'volcengine'
 
   buildGenerateRequest(config: AIConfig, record: VideoGenerationRecord): ProviderRequest {
     const model = record.model || config.model || 'doubao-seedance-1-5-pro-251215'
+    const spec = record.normalizedSpec || null
+    const volcOptions = this.getVolcengineOptions(spec?.providerOptions)
 
-    const content: any[] = [{ type: 'text', text: record.prompt || '' }]
+    const content: any[] = []
+    if (spec?.prompt || record.prompt) {
+      content.push({ type: 'text', text: spec?.prompt || record.prompt || '' })
+    }
 
-    // 添加参考图
-    if (record.referenceMode === 'single' && record.imageUrl) {
-      content.push({ type: 'image_url', image_url: { url: record.imageUrl } })
-    } else if (record.referenceMode === 'first_last') {
-      if (record.firstFrameUrl) {
-        content.push({ type: 'image_url', image_url: { url: record.firstFrameUrl }, role: 'first_frame' })
-      }
-      if (record.lastFrameUrl) {
-        content.push({ type: 'image_url', image_url: { url: record.lastFrameUrl }, role: 'last_frame' })
-      }
-    } else if (record.referenceMode === 'multiple' && record.referenceImageUrls) {
-      try {
-        const refs = JSON.parse(record.referenceImageUrls)
-        for (const url of refs) {
-          content.push({ type: 'image_url', image_url: { url } })
+    for (const input of spec?.inputs || []) {
+      if (input.type === 'image' && input.url) {
+        if (input.role === 'first_frame' && spec?.mode !== 'first_last_video') {
+          content.push({ type: 'image_url', image_url: { url: input.url } })
+          continue
         }
-      } catch {}
+        const role = input.role === 'reference'
+          ? 'reference_image'
+          : input.role
+        content.push({ type: 'image_url', image_url: { url: input.url }, role })
+      }
+      if (input.type === 'video' && input.url) {
+        content.push({ type: 'video_url', video_url: { url: input.url }, role: 'reference_video' })
+      }
+      if (input.type === 'audio' && input.url) {
+        content.push({ type: 'audio_url', audio_url: { url: input.url }, role: 'reference_audio' })
+      }
     }
 
     const body: any = {
       model,
       content,
-      generate_audio: true,
-      ratio: record.aspectRatio || 'adaptive',
-      duration: this.normalizeDuration(record.duration),
-      watermark: false,
+      generate_audio: spec?.control?.generateAudio ?? true,
+      ratio: spec?.output?.ratio || record.aspectRatio || 'adaptive',
+      duration: this.normalizeDuration(spec?.output?.duration ?? record.duration),
+      watermark: spec?.control?.watermark ?? false,
     }
+    if (typeof spec?.control?.seed === 'number') body.seed = spec.control.seed
+    if (typeof spec?.control?.returnLastFrame === 'boolean') body.return_last_frame = spec.control.returnLastFrame
+    if (typeof spec?.output?.resolution === 'string') body.resolution = spec.output.resolution
+    if (typeof volcOptions.resolution === 'string') body.resolution = volcOptions.resolution
+    if (typeof volcOptions.service_tier === 'string') body.service_tier = volcOptions.service_tier
+    if (typeof volcOptions.execution_expires_after === 'number') body.execution_expires_after = volcOptions.execution_expires_after
+    if (typeof volcOptions.draft === 'boolean') body.draft = volcOptions.draft
+    if (typeof volcOptions.safety_identifier === 'string') body.safety_identifier = volcOptions.safety_identifier
+    if (Array.isArray(volcOptions.tools)) body.tools = volcOptions.tools
 
     return {
       url: joinProviderUrl(config.baseUrl, '/api/v3', '/contents/generations/tasks'),
@@ -103,8 +117,14 @@ export class VolcEngineVideoAdapter implements VideoProviderAdapter {
   }
 
   private normalizeDuration(duration?: number | null): number {
+    if (duration === -1) return -1
     const parsed = Math.round(Number(duration || 5))
     if (!Number.isFinite(parsed)) return 5
-    return Math.min(12, Math.max(4, parsed))
+    return Math.min(15, Math.max(4, parsed))
+  }
+
+  private getVolcengineOptions(options?: Record<string, Record<string, unknown>>) {
+    const raw = options && typeof options === 'object' ? options.volcengine : null
+    return raw && typeof raw === 'object' ? raw as Record<string, any> : {}
   }
 }

@@ -5,6 +5,8 @@ import { now } from '../utils/response.js'
 import { downloadFile, readImageAsCompressedDataUrl, saveBase64Image } from '../utils/storage.js'
 import { getImageAdapter } from './adapters/registry'
 import type { AIConfig } from './adapters/types'
+import { buildImageJobSpecFromLegacyRequest } from './provider-spec.js'
+import { resolveRequestedImageSize } from './image-size.js'
 import { logTaskError, logTaskPayload, logTaskProgress, logTaskStart, logTaskSuccess, logTaskWarn, redactUrl } from '../utils/task-logger.js'
 
 interface GenerateImageParams {
@@ -18,6 +20,14 @@ interface GenerateImageParams {
   referenceImages?: string[]
   frameType?: string
   configId?: number
+}
+
+function toJson(value: unknown) {
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return null
+  }
 }
 
 export async function generateImage(params: GenerateImageParams): Promise<number> {
@@ -35,7 +45,7 @@ export async function generateImage(params: GenerateImageParams): Promise<number
     prompt: params.prompt,
     model: params.model || config.model,
     provider: config.provider,
-    size: params.size || '1920x1080',
+    size: resolveRequestedImageSize(config.provider, params.size, params.model || config.model),
     frameType: params.frameType,
     referenceImages: params.referenceImages ? JSON.stringify(params.referenceImages) : null,
     status: 'processing',
@@ -85,8 +95,18 @@ async function processImageGeneration(id: number, config: AIConfig) {
       frameType: record.frameType,
     })
 
-    // 使用 Adapter 构建请求
     const resolvedReferenceImages = await normalizeReferenceImages(record.referenceImages)
+    const normalizedSpec = buildImageJobSpecFromLegacyRequest({
+      prompt: record.prompt,
+      size: record.size,
+      frameType: record.frameType,
+      referenceImages: resolvedReferenceImages,
+    }, config.settings as any)
+    db.update(schema.imageGenerations)
+      .set({ normalizedRequest: toJson(normalizedSpec), updatedAt: now() })
+      .where(eq(schema.imageGenerations.id, id))
+      .run()
+
     const { url, method, headers, body } = adapter.buildGenerateRequest(config, {
       id: record.id,
       model: record.model,
@@ -94,7 +114,12 @@ async function processImageGeneration(id: number, config: AIConfig) {
       size: record.size,
       frameType: record.frameType,
       referenceImages: resolvedReferenceImages ? JSON.stringify(resolvedReferenceImages) : null,
+      normalizedSpec,
     })
+    db.update(schema.imageGenerations)
+      .set({ providerRequest: toJson(body), updatedAt: now() })
+      .where(eq(schema.imageGenerations.id, id))
+      .run()
     logTaskProgress('ImageTask', 'request', {
       id,
       provider: config.provider,
@@ -119,6 +144,10 @@ async function processImageGeneration(id: number, config: AIConfig) {
 
     if (!resp.ok) throw new Error(`API error ${resp.status}: ${await resp.text()}`)
     const result = await resp.json() as any
+    db.update(schema.imageGenerations)
+      .set({ providerResponse: toJson(result), updatedAt: now() })
+      .where(eq(schema.imageGenerations.id, id))
+      .run()
     logTaskPayload('ImageTask', 'response payload', {
       id,
       provider: config.provider,
@@ -240,6 +269,10 @@ async function pollImageTask(id: number, config: AIConfig, taskId: string) {
       })
       if (!resp.ok) continue
       const result = await resp.json() as any
+      db.update(schema.imageGenerations)
+        .set({ providerResponse: toJson(result), updatedAt: now() })
+        .where(eq(schema.imageGenerations.id, id))
+        .run()
 
       const pollResp = adapter.parsePollResponse(result)
 

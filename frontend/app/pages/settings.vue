@@ -259,6 +259,16 @@
           <span class="mono">{{ endpointHint }}</span>
         </div>
         <label class="field"><span class="field-label">模型（逗号分隔）</span><input v-model="cfgForm.modelStr" class="input" placeholder="model-name" /></label>
+        <label class="field">
+          <span class="field-label">高级默认参数（JSON）</span>
+          <textarea
+            v-model="cfgForm.settingsJson"
+            class="textarea"
+            rows="12"
+            placeholder='{"control":{},"providerOptions":{}}'
+          />
+          <span class="field-hint">用于存放 provider 默认能力参数。建议只放该 provider 支持的字段，例如输出格式、自动音频、尾帧返回、服务等级等。</span>
+        </label>
         <div v-if="cfgTestResult" class="test-result" :class="{ ok: cfgTestResult.reachable, bad: !cfgTestResult.reachable }">
           <div class="test-result-head">
             <span class="tag" :class="cfgTestResult.reachable ? 'tag-success' : 'tag-error'">{{ cfgTestResult.status || 'ERROR' }}</span>
@@ -327,7 +337,7 @@ const cfgDialog = ref(false)
 const cfgEditId = ref(null)
 const cfgTesting = ref(false)
 const cfgTestResult = ref(null)
-const cfgForm = reactive({ name: '', provider: '', api_key: '', base_url: '', modelStr: '', service_type: 'text', priority: 0 })
+const cfgForm = reactive({ name: '', provider: '', api_key: '', base_url: '', modelStr: '', settingsJson: '{}', service_type: 'text', priority: 0 })
 const serviceTypes = [{ type: 'text', label: '文本' }, { type: 'image', label: '图片' }, { type: 'video', label: '视频' }]
 const providers = ['ali', 'chatfire', 'gemini', 'minimax', 'openai', 'openrouter', 'vidu', 'volcengine']
 const providerSelectOptions = computed(() => providers.map(p => ({ label: p, value: p })))
@@ -352,6 +362,43 @@ const providerPresets = {
     volcengine: { label: 'AiDrama 视频', baseUrl: 'https://api.chatfire.site/volcengine', models: ['doubao-seedance-1-5-pro-251215'] },
     vidu: { label: 'Vidu 推荐', baseUrl: 'https://api.vidu.com', models: ['viduq3-turbo'] },
     ali: { label: '阿里推荐', baseUrl: 'https://dashscope.aliyuncs.com', models: ['wan2.6-i2v-flash'] },
+  },
+}
+const providerSettingsTemplates = {
+  text: {
+    default: {},
+  },
+  image: {
+    default: {
+      control: { watermark: false },
+      providerOptions: {},
+    },
+    volcengine: {
+      control: { watermark: false },
+      providerOptions: {
+        volcengine: {
+          output_format: 'png',
+          response_format: 'url',
+          sequential_image_generation: 'disabled',
+        },
+      },
+    },
+  },
+  video: {
+    default: {
+      control: { generateAudio: true, returnLastFrame: false, watermark: false },
+      providerOptions: {},
+    },
+    volcengine: {
+      control: { generateAudio: true, returnLastFrame: false, watermark: false },
+      providerOptions: {
+        volcengine: {
+          resolution: '720p',
+          service_tier: 'default',
+          draft: false,
+        },
+      },
+    },
   },
 }
 const endpointPrefixes = {
@@ -380,12 +427,31 @@ function presetsByType(type) {
   const group = providerPresets[type] || {}
   return Object.entries(group).map(([provider, preset]) => ({ provider, ...preset }))
 }
+function stringifySettings(settings) {
+  return JSON.stringify(settings || {}, null, 2)
+}
+function getSettingsTemplate(type, provider = '') {
+  const group = providerSettingsTemplates[type] || {}
+  return group[provider] || group.default || {}
+}
+function parseSettingsJson(raw) {
+  const text = String(raw || '').trim()
+  if (!text) return {}
+  try {
+    const parsed = JSON.parse(text)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('高级默认参数必须是 JSON 对象')
+    return parsed
+  } catch (e) {
+    throw new Error(e.message || '高级默认参数 JSON 无效')
+  }
+}
 function applyProviderPreset(type, provider) {
   const preset = providerPresets[type]?.[provider]
   if (!preset) return
   cfgForm.provider = provider
   cfgForm.base_url = preset.baseUrl
   cfgForm.modelStr = preset.models.join(', ')
+  cfgForm.settingsJson = stringifySettings(getSettingsTemplate(type, provider))
   cfgForm.name = `${preset.label}-${serviceMeta[type].label}`
 }
 
@@ -395,7 +461,7 @@ async function delCfg(id) { await aiConfigAPI.del(id); toast.success('已删除'
 function startAddCfg(t) {
   cfgEditId.value = null
   cfgTestResult.value = null
-  Object.assign(cfgForm, { name: '', provider: '', api_key: '', base_url: '', modelStr: '', service_type: t, priority: 0 })
+  Object.assign(cfgForm, { name: '', provider: '', api_key: '', base_url: '', modelStr: '', settingsJson: stringifySettings(getSettingsTemplate(t)), service_type: t, priority: 0 })
   const firstPreset = presetsByType(t)[0]
   if (firstPreset) applyProviderPreset(t, firstPreset.provider)
   cfgDialog.value = true
@@ -409,6 +475,7 @@ function startEditCfg(c) {
     api_key: c.api_key || '',
     base_url: c.base_url || '',
     modelStr: fmtModel(c.model),
+    settingsJson: stringifySettings(c.settings || getSettingsTemplate(c.service_type, c.provider)),
     service_type: c.service_type,
     priority: c.priority ?? 0,
   })
@@ -427,12 +494,14 @@ async function testCfgPayload(payload) {
   }
 }
 async function testDraftCfg() {
+  const settings = parseSettingsJson(cfgForm.settingsJson)
   await testCfgPayload({
     service_type: cfgForm.service_type,
     provider: cfgForm.provider,
     api_key: cfgForm.api_key,
     base_url: cfgForm.base_url,
     model: cfgForm.modelStr.split(',').map(s => s.trim()).filter(Boolean),
+    settings,
   })
 }
 async function testExistingCfg(c) {
@@ -443,14 +512,22 @@ async function testExistingCfg(c) {
     api_key: c.api_key || '',
     base_url: c.base_url || '',
     model: Array.isArray(c.model) ? c.model : [],
+    settings: c.settings || {},
   })
 }
 async function saveCfg() {
   if (!cfgForm.provider) { toast.warning('选择服务商'); return }
   const models = cfgForm.modelStr.split(',').map(s => s.trim()).filter(Boolean)
+  let settings = {}
   try {
-    if (cfgEditId.value) await aiConfigAPI.update(cfgEditId.value, { name: cfgForm.name, provider: cfgForm.provider, api_key: cfgForm.api_key, base_url: cfgForm.base_url, model: models, priority: cfgForm.priority })
-    else await aiConfigAPI.create({ service_type: cfgForm.service_type, provider: cfgForm.provider, name: cfgForm.name || `${cfgForm.provider}-${cfgForm.service_type}`, api_key: cfgForm.api_key, base_url: cfgForm.base_url, model: models, priority: cfgForm.priority })
+    settings = parseSettingsJson(cfgForm.settingsJson)
+  } catch (e) {
+    toast.error(e.message)
+    return
+  }
+  try {
+    if (cfgEditId.value) await aiConfigAPI.update(cfgEditId.value, { name: cfgForm.name, provider: cfgForm.provider, api_key: cfgForm.api_key, base_url: cfgForm.base_url, model: models, settings, priority: cfgForm.priority })
+    else await aiConfigAPI.create({ service_type: cfgForm.service_type, provider: cfgForm.provider, name: cfgForm.name || `${cfgForm.provider}-${cfgForm.service_type}`, api_key: cfgForm.api_key, base_url: cfgForm.base_url, model: models, settings, priority: cfgForm.priority })
     cfgDialog.value = false; toast.success('已保存'); loadCfgs()
   } catch (e) { toast.error(e.message) }
 }

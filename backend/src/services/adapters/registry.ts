@@ -39,7 +39,9 @@ export const videoAdapters: Record<string, VideoProviderAdapter> = {
  * @returns 对应的 Adapter，未知厂商返回 MiniMax 默认
  */
 export function getImageAdapter(provider: string): ImageProviderAdapter {
-  return imageAdapters[provider.toLowerCase()] || imageAdapters['minimax']
+  const adapter = imageAdapters[provider.toLowerCase()]
+  if (!adapter) throw new Error(`Unsupported image provider: ${provider}`)
+  return adapter
 }
 
 /**
@@ -48,5 +50,7 @@ export function getImageAdapter(provider: string): ImageProviderAdapter {
  * @returns 对应的 Adapter，未知厂商返回 MiniMax 默认
  */
 export function getVideoAdapter(provider: string): VideoProviderAdapter {
-  return videoAdapters[provider.toLowerCase()] || videoAdapters['minimax']
+  const adapter = videoAdapters[provider.toLowerCase()]
+  if (!adapter) throw new Error(`Unsupported video provider: ${provider}`)
+  return adapter
 }

@@ -5,6 +5,7 @@ import { now } from '../utils/response.js'
 import { downloadFile, readImageAsCompressedDataUrl } from '../utils/storage.js'
 import { getVideoAdapter } from './adapters/registry'
 import type { AIConfig } from './adapters/types'
+import { buildVideoJobSpecFromLegacyRequest } from './provider-spec.js'
 import { logTaskError, logTaskPayload, logTaskProgress, logTaskStart, logTaskSuccess, logTaskWarn, redactUrl } from '../utils/task-logger.js'
 
 interface GenerateVideoParams {
@@ -20,6 +21,14 @@ interface GenerateVideoParams {
   duration?: number
   aspectRatio?: string
   configId?: number
+}
+
+function toJson(value: unknown) {
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return null
+  }
 }
 
 export async function generateVideo(params: GenerateVideoParams): Promise<number> {
@@ -91,7 +100,21 @@ async function processVideoGeneration(id: number, config: AIConfig) {
     const resolvedLastFrameUrl = await normalizeVideoReferenceUrl(record.lastFrameUrl)
     const resolvedReferenceImageUrls = await normalizeVideoReferenceUrls(record.referenceImageUrls)
 
-    // 使用 Adapter 构建请求
+    const normalizedSpec = buildVideoJobSpecFromLegacyRequest({
+      prompt: record.prompt,
+      referenceMode: record.referenceMode,
+      imageUrl: resolvedImageUrl,
+      firstFrameUrl: resolvedFirstFrameUrl,
+      lastFrameUrl: resolvedLastFrameUrl,
+      referenceImageUrls: resolvedReferenceImageUrls,
+      duration: record.duration,
+      aspectRatio: record.aspectRatio,
+    }, config.settings as any)
+    db.update(schema.videoGenerations)
+      .set({ normalizedRequest: toJson(normalizedSpec), updatedAt: now() })
+      .where(eq(schema.videoGenerations.id, id))
+      .run()
+
     const { url, method, headers, body } = adapter.buildGenerateRequest(config, {
       id: record.id,
       model: record.model,
@@ -103,7 +126,12 @@ async function processVideoGeneration(id: number, config: AIConfig) {
       referenceImageUrls: resolvedReferenceImageUrls ? JSON.stringify(resolvedReferenceImageUrls) : null,
       duration: record.duration,
       aspectRatio: record.aspectRatio,
+      normalizedSpec,
     })
+    db.update(schema.videoGenerations)
+      .set({ providerRequest: toJson(body), updatedAt: now() })
+      .where(eq(schema.videoGenerations.id, id))
+      .run()
     logTaskProgress('VideoTask', 'request', {
       id,
       provider: config.provider,
@@ -128,6 +156,10 @@ async function processVideoGeneration(id: number, config: AIConfig) {
 
     if (!resp.ok) throw new Error(`API error ${resp.status}: ${await resp.text()}`)
     const result = await resp.json() as any
+    db.update(schema.videoGenerations)
+      .set({ providerResponse: toJson(result), updatedAt: now() })
+      .where(eq(schema.videoGenerations.id, id))
+      .run()
 
     const { isAsync, taskId, videoUrl } = adapter.parseGenerateResponse(result)
 
@@ -213,6 +245,10 @@ async function pollVideoTask(id: number, config: AIConfig, taskId: string, story
       const resp = await fetch(url, { method, headers })
       if (!resp.ok) continue
       const result = await resp.json() as any
+      db.update(schema.videoGenerations)
+        .set({ providerResponse: toJson(result), updatedAt: now() })
+        .where(eq(schema.videoGenerations.id, id))
+        .run()
 
       const pollResp = adapter.parsePollResponse(result)
 

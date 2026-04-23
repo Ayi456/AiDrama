@@ -11,27 +11,55 @@ import type {
   ImageGenResponse,
   ImagePollResponse,
 } from './types'
-import { joinProviderUrl } from './url'
+import { joinProviderUrl } from './url.js'
 
 export class VolcEngineImageAdapter implements ImageProviderAdapter {
   provider = 'volcengine'
 
   buildGenerateRequest(config: AIConfig, record: ImageGenerationRecord): ProviderRequest {
-    // 火山引擎使用 seedream 模型
     const model = record.model || config.model || 'doubao-seedream-5-0-lite'
+    const spec = record.normalizedSpec || null
+    const volcOptions = this.getVolcengineOptions(spec?.providerOptions)
 
     const body: any = {
       model,
-      prompt: record.prompt,
+      prompt: spec?.prompt || record.prompt,
     }
 
-    // 尺寸参数
-    if (record.size) {
-      const [w, h] = record.size.split('x')
-      if (w && h) {
-        body.width = parseInt(w)
-        body.height = parseInt(h)
-      }
+    const imageInputs = (spec?.inputs || [])
+      .filter((item) => item.type === 'image' && !!item.url)
+      .map((item) => item.url)
+    if (imageInputs.length === 1) {
+      body.image = imageInputs[0]
+    } else if (imageInputs.length > 1) {
+      body.image = imageInputs
+    }
+
+    const size = spec?.output?.size || record.size || ''
+    if (size) {
+      body.size = size
+    } else if (spec?.output?.width && spec?.output?.height) {
+      body.size = `${spec.output.width}x${spec.output.height}`
+    }
+
+    if (spec?.control?.watermark != null) body.watermark = spec.control.watermark
+    if (typeof spec?.control?.seed === 'number') body.seed = spec.control.seed
+    if (typeof spec?.control?.stream === 'boolean') body.stream = spec.control.stream
+
+    if (typeof spec?.output?.format === 'string') body.output_format = spec.output.format
+    if (typeof volcOptions.output_format === 'string') body.output_format = volcOptions.output_format
+    if (typeof volcOptions.response_format === 'string') body.response_format = volcOptions.response_format
+    if (typeof volcOptions.sequential_image_generation === 'string') {
+      body.sequential_image_generation = volcOptions.sequential_image_generation
+    }
+    if (volcOptions.sequential_image_generation_options) {
+      body.sequential_image_generation_options = volcOptions.sequential_image_generation_options
+    }
+    if (volcOptions.optimize_prompt_options) {
+      body.optimize_prompt_options = volcOptions.optimize_prompt_options
+    }
+    if (Array.isArray(volcOptions.tools)) {
+      body.tools = volcOptions.tools
     }
 
     return {
@@ -46,14 +74,12 @@ export class VolcEngineImageAdapter implements ImageProviderAdapter {
   }
 
   parseGenerateResponse(result: any): ImageGenResponse {
-    // 火山引擎可能返回 task_id 进行轮询
-    if (result.task_id || result.id) {
-      return { isAsync: true, taskId: result.task_id || result.id }
-    }
-    // 同步返回
     const imageUrl = result.data?.[0]?.url || result.url
     if (imageUrl) {
       return { isAsync: false, imageUrl }
+    }
+    if (result.task_id || result.id) {
+      return { isAsync: true, taskId: result.task_id || result.id }
     }
     throw new Error('No image URL in response')
   }
@@ -89,5 +115,10 @@ export class VolcEngineImageAdapter implements ImageProviderAdapter {
 
   extractImageBase64(result: any): { data: string; mimeType: string } | null {
     return null
+  }
+
+  private getVolcengineOptions(options?: Record<string, Record<string, unknown>>) {
+    const raw = options && typeof options === 'object' ? options.volcengine : null
+    return raw && typeof raw === 'object' ? raw as Record<string, any> : {}
   }
 }

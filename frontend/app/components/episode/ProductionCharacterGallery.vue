@@ -48,6 +48,20 @@
             </span>
           </div>
           <div class="character-gallery__note">{{ hasCharacterImage(character) ? '再次生成会沿用当前角色描述重新抽一张' : '首次生成会根据角色描述直接出图' }}</div>
+
+          <label class="character-gallery__prompt">
+            <div class="character-gallery__prompt-head">
+              <span class="character-gallery__prompt-label">角色描述词</span>
+              <span class="character-gallery__prompt-tip">失焦自动保存</span>
+            </div>
+            <textarea
+              class="character-gallery__prompt-input"
+              :value="getCharacterDescription(character)"
+              rows="5"
+              placeholder="这里的内容会直接用于角色形象生成"
+              @blur="emit('update-character-description', { character, value: $event.target.value })"
+            />
+          </label>
         </div>
 
         <div class="character-gallery__foot">
@@ -84,10 +98,14 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['batch-generate', 'generate', 'open-image-viewer'])
+const emit = defineEmits(['batch-generate', 'generate', 'update-character-description', 'open-image-viewer'])
 
 function getCharacterImage(character) {
   return character?.image_url || character?.imageUrl || ''
+}
+
+function getCharacterDescription(character) {
+  return [character?.description, character?.appearance, character?.personality].filter(Boolean).join('\n')
 }
 
 function hasCharacterImage(character) {

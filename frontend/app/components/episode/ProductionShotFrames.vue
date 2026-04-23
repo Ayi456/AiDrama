@@ -1,9 +1,13 @@
 <template>
   <div class="shot-frames">
     <div class="shot-frames__toolbar">
-      <span class="dim shot-frames__meta">{{ sbs.length }} 个镜头</span>
-      <span class="tag mono">{{ shotImgCount }}/{{ sbs.length }} 已有帧图</span>
-      <span class="tag">{{ lockedImageConfigLabel }}</span>
+      <div class="shot-frames__toolbar-meta">
+        <span class="dim shot-frames__meta">{{ sbs.length }} 个镜头</span>
+        <span class="tag mono">{{ shotImgCount }}/{{ sbs.length }} 已有帧图</span>
+        <span class="tag">{{ lockedImageConfigLabel }}</span>
+        <span class="tag shot-frames__jump-tip">点击分镜信息可回到分镜编辑</span>
+      </div>
+
       <div class="shot-frames__toolbar-actions">
         <BaseSelect
           :model-value="frameMode"
@@ -21,6 +25,54 @@
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
           宫格图工具
         </button>
+      </div>
+    </div>
+
+    <div class="shot-frames__params">
+      <div class="shot-frames__params-head">
+        <div>
+          <div class="shot-frames__params-kicker">生成参数</div>
+          <div class="shot-frames__params-copy">当前仅作用于分镜首帧 / 尾帧的生成与重新生成</div>
+        </div>
+        <div class="shot-frames__params-tags">
+          <span class="tag mono">{{ shotImageResolvedSize }}</span>
+          <span v-if="lockedImageProvider" class="tag">{{ lockedImageProvider }}</span>
+        </div>
+      </div>
+
+      <div class="shot-frames__params-grid">
+        <div class="shot-frames__param-group">
+          <div class="shot-frames__param-label">画面比例</div>
+          <div class="shot-frames__param-pills">
+            <button
+              v-for="option in shotImageAspectRatioOptions"
+              :key="option.value"
+              type="button"
+              :class="['shot-frames__pill', { active: shotImageAspectRatio === option.value }]"
+              :aria-pressed="shotImageAspectRatio === option.value"
+              @click="emit('change-shot-image-aspect-ratio', option.value)"
+            >
+              {{ option.label }}
+            </button>
+          </div>
+        </div>
+
+        <div class="shot-frames__param-group">
+          <div class="shot-frames__param-label">输出尺寸</div>
+          <div class="shot-frames__size-grid">
+            <button
+              v-for="option in shotImageSizePresetOptions"
+              :key="option.value"
+              type="button"
+              :class="['shot-frames__size-pill', { active: shotImageSizePreset === option.value }]"
+              :aria-pressed="shotImageSizePreset === option.value"
+              @click="emit('change-shot-image-size-preset', option.value)"
+            >
+              <span class="shot-frames__size-main">{{ option.label }}</span>
+              <span class="shot-frames__size-note">{{ option.note }}</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -85,13 +137,26 @@
           v-for="(sb, i) in sbs"
           :key="sb.id"
           :class="['frame-row', 'card', { active: selectedSbId === sb.id }]"
-          @click="emit('select-shot', sb)"
+          @click="openStoryboard(sb)"
         >
           <div class="frame-info">
             <div class="frame-top">
-              <span class="frame-num">#{{ String(i + 1).padStart(2, '0') }}</span>
-              <span class="frame-badge">{{ sb.shot_type || sb.shotType || '—' }}</span>
+              <div class="frame-top-left">
+                <span class="frame-num">#{{ String(i + 1).padStart(2, '0') }}</span>
+                <span class="frame-badge">{{ sb.shot_type || sb.shotType || '—' }}</span>
+              </div>
+
+              <button class="frame-jump-btn" type="button" @click.stop="openStoryboard(sb)">
+                分镜页
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
+              </button>
             </div>
+
+            <div class="frame-title-row">
+              <div class="frame-title">{{ sb.title || `镜头 ${String(i + 1).padStart(2, '0')}` }}</div>
+              <span class="frame-state-pill" :class="getShotStateClass(sb)">{{ getShotStateText(sb) }}</span>
+            </div>
+
             <div class="frame-desc">{{ sb.description || sb.title || '—' }}</div>
             <div class="frame-meta">
               <span :class="['dot', getFirstFrame(sb) && 'ok', isPendingShotFrame(sb.id, 'first_frame') && 'pending']" />
@@ -103,9 +168,14 @@
             </div>
           </div>
 
-          <div class="frame-thumbs">
+          <div class="frame-thumbs" @click.stop>
             <div class="frame-thumb-wrap">
-              <div class="frame-thumb" @click.stop="!isPendingShotFrame(sb.id, 'first_frame') && emit('generate-shot-frame', { sb, frameType: 'first_frame' })">
+              <div class="frame-slot-head">
+                <span class="frame-thumb-label">首帧</span>
+                <span v-if="getFirstFrame(sb)" class="frame-slot-status">已出图</span>
+              </div>
+
+              <div class="frame-thumb" @click.stop="!getFirstFrame(sb) && !isPendingShotFrame(sb.id, 'first_frame') && emit('generate-shot-frame', { sb, frameType: 'first_frame' })">
                 <img
                   v-if="getFirstFrame(sb)"
                   :src="'/' + getFirstFrame(sb)"
@@ -120,11 +190,34 @@
                   <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                 </span>
               </div>
-              <span class="frame-thumb-label">{{ isPendingShotFrame(sb.id, 'first_frame') ? '首帧生成中' : '首帧' }}</span>
+
+              <div class="frame-thumb-actions">
+                <button
+                  class="btn btn-sm frame-thumb-action frame-thumb-action--primary"
+                  type="button"
+                  :disabled="isPendingShotFrame(sb.id, 'first_frame')"
+                  @click.stop="emit('generate-shot-frame', { sb, frameType: 'first_frame' })"
+                >
+                  {{ getFrameActionLabel(sb, 'first_frame') }}
+                </button>
+                <button
+                  v-if="getFirstFrame(sb)"
+                  class="btn btn-sm frame-thumb-action"
+                  type="button"
+                  @click.stop="openViewer('/' + getFirstFrame(sb), `镜头 #${String(i + 1).padStart(2, '0')} 首帧`)"
+                >
+                  查看
+                </button>
+              </div>
             </div>
 
             <div v-if="frameMode === 'first_last'" class="frame-thumb-wrap">
-              <div class="frame-thumb" @click.stop="!isPendingShotFrame(sb.id, 'last_frame') && emit('generate-shot-frame', { sb, frameType: 'last_frame' })">
+              <div class="frame-slot-head">
+                <span class="frame-thumb-label">尾帧</span>
+                <span v-if="getLastFrame(sb)" class="frame-slot-status">已出图</span>
+              </div>
+
+              <div class="frame-thumb" @click.stop="!getLastFrame(sb) && !isPendingShotFrame(sb.id, 'last_frame') && emit('generate-shot-frame', { sb, frameType: 'last_frame' })">
                 <img
                   v-if="getLastFrame(sb)"
                   :src="'/' + getLastFrame(sb)"
@@ -139,7 +232,25 @@
                   <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                 </span>
               </div>
-              <span class="frame-thumb-label">{{ isPendingShotFrame(sb.id, 'last_frame') ? '尾帧生成中' : '尾帧' }}</span>
+
+              <div class="frame-thumb-actions">
+                <button
+                  class="btn btn-sm frame-thumb-action frame-thumb-action--primary"
+                  type="button"
+                  :disabled="isPendingShotFrame(sb.id, 'last_frame')"
+                  @click.stop="emit('generate-shot-frame', { sb, frameType: 'last_frame' })"
+                >
+                  {{ getFrameActionLabel(sb, 'last_frame') }}
+                </button>
+                <button
+                  v-if="getLastFrame(sb)"
+                  class="btn btn-sm frame-thumb-action"
+                  type="button"
+                  @click.stop="openViewer('/' + getLastFrame(sb), `镜头 #${String(i + 1).padStart(2, '0')} 尾帧`)"
+                >
+                  查看
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -362,13 +473,19 @@
 import { Loader2 } from 'lucide-vue-next'
 import BaseSelect from '~/components/BaseSelect.vue'
 
-defineProps({
+const props = defineProps({
   sbs: { type: Array, default: () => [] },
   shotImgCount: { type: Number, default: 0 },
   lockedImageConfigLabel: { type: String, default: '' },
   selectedSbId: { type: Number, default: 0 },
   frameMode: { type: String, default: 'first' },
   frameModeOptions: { type: Array, default: () => [] },
+  shotImageAspectRatio: { type: String, default: '16:9' },
+  shotImageAspectRatioOptions: { type: Array, default: () => [] },
+  shotImageSizePreset: { type: String, default: '2K' },
+  shotImageSizePresetOptions: { type: Array, default: () => [] },
+  shotImageResolvedSize: { type: String, default: '2560x1440' },
+  lockedImageProvider: { type: String, default: '' },
   gridImagePath: { type: String, default: '' },
   gridActualLayout: { type: Object, default: () => ({ rows: 3, cols: 3 }) },
   gridRecoveredMode: { type: String, default: '' },
@@ -413,12 +530,15 @@ defineProps({
 
 const emit = defineEmits([
   'change-frame-mode',
+  'change-shot-image-aspect-ratio',
+  'change-shot-image-size-preset',
   'open-grid-tool',
   'reopen-grid-preview',
   'continue-grid-split',
   'toggle-grid-history',
   'select-grid-history',
   'select-shot',
+  'open-storyboard',
   'generate-shot-frame',
   'open-image-viewer',
   'close-grid-dialog',
@@ -439,6 +559,43 @@ const emit = defineEmits([
 
 function openViewer(src, title) {
   emit('open-image-viewer', { src, title })
+}
+
+function openStoryboard(sb) {
+  emit('select-shot', sb)
+  emit('open-storyboard', sb)
+}
+
+function hasFrameByType(sb, frameType) {
+  return frameType === 'last_frame' ? !!props.getLastFrame(sb) : !!props.getFirstFrame(sb)
+}
+
+function getFrameActionLabel(sb, frameType) {
+  if (props.isPendingShotFrame(sb.id, frameType)) return '生成中'
+  return hasFrameByType(sb, frameType) ? '重新生成' : '立即生成'
+}
+
+function getShotStateText(sb) {
+  const firstReady = !!props.getFirstFrame(sb)
+  const lastReady = !!props.getLastFrame(sb)
+  const firstPending = props.isPendingShotFrame(sb.id, 'first_frame')
+  const lastPending = props.isPendingShotFrame(sb.id, 'last_frame')
+
+  if (firstPending || lastPending) return '生成中'
+  if (props.frameMode === 'first_last') {
+    if (firstReady && lastReady) return '首尾已齐'
+    if (firstReady || lastReady) return '部分完成'
+    return '待出图'
+  }
+  return firstReady ? '首帧已就绪' : '待出图'
+}
+
+function getShotStateClass(sb) {
+  const text = getShotStateText(sb)
+  if (text === '生成中') return 'is-pending'
+  if (text === '待出图') return 'is-empty'
+  if (text === '部分完成') return 'is-partial'
+  return 'is-ready'
 }
 </script>
 

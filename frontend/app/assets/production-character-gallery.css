@@ -212,6 +212,59 @@
   color: var(--text-2);
 }
 
+.character-gallery__prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.character-gallery__prompt-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.character-gallery__prompt-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(29, 112, 97, 0.86);
+}
+
+.character-gallery__prompt-tip {
+  font-size: 10px;
+  color: var(--text-3);
+}
+
+.character-gallery__prompt-input {
+  width: 100%;
+  min-height: 104px;
+  resize: vertical;
+  border: 1px solid rgba(27, 41, 64, 0.08);
+  border-radius: 16px;
+  background: rgba(248, 251, 250, 0.94);
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--text-1);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.character-gallery__prompt-input:hover {
+  border-color: rgba(29, 112, 97, 0.18);
+  background: rgba(255,255,255,0.98);
+}
+
+.character-gallery__prompt-input:focus {
+  border-color: rgba(29, 112, 97, 0.34);
+  box-shadow: 0 0 0 3px rgba(39, 132, 116, 0.12);
+  background: #fff;
+}
+
 .character-gallery__foot {
   display: flex;
   align-items: center;

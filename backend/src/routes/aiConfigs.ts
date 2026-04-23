@@ -9,6 +9,16 @@ import { redactUrl, logTaskError, logTaskProgress, logTaskSuccess } from '../uti
 const app = new Hono()
 const VALID_SERVICE_TYPES = new Set(['text', 'image', 'video'])
 
+function parseSettings(raw: string | null | undefined) {
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
 function bearerHeaders(apiKey?: string, withJson = false) {
   const headers: Record<string, string> = {}
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`
@@ -118,6 +128,7 @@ app.get('/', async (c) => {
   const parsed = rows.map(r => ({
     ...toSnakeCase(r),
     model: r.model ? JSON.parse(r.model) : [],
+    settings: parseSettings(r.settings),
   }))
   return success(c, parsed)
 })
@@ -142,6 +153,7 @@ app.post('/', async (c) => {
     baseUrl: body.base_url || '',
     apiKey: body.api_key || '',
     model: JSON.stringify(body.model || []),
+    settings: body.settings == null ? null : JSON.stringify(body.settings),
     priority: body.priority || 0,
     isActive: true,
     createdAt: ts,
@@ -154,6 +166,7 @@ app.post('/', async (c) => {
   return created(c, {
     ...toSnakeCase(row),
     model: row.model ? JSON.parse(row.model) : [],
+    settings: parseSettings(row.settings),
   })
 })
 
@@ -237,6 +250,7 @@ app.get('/:id', async (c) => {
   return success(c, {
     ...toSnakeCase(row),
     model: row.model ? JSON.parse(row.model) : [],
+    settings: parseSettings(row.settings),
   })
 })
 
@@ -251,6 +265,7 @@ app.put('/:id', async (c) => {
   if ('base_url' in body) updates.baseUrl = body.base_url
   if ('api_key' in body) updates.apiKey = body.api_key
   if ('model' in body) updates.model = JSON.stringify(body.model)
+  if ('settings' in body) updates.settings = body.settings == null ? null : JSON.stringify(body.settings)
   if ('priority' in body) updates.priority = body.priority
   if ('is_active' in body) updates.isActive = body.is_active
 
