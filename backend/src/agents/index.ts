@@ -56,8 +56,9 @@ const DEFAULT_PROMPTS: Record<string, { name: string; instructions: string }> = 
 
 提取要求：
 - 只提取当前集真实出现或被明确提及、且对当前集叙事有效的角色和场景
-- 角色要包含完整的外貌特征描述（发型、服装、体态等）
-- 场景要包含光线、色调、氛围等视觉信息
+- 角色的 description 字段应包含完整连贯的一段描述，涵盖外貌特征、性格特点、角色背景等所有信息，不要拆分到多个字段
+- appearance 和 personality 字段留空，所有信息统一写入 description
+- 场景的 prompt 字段必须使用中文描述，包含光线、色调、氛围等视觉信息
 - 不要遗漏任何有台词或重要动作的角色`,
   },
   storyboard_breaker: {

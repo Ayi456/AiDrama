@@ -41,7 +41,8 @@ app.post('/:id/generate-image', async (c) => {
   const [ep] = db.select().from(schema.episodes).where(eq(schema.episodes.id, Number(body.episode_id))).all()
   if (!ep) return badRequest(c, 'Episode not found')
 
-  const prompt = `${char.name}, ${char.appearance || char.description || '人物立绘'}, 高清质感, 正面, 白色背景`
+  const descParts = [char.appearance, char.description, char.personality].filter(Boolean).join(', ')
+  const prompt = `${char.name}, ${descParts || '人物立绘'}, 高清质感, 正面, 白色背景`
   try {
     logTaskStart('CharacterImage', 'generate', { characterId: id, episodeId: ep.id, dramaId: char.dramaId })
     const genId = await generateImage({ characterId: id, dramaId: char.dramaId, prompt, configId: ep.imageConfigId ?? undefined })
@@ -66,7 +67,8 @@ app.post('/batch-generate-images', async (c) => {
   for (const charId of ids) {
     const [char] = db.select().from(schema.characters).where(eq(schema.characters.id, charId)).all()
     if (!char) continue
-    const prompt = `${char.name}, ${char.appearance || char.description || '人物立绘'}, 高清质感, 正面, 白色背景`
+    const descParts = [char.appearance, char.description, char.personality].filter(Boolean).join(', ')
+    const prompt = `${char.name}, ${descParts || '人物立绘'}, 高清质感, 正面, 白色背景`
     try {
       const genId = await generateImage({ characterId: charId, dramaId: char.dramaId, prompt, configId: ep.imageConfigId ?? undefined })
       results.push(genId)

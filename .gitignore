@@ -29,6 +29,10 @@ data/drama_generator.db-shm
 data/huobao_drama.db
 data/huobao_drama.db-wal
 data/huobao_drama.db-shm
+data/aidrama.db
+data/aidrama.db-wal
+data/aidrama.db-shm
+
 data/public.sql
 data/*.bak*
 data/static/
@@ -43,3 +47,7 @@ temp/
 .superpowers/
 /CLAUDE.md
 /AGENTS.md
+docs/
+data/*.db*
+data/aidrama.db-wal
+data/aidrama.db-shm

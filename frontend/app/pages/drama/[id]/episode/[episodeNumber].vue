@@ -236,14 +236,14 @@
                 <span class="tag tag-accent">{{ chars.length }}</span>
               </div>
               <div class="extract-list">
-                <div v-for="c in chars" :key="c.id" class="extract-row">
+                <div v-for="c in chars" :key="c.id" class="extract-row extract-row-editable">
                   <div class="char-avatar">{{ c.name?.[0] || '?' }}</div>
-                  <div class="extract-info">
+                  <div class="extract-info extract-info-editable">
                     <div class="extract-name-row">
-                      <div class="extract-name">{{ c.name }}</div>
-                      <span class="tag">{{ c.role || '角色' }}</span>
+                      <input class="extract-edit-input extract-edit-name" :value="c.name" @blur="updateCharField(c, 'name', $event.target.value)" placeholder="角色名" />
+                      <input class="extract-edit-input extract-edit-role" :value="c.role || ''" @blur="updateCharField(c, 'role', $event.target.value)" placeholder="角色定位" />
                     </div>
-                    <div class="extract-meta wrap">{{ c.description || c.appearance || c.personality || '暂无描述' }}</div>
+                    <textarea class="extract-edit-textarea" :value="mergeCharDesc(c)" @blur="saveMergedCharDesc(c, $event.target.value)" placeholder="角色完整描述（外貌、性格、背景等）" rows="4" />
                   </div>
                 </div>
               </div>
@@ -256,16 +256,16 @@
                 <span class="tag tag-accent">{{ scenes.length }}</span>
               </div>
               <div class="extract-list">
-                <div v-for="s in scenes" :key="s.id" class="extract-row">
+                <div v-for="s in scenes" :key="s.id" class="extract-row extract-row-editable">
                   <div class="scene-icon">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
                   </div>
-                  <div class="extract-info">
+                  <div class="extract-info extract-info-editable">
                     <div class="extract-name-row">
-                      <div class="extract-name">{{ s.location }}</div>
-                      <span v-if="s.time" class="tag">{{ s.time }}</span>
+                      <input class="extract-edit-input extract-edit-name" :value="s.location" @blur="updateSceneField(s, 'location', $event.target.value)" placeholder="场景地点" />
+                      <input class="extract-edit-input extract-edit-role" :value="s.time || ''" @blur="updateSceneField(s, 'time', $event.target.value)" placeholder="时间段" />
                     </div>
-                    <div class="extract-meta wrap">{{ s.description || s.time || '等待补充场景描述' }}</div>
+                    <textarea class="extract-edit-textarea" :value="s.prompt || s.description || ''" @blur="updateSceneField(s, 'prompt', $event.target.value)" placeholder="场景描述（光线、色调、氛围等视觉信息）" rows="2" />
                   </div>
                 </div>
               </div>
@@ -643,9 +643,9 @@
                   <div class="asset-meta dim">{{ c.role || '角色' }}</div>
                 </div>
                 <div class="asset-foot">
-                  <span :class="['dot', (c.image_url || c.imageUrl) && 'ok', isPendingCharImage(c.id) && 'pending']" />
-                  <span class="dim" style="font-size:10px">{{ (c.image_url || c.imageUrl) ? '已生成' : (isPendingCharImage(c.id) ? '生成中' : '待生成') }}</span>
-                  <button class="btn btn-sm ml-auto" :disabled="isPendingCharImage(c.id)" @click="genCharImg(c.id)">{{ isPendingCharImage(c.id) ? '生成中' : '生成' }}</button>
+                  <span :class="['dot', hasCharacterImage(c) && 'ok', isPendingCharImage(c.id) && 'pending']" />
+                  <span class="dim" style="font-size:10px">{{ hasCharacterImage(c) ? '已生成' : (isPendingCharImage(c.id) ? '生成中' : '待生成') }}</span>
+                  <button class="btn btn-sm ml-auto" :disabled="isPendingCharImage(c.id)" @click="genCharImg(c.id)">{{ getImageGenerateButtonLabel(hasCharacterImage(c), isPendingCharImage(c.id)) }}</button>
                 </div>
               </div>
             </div>
@@ -680,11 +680,21 @@
                 <div class="asset-body">
                   <div class="asset-name">{{ s.location }}</div>
                   <div class="asset-meta dim">{{ s.time || '—' }}</div>
+                  <label class="asset-prompt">
+                    <span class="asset-prompt-label">图片提示词</span>
+                    <textarea
+                      class="asset-prompt-input"
+                      :value="s.prompt || ''"
+                      rows="3"
+                      placeholder="这里的内容会直接用于场景图生成"
+                      @blur="updateSceneField(s, 'prompt', $event.target.value)"
+                    />
+                  </label>
                 </div>
                 <div class="asset-foot">
-                  <span :class="['dot', (s.image_url || s.imageUrl) && 'ok', isPendingSceneImage(s.id) && 'pending']" />
-                  <span class="dim" style="font-size:10px">{{ (s.image_url || s.imageUrl) ? '已生成' : (isPendingSceneImage(s.id) ? '生成中' : '待生成') }}</span>
-                  <button class="btn btn-sm ml-auto" :disabled="isPendingSceneImage(s.id)" @click="genSceneImg(s.id)">{{ isPendingSceneImage(s.id) ? '生成中' : '生成' }}</button>
+                  <span :class="['dot', hasSceneImage(s) && 'ok', isPendingSceneImage(s.id) && 'pending']" />
+                  <span class="dim" style="font-size:10px">{{ hasSceneImage(s) ? '已生成' : (isPendingSceneImage(s.id) ? '生成中' : '待生成') }}</span>
+                  <button class="btn btn-sm ml-auto" :disabled="isPendingSceneImage(s.id)" @click="genSceneImg(s.id)">{{ getImageGenerateButtonLabel(hasSceneImage(s), isPendingSceneImage(s.id)) }}</button>
                 </div>
               </div>
             </div>
@@ -1353,6 +1363,53 @@ onBeforeUnmount(() => {
 
 function isPendingSceneImage(id) {
   return pendingSceneImageIds.value.includes(id)
+}
+
+function hasCharacterImage(char) {
+  return !!(char?.image_url || char?.imageUrl)
+}
+
+function hasSceneImage(scene) {
+  return !!(scene?.image_url || scene?.imageUrl)
+}
+
+function getImageGenerateButtonLabel(hasImage, pending) {
+  if (pending) return '生成中'
+  return hasImage ? '再生成' : '生成'
+}
+
+function getImageGenerateToastLabel(hasImage, assetLabel) {
+  return `${assetLabel}${hasImage ? '再生成' : '生成'}中`
+}
+
+function didImageChange(currentImage, previousImage) {
+  if (!currentImage) return false
+  return previousImage ? currentImage !== previousImage : true
+}
+
+async function waitForImageGeneration(generationId) {
+  for (let i = 0; i < 120; i++) {
+    await sleep(3000)
+    let res = null
+    try {
+      res = await imageAPI.get(generationId)
+    } catch (e) {
+      if (i === 119) throw e
+      continue
+    }
+    if (res?.status === 'completed') return
+    if (res?.status === 'failed') throw new Error(res?.error_msg || res?.errorMsg || '图片生成失败')
+  }
+  throw new Error('图片生成超时')
+}
+
+async function waitForImageAssetUpdate(readImage, previousImage, attempts = 36, delay = 3000) {
+  for (let i = 0; i < attempts; i++) {
+    await refresh()
+    if (didImageChange(readImage(), previousImage)) return true
+    await sleep(delay)
+  }
+  return false
 }
 
 function framePendingKey(id, frameType) {
@@ -2133,6 +2190,33 @@ function toCamel(field) {
   return field.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
 }
 
+function mergeCharDesc(c) {
+  return [c.description, c.appearance, c.personality].filter(Boolean).join('\n')
+}
+
+function saveMergedCharDesc(c, value) {
+  const old = mergeCharDesc(c)
+  if (old === value) return
+  c.description = value
+  c.appearance = ''
+  c.personality = ''
+  characterAPI.update(c.id, { description: value, appearance: '', personality: '' })
+}
+
+function updateCharField(c, field, value) {
+  const current = c[field] ?? ''
+  if (current === value) return
+  c[field] = value
+  characterAPI.update(c.id, { [field]: value })
+}
+
+function updateSceneField(s, field, value) {
+  const current = s[field] ?? ''
+  if (current === value) return
+  s[field] = value
+  sceneAPI.update(s.id, { [field]: value })
+}
+
 function getStoryboardCharacterIds(sb) {
   return sb?.character_ids || sb?.characterIds || []
 }
@@ -2249,17 +2333,27 @@ function watchAsyncResult(check, attempts = 24, delay = 2500) {
 }
 
 async function genCharImg(id) {
+  const char = chars.value.find(c => c.id === id)
+  const previousImage = char?.image_url || char?.imageUrl || ''
+  const isReroll = hasCharacterImage(char)
   try {
     if (!isPendingCharImage(id)) pendingCharImageIds.value.push(id)
-    await characterAPI.generateImage(id, epId.value)
-    toast.success('角色图片生成中')
-    await refresh()
-    watchAsyncResult(() => {
-      const char = chars.value.find(c => c.id === id)
-      const done = !!(char?.image_url || char?.imageUrl)
-      if (done) pendingCharImageIds.value = pendingCharImageIds.value.filter(item => item !== id)
-      return done
-    })
+    const res = await characterAPI.generateImage(id, epId.value)
+    toast.success(getImageGenerateToastLabel(isReroll, '角色图片'))
+    const generationId = Number(res?.image_generation_id || res?.imageGenerationId || 0)
+    if (generationId) {
+      await waitForImageGeneration(generationId)
+      await waitForImageAssetUpdate(() => {
+        const current = chars.value.find(item => item.id === id)
+        return current?.image_url || current?.imageUrl || ''
+      }, previousImage, 12, 1000)
+    } else {
+      await waitForImageAssetUpdate(() => {
+        const current = chars.value.find(item => item.id === id)
+        return current?.image_url || current?.imageUrl || ''
+      }, previousImage)
+    }
+    pendingCharImageIds.value = pendingCharImageIds.value.filter(item => item !== id)
   } catch (e) {
     pendingCharImageIds.value = pendingCharImageIds.value.filter(item => item !== id)
     toast.error(e.message)
@@ -2284,17 +2378,27 @@ function batchCharImages() {
   })
 }
 async function genSceneImg(id) {
+  const scene = scenes.value.find(s => s.id === id)
+  const previousImage = scene?.image_url || scene?.imageUrl || ''
+  const isReroll = hasSceneImage(scene)
   try {
     if (!isPendingSceneImage(id)) pendingSceneImageIds.value.push(id)
-    await sceneAPI.generateImage(id, epId.value)
-    toast.success('场景图片生成中')
-    await refresh()
-    watchAsyncResult(() => {
-      const scene = scenes.value.find(s => s.id === id)
-      const done = !!(scene?.image_url || scene?.imageUrl)
-      if (done) pendingSceneImageIds.value = pendingSceneImageIds.value.filter(item => item !== id)
-      return done
-    })
+    const res = await sceneAPI.generateImage(id, epId.value)
+    toast.success(getImageGenerateToastLabel(isReroll, '场景图片'))
+    const generationId = Number(res?.image_generation_id || res?.imageGenerationId || 0)
+    if (generationId) {
+      await waitForImageGeneration(generationId)
+      await waitForImageAssetUpdate(() => {
+        const current = scenes.value.find(item => item.id === id)
+        return current?.image_url || current?.imageUrl || ''
+      }, previousImage, 12, 1000)
+    } else {
+      await waitForImageAssetUpdate(() => {
+        const current = scenes.value.find(item => item.id === id)
+        return current?.image_url || current?.imageUrl || ''
+      }, previousImage)
+    }
+    pendingSceneImageIds.value = pendingSceneImageIds.value.filter(item => item !== id)
   } catch (e) {
     pendingSceneImageIds.value = pendingSceneImageIds.value.filter(item => item !== id)
     toast.error(e.message)
@@ -2380,6 +2484,8 @@ async function genShotFrame(sb, frameType) {
   const prompt = buildShotImagePrompt(sb, frameType)
   const referenceImages = getShotReferenceImages(sb)
   const key = framePendingKey(sb.id, frameType)
+  const previousImage = frameType === 'first_frame' ? getFirstFrame(sb) : getLastFrame(sb)
+  const isReroll = !!previousImage
   try {
     if (!pendingShotFrameKeys.value.includes(key)) pendingShotFrameKeys.value.push(key)
     const body = {
@@ -2389,15 +2495,22 @@ async function genShotFrame(sb, frameType) {
       frame_type: frameType,
       reference_images: referenceImages.length ? referenceImages : undefined,
     }
-    await imageAPI.generate(body)
-    toast.success(frameType === 'first_frame' ? '首帧生成中' : '尾帧生成中')
-    await refresh()
-    watchAsyncResult(() => {
-      const target = sbs.value.find(s => s.id === sb.id)
-      const done = frameType === 'first_frame' ? !!getFirstFrame(target) : !!getLastFrame(target)
-      if (done) pendingShotFrameKeys.value = pendingShotFrameKeys.value.filter(item => item !== key)
-      return done
-    })
+    const generation = await imageAPI.generate(body)
+    toast.success(getImageGenerateToastLabel(isReroll, frameType === 'first_frame' ? '首帧' : '尾帧'))
+    const generationId = Number(generation?.id || 0)
+    if (generationId) {
+      await waitForImageGeneration(generationId)
+      await waitForImageAssetUpdate(() => {
+        const target = sbs.value.find(s => s.id === sb.id)
+        return frameType === 'first_frame' ? getFirstFrame(target) : getLastFrame(target)
+      }, previousImage, 12, 1000)
+    } else {
+      await waitForImageAssetUpdate(() => {
+        const target = sbs.value.find(s => s.id === sb.id)
+        return frameType === 'first_frame' ? getFirstFrame(target) : getLastFrame(target)
+      }, previousImage)
+    }
+    pendingShotFrameKeys.value = pendingShotFrameKeys.value.filter(item => item !== key)
   } catch (e) {
     pendingShotFrameKeys.value = pendingShotFrameKeys.value.filter(item => item !== key)
     toast.error(e.message)
@@ -3021,13 +3134,14 @@ onMounted(() => { refresh(); loadConfigs() })
   color: var(--text-1);
 }
 .extract-list { padding: 8px 14px; flex: 1; min-height: 0; overflow-y: auto; }
-.extract-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
+.extract-row { display: flex; align-items: flex-start; gap: 10px; padding: 7px 0; }
 .extract-row + .extract-row { border-top: 1px solid var(--border); }
 .char-avatar {
   width: 30px; height: 30px; border-radius: 50%;
   background: var(--accent-bg); color: var(--accent-text);
   display: flex; align-items: center; justify-content: center;
   font-size: 12px; font-weight: 700; flex-shrink: 0;
+
 }
 .scene-icon {
   width: 30px; height: 30px; border-radius: 6px;
@@ -3036,10 +3150,32 @@ onMounted(() => { refresh(); loadConfigs() })
   color: var(--text-3); flex-shrink: 0;
 }
 .extract-info { min-width: 0; }
+.extract-info-editable { flex: 1; display: flex; flex-direction: column; gap: 4px; }
 .extract-name-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .extract-name { font-size: 13px; font-weight: 600; }
 .extract-meta { font-size: 11px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .extract-meta.wrap { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+.extract-edit-input {
+  background: transparent; border: 1px solid transparent; border-radius: 4px;
+  font-size: 13px; color: var(--text-1); padding: 2px 6px; outline: none;
+  transition: border-color .15s, background .15s;
+}
+.extract-edit-input:hover { border-color: var(--border); background: var(--bg-1); }
+.extract-edit-input:focus { border-color: var(--accent); background: var(--bg-1); }
+.extract-edit-name { font-weight: 600; flex: 1; min-width: 60px; }
+.extract-edit-role { width: 80px; font-size: 11px; color: var(--text-3); text-align: center; }
+.extract-edit-textarea {
+  background: transparent; border: 1px solid transparent; border-radius: 4px;
+  font-size: 11px; color: var(--text-3); padding: 3px 6px; outline: none;
+  resize: vertical; min-height: 22px; line-height: 1.5; font-family: inherit;
+  transition: border-color .15s, background .15s;
+}
+.extract-edit-textarea:hover { border-color: var(--border); background: var(--bg-1); }
+.extract-edit-textarea:focus { border-color: var(--accent); background: var(--bg-1); color: var(--text-1); }
+.extract-row-editable { padding: 8px 0; }
+.extract-row-editable .char-avatar,
+.extract-row-editable .scene-icon { margin-top: 4px; }
 
 .char-avatar.lg { width: 38px; height: 38px; font-size: 16px; }
 
@@ -3268,6 +3404,29 @@ onMounted(() => { refresh(); loadConfigs() })
 .asset-body { padding: 8px 10px; }
 .asset-name { font-size: 13px; font-weight: 600; }
 .asset-meta { font-size: 11px; }
+.asset-prompt { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.asset-prompt-label { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; color: var(--text-3); }
+.asset-prompt-input {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+  border: 1px solid rgba(27, 41, 64, 0.08);
+  border-radius: 12px;
+  background: rgba(247, 249, 253, 0.92);
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--text-1);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.asset-prompt-input:hover { border-color: rgba(19, 51, 121, 0.18); background: rgba(255,255,255,0.96); }
+.asset-prompt-input:focus {
+  border-color: rgba(19, 51, 121, 0.4);
+  box-shadow: 0 0 0 3px rgba(76, 125, 255, 0.12);
+  background: #fff;
+}
 .asset-foot { display: flex; align-items: center; gap: 4px; padding: 6px 10px; border-top: 1px solid var(--border); }
 
 /* Frame grid */
