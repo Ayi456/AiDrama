@@ -612,417 +612,103 @@
           </div>
 
           <!-- Sub: Characters -->
-          <div v-if="prodTab === 'chars'" class="prod-content">
-            <div class="prod-section-bar">
-              <span class="dim" style="font-size:12px">{{ visualChars.length }} 个需生成形象角色</span>
-              <span class="tag">{{ lockedImageConfigLabel }}</span>
-              <span v-if="chars.length > visualChars.length" class="tag">旁白仅保留声音</span>
-              <div class="ml-auto flex gap-1">
-                <button class="btn btn-sm" @click="batchCharImages">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                  批量生成
-                </button>
-              </div>
-            </div>
-            <div class="asset-grid">
-              <div v-for="c in visualChars" :key="c.id" class="card asset-card">
-                <div class="asset-cover">
-                  <img
-                    v-if="c.image_url || c.imageUrl"
-                    :src="'/' + (c.image_url || c.imageUrl)"
-                    class="previewable-image"
-                    @click.stop="openImageViewer('/' + (c.image_url || c.imageUrl), `${c.name} 角色形象`)"
-                  />
-                  <div v-else class="asset-cover-empty">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                  </div>
-                  <span class="asset-cover-badge" :class="(c.image_url || c.imageUrl) ? 'is-ready' : (isPendingCharImage(c.id) ? 'is-pending' : '')">{{ (c.image_url || c.imageUrl) ? '已生成' : (isPendingCharImage(c.id) ? '生成中' : '待生成') }}</span>
-                </div>
-                <div class="asset-body">
-                  <div class="asset-name">{{ c.name }}</div>
-                  <div class="asset-meta dim">{{ c.role || '角色' }}</div>
-                </div>
-                <div class="asset-foot">
-                  <span :class="['dot', hasCharacterImage(c) && 'ok', isPendingCharImage(c.id) && 'pending']" />
-                  <span class="dim" style="font-size:10px">{{ hasCharacterImage(c) ? '已生成' : (isPendingCharImage(c.id) ? '生成中' : '待生成') }}</span>
-                  <button class="btn btn-sm ml-auto" :disabled="isPendingCharImage(c.id)" @click="genCharImg(c.id)">{{ getImageGenerateButtonLabel(hasCharacterImage(c), isPendingCharImage(c.id)) }}</button>
-                </div>
-              </div>
-            </div>
-          </div>
+          <ProductionCharacterGallery
+            v-if="prodTab === 'chars'"
+            :characters="visualChars"
+            :locked-image-config-label="lockedImageConfigLabel"
+            :pending-character-image-ids="pendingCharImageIds"
+            :has-narrator-only="chars.length > visualChars.length"
+            @batch-generate="batchCharImages"
+            @generate="genCharImg"
+            @open-image-viewer="handleGalleryViewerOpen"
+          />
 
           <!-- Sub: Scenes -->
-          <div v-else-if="prodTab === 'scenes'" class="prod-content">
-            <div class="prod-section-bar">
-              <span class="dim" style="font-size:12px">{{ scenes.length }} 个场景</span>
-              <span class="tag">{{ lockedImageConfigLabel }}</span>
-              <div class="ml-auto flex gap-1">
-                <button class="btn btn-sm" @click="batchSceneImages">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                  批量生成
-                </button>
-              </div>
-            </div>
-            <div class="asset-grid">
-              <div v-for="s in scenes" :key="s.id" class="card asset-card">
-                <div class="asset-cover wide">
-                  <img
-                    v-if="s.image_url || s.imageUrl"
-                    :src="'/' + (s.image_url || s.imageUrl)"
-                    class="previewable-image"
-                    @click.stop="openImageViewer('/' + (s.image_url || s.imageUrl), `${s.location} 场景图`)"
-                  />
-                  <div v-else class="asset-cover-empty">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                  </div>
-                  <span class="asset-cover-badge" :class="(s.image_url || s.imageUrl) ? 'is-ready' : (isPendingSceneImage(s.id) ? 'is-pending' : '')">{{ (s.image_url || s.imageUrl) ? '已生成' : (isPendingSceneImage(s.id) ? '生成中' : '待生成') }}</span>
-                </div>
-                <div class="asset-body">
-                  <div class="asset-name">{{ s.location }}</div>
-                  <div class="asset-meta dim">{{ s.time || '—' }}</div>
-                  <label class="asset-prompt">
-                    <span class="asset-prompt-label">图片提示词</span>
-                    <textarea
-                      class="asset-prompt-input"
-                      :value="s.prompt || ''"
-                      rows="3"
-                      placeholder="这里的内容会直接用于场景图生成"
-                      @blur="updateSceneField(s, 'prompt', $event.target.value)"
-                    />
-                  </label>
-                </div>
-                <div class="asset-foot">
-                  <span :class="['dot', hasSceneImage(s) && 'ok', isPendingSceneImage(s.id) && 'pending']" />
-                  <span class="dim" style="font-size:10px">{{ hasSceneImage(s) ? '已生成' : (isPendingSceneImage(s.id) ? '生成中' : '待生成') }}</span>
-                  <button class="btn btn-sm ml-auto" :disabled="isPendingSceneImage(s.id)" @click="genSceneImg(s.id)">{{ getImageGenerateButtonLabel(hasSceneImage(s), isPendingSceneImage(s.id)) }}</button>
-                </div>
-              </div>
-            </div>
-          </div>
+          <ProductionSceneGallery
+            v-else-if="prodTab === 'scenes'"
+            :scenes="scenes"
+            :locked-image-config-label="lockedImageConfigLabel"
+            :pending-scene-image-ids="pendingSceneImageIds"
+            @batch-generate="batchSceneImages"
+            @generate="genSceneImg"
+            @update-scene-field="handleSceneFieldUpdate"
+            @open-image-viewer="handleGalleryViewerOpen"
+          />
 
           <!-- Sub: Shots -->
-          <div v-else-if="prodTab === 'shots'" class="prod-content">
-            <div class="prod-section-bar">
-              <span class="dim" style="font-size:12px">{{ sbs.length }} 个镜头</span>
-              <span class="tag mono">{{ shotImgCount }}/{{ sbs.length }} 已有帧图</span>
-              <span class="tag">{{ lockedImageConfigLabel }}</span>
-              <div class="ml-auto flex gap-1">
-                <BaseSelect v-model="frameMode" :options="frameModeOptions" placeholder="帧模式" searchable style="width:100px" />
-                <button v-if="gridImagePath" class="btn btn-sm" @click="reopenGridPreview">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
-                  查看当前宫格图
-                </button>
-                <button class="btn btn-primary btn-sm" @click="openGridTool">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-                  宫格图工具
-                </button>
-              </div>
-            </div>
-
-            <div v-if="gridHistory.length" class="grid-history-panel">
-              <div v-if="gridImagePath" class="latest-grid-strip">
-                <button class="latest-grid-strip-thumb" @click="openImageViewer('/' + gridImagePath, '当前宫格图')">
-                  <img :src="'/' + gridImagePath" class="previewable-image" />
-                </button>
-                <div class="latest-grid-strip-copy">
-                  <div class="latest-grid-strip-head">
-                    <span class="tag mono">{{ gridActualLayout.rows }}x{{ gridActualLayout.cols }}</span>
-                    <span class="tag" v-if="gridRecoveredMode">{{ gridRecoveredMode }}</span>
-                  </div>
-                  <div class="latest-grid-strip-title">当前宫格图</div>
-                  <div class="latest-grid-strip-meta">
-                    <span v-if="gridRecoveredAt">{{ gridRecoveredAt }}</span>
-                    <span>可继续切割并分配</span>
-                  </div>
-                </div>
-                <div class="latest-grid-strip-actions">
-                  <button class="btn btn-sm" @click="reopenGridPreview">预览</button>
-                  <button class="btn btn-primary btn-sm" @click="continueGridSplit">继续切割</button>
-                </div>
-              </div>
-              <div class="grid-history-head">
-                <div>
-                  <div class="grid-history-title">历史宫格图</div>
-                  <div class="grid-history-subtitle">按需展开切换不同宫格图，不默认占用第一屏</div>
-                </div>
-                <button class="btn btn-sm" @click="showAllGridHistory = !showAllGridHistory">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline :points="showAllGridHistory ? '18 15 12 9 6 15' : '6 9 12 15 18 9'"/></svg>
-                  {{ showAllGridHistory ? '收起历史宫格图' : `展开全部 (${gridHistory.length})` }}
-                </button>
-              </div>
-              <div v-if="showAllGridHistory" class="grid-history-list">
-                <button
-                  v-for="item in gridHistory"
-                  :key="item.id"
-                  :class="['grid-history-item', { active: item.localPath === gridImagePath }]"
-                  @click="selectGridHistory(item)"
-                >
-                  <div class="grid-history-thumb">
-                    <img :src="'/' + item.localPath" class="previewable-image" />
-                  </div>
-                  <div class="grid-history-copy">
-                    <div class="grid-history-tags">
-                      <span class="tag mono">#{{ item.id }}</span>
-                      <span class="tag mono">{{ item.layout.rows }}x{{ item.layout.cols }}</span>
-                      <span class="tag">{{ item.modeLabel }}</span>
-                    </div>
-                    <div class="grid-history-meta">{{ item.createdAtLabel }}</div>
-                  </div>
-                </button>
-              </div>
-            </div>
-
-            <div class="frame-scroll">
-              <div class="frame-grid">
-                <div v-for="(sb, i) in sbs" :key="sb.id"
-                  :class="['frame-row', 'card', { active: selectedSb?.id === sb.id }]"
-                  @click="selectedSb = sb">
-                  <!-- Info: number + type + desc -->
-                  <div class="frame-info">
-                    <div class="frame-top">
-                      <span class="frame-num">#{{ String(i+1).padStart(2,'0') }}</span>
-                      <span class="frame-badge">{{ sb.shot_type || sb.shotType || '—' }}</span>
-                    </div>
-                    <div class="frame-desc">{{ sb.description || sb.title || '—' }}</div>
-                    <div class="frame-meta">
-                      <span :class="['dot', getFirstFrame(sb) && 'ok', isPendingShotFrame(sb.id, 'first_frame') && 'pending']" />
-                      <span class="dim" style="font-size:11px">首帧</span>
-                      <span v-if="frameMode === 'first_last'" style="display:flex;align-items:center;gap:4px">
-                        <span :class="['dot', getLastFrame(sb) && 'ok', isPendingShotFrame(sb.id, 'last_frame') && 'pending']" />
-                        <span class="dim" style="font-size:11px">尾帧</span>
-                      </span>
-                    </div>
-                  </div>
-                  <!-- Thumbnails -->
-                  <div class="frame-thumbs">
-                    <div class="frame-thumb-wrap">
-                      <div class="frame-thumb" @click.stop="!isPendingShotFrame(sb.id, 'first_frame') && genShotFrame(sb, 'first_frame')">
-                        <img
-                          v-if="getFirstFrame(sb)"
-                          :src="'/' + getFirstFrame(sb)"
-                          class="previewable-image"
-                          @click.stop="openImageViewer('/' + getFirstFrame(sb), `镜头 #${String(i + 1).padStart(2, '0')} 首帧`)"
-                        />
-                        <div v-else class="frame-thumb-empty">
-                          <Loader2 v-if="isPendingShotFrame(sb.id, 'first_frame')" :size="14" class="animate-spin" />
-                          <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                        </div>
-                        <span v-if="getFirstFrame(sb)" class="frame-re">
-                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-                        </span>
-                      </div>
-                      <span class="frame-thumb-label">{{ isPendingShotFrame(sb.id, 'first_frame') ? '首帧生成中' : '首帧' }}</span>
-                    </div>
-                    <div v-if="frameMode === 'first_last'" class="frame-thumb-wrap">
-                      <div class="frame-thumb" @click.stop="!isPendingShotFrame(sb.id, 'last_frame') && genShotFrame(sb, 'last_frame')">
-                        <img
-                          v-if="getLastFrame(sb)"
-                          :src="'/' + getLastFrame(sb)"
-                          class="previewable-image"
-                          @click.stop="openImageViewer('/' + getLastFrame(sb), `镜头 #${String(i + 1).padStart(2, '0')} 尾帧`)"
-                        />
-                        <div v-else class="frame-thumb-empty">
-                          <Loader2 v-if="isPendingShotFrame(sb.id, 'last_frame')" :size="14" class="animate-spin" />
-                          <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                        </div>
-                        <span v-if="getLastFrame(sb)" class="frame-re">
-                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-                        </span>
-                      </div>
-                      <span class="frame-thumb-label">{{ isPendingShotFrame(sb.id, 'last_frame') ? '尾帧生成中' : '尾帧' }}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Grid Tool Dialog -->
-            <div v-if="gridDialog" class="overlay" @click.self="gridDialog = false">
-              <div class="card grid-tool">
-                <div class="grid-tool-head">
-                  <span style="font-size:15px;font-weight:600;font-family:var(--font-display)">宫格图工具</span>
-                  <button class="btn btn-ghost btn-icon ml-auto" @click="gridDialog = false">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                  </button>
-                </div>
-
-                <!-- Step 0: Config -->
-                <div v-if="gridStep === 0" class="grid-tool-body">
-                  <div class="grid-mode-tabs">
-                    <button v-for="m in gridModes" :key="m.id"
-                      :class="['grid-mode-tab', { active: gridMode === m.id }]"
-                      @click="gridMode = m.id; gridSelected = []; gridSingleTarget = null; gridAssignmentsState = []">
-                      <span style="font-weight:600">{{ m.label }}</span>
-                      <span class="dim" style="font-size:11px">{{ m.desc }}</span>
-                    </button>
-                  </div>
-
-                  <div class="grid-config">
-                    <label class="field" style="flex:0 0 auto" v-if="gridMode !== 'multi_ref'">
-                      <span class="field-label">宫格</span>
-                      <BaseSelect v-model="gridLayout" :options="gridLayoutOptions" placeholder="宫格" style="width:90px" />
-                    </label>
-                    <div class="field" style="flex:1">
-                      <span class="field-label">
-                        {{ gridMode === 'multi_ref' ? '选择目标镜头' : '选择镜头' }}
-                        <span class="dim" v-if="gridMode !== 'multi_ref'">(已选 {{ gridSelected.length }})</span>
-                      </span>
-                    </div>
-                    <div style="align-self:flex-end" v-if="gridMode !== 'multi_ref'">
-                      <button class="btn btn-sm" @click="gridSelectAll">{{ gridSelected.length === sbs.length ? '取消全选' : '全选' }}</button>
-                    </div>
-                  </div>
-
-                  <div class="grid-pick-list">
-                    <label v-for="(sb, i) in sbs" :key="sb.id"
-                      :class="['grid-pick-item', { selected: gridMode === 'multi_ref' ? gridSingleTarget === sb.id : gridSelected.includes(sb.id) }]">
-                      <input v-if="gridMode === 'multi_ref'" type="radio" :value="sb.id" v-model="gridSingleTarget" name="grid-target" />
-                      <input v-else type="checkbox" :value="sb.id" v-model="gridSelected" />
-                      <span class="mono" style="font-size:11px;width:28px">#{{ String(i+1).padStart(2,'0') }}</span>
-                      <span class="truncate" style="flex:1;font-size:12px">{{ sb.description || sb.title || '—' }}</span>
-                    </label>
-                  </div>
-
-                  <div class="grid-tool-foot">
-                    <span v-if="gridCanStart" class="tag mono">{{ gridAutoLayout.rows }}x{{ gridAutoLayout.cols }} = {{ gridAutoLayout.rows * gridAutoLayout.cols }}格</span>
-                    <span class="dim" style="font-size:11px">{{ gridPromptLoading ? gridPromptStatus : gridSummary }}</span>
-                    <button class="btn btn-primary ml-auto" :disabled="!gridCanStart || gridPromptLoading" @click="generateGridPrompt">
-                      <Loader2 v-if="gridPromptLoading" :size="12" class="animate-spin" />
-                      <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                      {{ gridPromptLoading ? '生成中' : '生成提示词' }}
-                    </button>
-                  </div>
-                </div>
-
-                <!-- Step 1: Prompt Preview -->
-                <div v-else-if="gridStep === 1" class="grid-tool-body">
-                  <div class="grid-prompt-summary">
-                    <div class="grid-prompt-label">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                      宫格图提示词
-                      <span v-if="gridPromptSource" class="tag ml-8">{{ gridPromptSource === 'agent' ? 'AI生成' : '模板兜底' }}</span>
-                    </div>
-                    <div class="grid-prompt-text">{{ gridPromptText || '（等待生成）' }}</div>
-                  </div>
-
-                  <div class="grid-blank-preview" :style="gridBlankStyle">
-                    <div v-for="(cell, i) in gridCellPrompts" :key="i" class="grid-blank-cell">
-                      <div class="grid-blank-cell-index">#{{ cell.shot_number }} {{ {first_frame:'首帧',last_frame:'尾帧',reference:'参考'}[cell.frame_type] || '' }}</div>
-                      <div class="grid-blank-cell-desc">{{ cell.prompt }}</div>
-                    </div>
-                    <div v-for="i in Math.max(0, (gridAutoLayout.rows * gridAutoLayout.cols) - gridCellPrompts.length)" :key="'empty-'+i" class="grid-blank-cell empty">
-                      <div class="grid-blank-cell-index">空</div>
-                      <div class="grid-blank-cell-desc">—</div>
-                    </div>
-                  </div>
-
-                  <div class="grid-tool-foot">
-                    <button class="btn" @click="gridStep = 0">上一步</button>
-                    <button class="btn ml-auto" @click="generateGridPrompt" :disabled="gridPromptLoading">
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-                      重新生成
-                    </button>
-                    <button class="btn btn-primary" @click="startGridGen">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                      生成宫格图
-                    </button>
-                  </div>
-                </div>
-
-                <!-- Step 2: Generating -->
-                <div v-else-if="gridStep === 2" class="grid-tool-body" style="align-items:center;justify-content:center;min-height:300px">
-                  <Loader2 :size="28" class="animate-spin" style="color:var(--accent)" />
-                  <div class="loading-text" style="margin-top:12px">宫格图生成中...</div>
-                  <div class="dim" style="font-size:11px;margin-top:6px">{{ gridStatusText }}</div>
-                </div>
-
-                <!-- Step 3: Preview -->
-                <div v-else-if="gridStep === 3" class="grid-tool-body grid-tool-body-preview">
-                  <div class="grid-preview-layout">
-                    <div class="grid-preview-pane">
-                      <div class="grid-preview-wrap">
-                        <div class="grid-preview-stage">
-                          <img
-                            :src="'/' + gridImagePath"
-                            class="grid-preview-img previewable-image"
-                            @click.stop="openImageViewer('/' + gridImagePath, '宫格图预览')"
-                          />
-                          <div class="grid-overlay" :style="gridOverlayStyle">
-                            <button
-                              v-for="(a, i) in gridAssignments"
-                              :key="i"
-                              type="button"
-                              :class="['grid-overlay-cell', activeGridCell === i && 'active']"
-                              @click="focusGridCell(i)"
-                            >
-                              <span class="grid-cell-label">{{ gridCellLabel(a) }}</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                      <div class="grid-adjust-summary">
-                        <span class="tag mono">{{ gridActualLayout.rows }}x{{ gridActualLayout.cols }} = {{ gridActualLayout.rows * gridActualLayout.cols }}格</span>
-                        <span class="dim" style="font-size:12px">{{ gridAssignedCount }}/{{ gridAssignments.length }} 格已分配</span>
-                        <span class="tag" v-if="gridAssignedCount < gridAssignments.length">未分配格子会被忽略，不会写回分镜</span>
-                      </div>
-                    </div>
-                    <div class="grid-assignment-pane">
-                      <div class="grid-assign-head">
-                        <div class="grid-assign-title">格子分配</div>
-                        <div class="grid-assign-subtitle">切分后由你自己决定每格对应哪个分镜</div>
-                      </div>
-                      <div v-if="gridAssignmentTotalPages > 1" class="grid-assign-pagination">
-                        <button class="btn btn-sm" :disabled="gridAssignmentPage === 0" @click="gridAssignmentPage--">上一页</button>
-                        <span class="dim">第 {{ gridAssignmentPage + 1 }}/{{ gridAssignmentTotalPages }} 页</span>
-                        <span class="dim">{{ gridAssignmentPageStart + 1 }}-{{ gridAssignmentPageEnd }} / {{ gridAssignments.length }}</span>
-                        <button class="btn btn-sm ml-auto" :disabled="gridAssignmentPage >= gridAssignmentTotalPages - 1" @click="gridAssignmentPage++">下一页</button>
-                      </div>
-                      <div class="grid-assign-columns">
-                        <span>格</span>
-                        <span>镜头</span>
-                        <span>类型</span>
-                        <span>当前绑定</span>
-                      </div>
-                      <div class="grid-assign-info">
-                        <div v-for="item in pagedGridAssignments" :key="item.index" :class="['grid-assign-row', activeGridCell === item.index && 'active']">
-                          <span class="grid-assign-index">格{{ item.index + 1 }}</span>
-                          <BaseSelect
-                            :model-value="item.assignment.storyboard_id"
-                            :options="gridAssignmentShotOptions"
-                            placeholder="选择镜头"
-                            @update:model-value="updateGridAssignment(item.index, 'storyboard_id', $event)"
-                          />
-                          <BaseSelect
-                            :model-value="item.assignment.frame_type"
-                            :options="gridFrameTypeOptions"
-                            placeholder="帧类型"
-                            style="width:100%"
-                            @update:model-value="updateGridAssignment(item.index, 'frame_type', $event)"
-                          />
-                          <span class="grid-assign-bind">{{ gridCellTitle(item.assignment.storyboard_id) }}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="grid-tool-foot">
-                    <button class="btn" @click="gridStep = 1">返回</button>
-                    <button class="btn btn-primary ml-auto" @click="doGridSplit">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-                      切分并分配
-                    </button>
-                  </div>
-                </div>
-
-                <!-- Step 4: Done -->
-                <div v-else-if="gridStep === 4" class="grid-tool-body" style="align-items:center;justify-content:center;min-height:200px">
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  <div style="font-size:17px;font-weight:700;font-family:var(--font-display);margin-top:8px">分配完成</div>
-                  <div class="dim" style="font-size:13px;margin-top:4px">{{ gridAssignedCount }} 格已分配</div>
-                  <button class="btn btn-primary" style="margin-top:16px" @click="gridDialog = false; refresh()">关闭</button>
-                </div>
-              </div>
-            </div>
-          </div>
+          <ProductionShotFrames
+            v-else-if="prodTab === 'shots'"
+            class="prod-content"
+            :sbs="sbs"
+            :shot-img-count="shotImgCount"
+            :locked-image-config-label="lockedImageConfigLabel"
+            :selected-sb-id="selectedSb?.id || 0"
+            :frame-mode="frameMode"
+            :frame-mode-options="frameModeOptions"
+            :grid-image-path="gridImagePath"
+            :grid-actual-layout="gridActualLayout"
+            :grid-recovered-mode="gridRecoveredMode"
+            :grid-recovered-at="gridRecoveredAt"
+            :show-all-grid-history="showAllGridHistory"
+            :grid-history="gridHistory"
+            :grid-dialog="gridDialog"
+            :grid-step="gridStep"
+            :grid-modes="gridModes"
+            :grid-mode="gridMode"
+            :grid-layout="gridLayout"
+            :grid-layout-options="gridLayoutOptions"
+            :grid-selected="gridSelected"
+            :grid-single-target="gridSingleTarget"
+            :grid-can-start="gridCanStart"
+            :grid-auto-layout="gridAutoLayout"
+            :grid-prompt-loading="gridPromptLoading"
+            :grid-prompt-status="gridPromptStatus"
+            :grid-summary="gridSummary"
+            :grid-prompt-source="gridPromptSource"
+            :grid-prompt-text="gridPromptText"
+            :grid-cell-prompts="gridCellPrompts"
+            :grid-blank-style="gridBlankStyle"
+            :grid-status-text="gridStatusText"
+            :grid-overlay-style="gridOverlayStyle"
+            :grid-assignments="gridAssignments"
+            :active-grid-cell="activeGridCell"
+            :grid-assigned-count="gridAssignedCount"
+            :grid-assignment-total-pages="gridAssignmentTotalPages"
+            :grid-assignment-page="gridAssignmentPage"
+            :grid-assignment-page-start="gridAssignmentPageStart"
+            :grid-assignment-page-end="gridAssignmentPageEnd"
+            :paged-grid-assignments="pagedGridAssignments"
+            :grid-assignment-shot-options="gridAssignmentShotOptions"
+            :grid-frame-type-options="gridFrameTypeOptions"
+            :get-first-frame="getFirstFrame"
+            :get-last-frame="getLastFrame"
+            :is-pending-shot-frame="isPendingShotFrame"
+            :grid-cell-label="gridCellLabel"
+            :grid-cell-title="gridCellTitle"
+            @change-frame-mode="handleFrameModeChange"
+            @open-grid-tool="openGridTool"
+            @reopen-grid-preview="reopenGridPreview"
+            @continue-grid-split="continueGridSplit"
+            @toggle-grid-history="handleGridHistoryToggle"
+            @select-grid-history="selectGridHistory"
+            @select-shot="handleShotSelection"
+            @generate-shot-frame="handleShotFrameGenerate"
+            @open-image-viewer="handleGalleryViewerOpen"
+            @close-grid-dialog="gridDialog = false"
+            @change-grid-mode="handleGridModeChange"
+            @change-grid-layout="gridLayout = $event"
+            @toggle-grid-select-all="gridSelectAll"
+            @toggle-grid-shot="handleGridShotToggle"
+            @change-grid-single-target="gridSingleTarget = $event"
+            @generate-grid-prompt="generateGridPrompt"
+            @start-grid-generation="startGridGen"
+            @change-grid-step="gridStep = $event"
+            @focus-grid-cell="focusGridCell"
+            @change-grid-assignment-page="handleGridAssignmentPageChange"
+            @update-grid-assignment="handleGridAssignmentUpdate"
+            @do-grid-split="doGridSplit"
+            @finish-grid-dialog="handleGridDialogFinish"
+          />
 
           <!-- Sub: Videos -->
           <div v-else-if="prodTab === 'videos'" class="prod-content">
@@ -1277,7 +963,10 @@ import {
 } from 'lucide-vue-next'
 import { dramaAPI, episodeAPI, storyboardAPI, characterAPI, sceneAPI, imageAPI, videoAPI, composeAPI, mergeAPI, gridAPI, aiConfigAPI } from '~/composables/useApi'
 import { useAgent } from '~/composables/useAgent'
-import BaseSelect from '~/components/BaseSelect.vue'
+import ProductionCharacterGallery from '~/components/episode/ProductionCharacterGallery.vue'
+import ProductionSceneGallery from '~/components/episode/ProductionSceneGallery.vue'
+import ProductionShotFrames from '~/components/episode/ProductionShotFrames.vue'
+import { useImageGenerationMonitor } from '~/composables/useImageGenerationMonitor'
 
 definePageMeta({ layout: 'studio' })
 
@@ -1328,6 +1017,7 @@ const pendingComposeIds = ref([])
 const failedVideoMessages = ref({})
 const failedComposeMessages = ref({})
 const imageViewer = ref({ open: false, src: '', title: '' })
+const { sleep, watchAsyncResult, waitForImageGeneration, waitForImageAssetUpdate } = useImageGenerationMonitor(refresh)
 
 function configLabel(config) {
   if (!config) return '未配置'
@@ -1347,6 +1037,11 @@ function openImageViewer(src, title = '') {
 
 function closeImageViewer() {
   imageViewer.value = { open: false, src: '', title: '' }
+}
+
+function handleGalleryViewerOpen(payload) {
+  if (!payload?.src) return
+  openImageViewer(payload.src, payload.title || '')
 }
 
 function handleImageViewerKeydown(event) {
@@ -1380,36 +1075,6 @@ function getImageGenerateButtonLabel(hasImage, pending) {
 
 function getImageGenerateToastLabel(hasImage, assetLabel) {
   return `${assetLabel}${hasImage ? '再生成' : '生成'}中`
-}
-
-function didImageChange(currentImage, previousImage) {
-  if (!currentImage) return false
-  return previousImage ? currentImage !== previousImage : true
-}
-
-async function waitForImageGeneration(generationId) {
-  for (let i = 0; i < 120; i++) {
-    await sleep(3000)
-    let res = null
-    try {
-      res = await imageAPI.get(generationId)
-    } catch (e) {
-      if (i === 119) throw e
-      continue
-    }
-    if (res?.status === 'completed') return
-    if (res?.status === 'failed') throw new Error(res?.error_msg || res?.errorMsg || '图片生成失败')
-  }
-  throw new Error('图片生成超时')
-}
-
-async function waitForImageAssetUpdate(readImage, previousImage, attempts = 36, delay = 3000) {
-  for (let i = 0; i < attempts; i++) {
-    await refresh()
-    if (didImageChange(readImage(), previousImage)) return true
-    await sleep(delay)
-  }
-  return false
 }
 
 function framePendingKey(id, frameType) {
@@ -1655,6 +1320,54 @@ function goNextStep() {
   if (scriptStep.value === 1 && localScript.value.trim()) { saveScr() }
   if (scriptStep.value === 3) { panel.value = 'production'; return }
   if (canGoNext.value) scriptStep.value++
+}
+
+function handleFrameModeChange(value) {
+  frameMode.value = value
+}
+
+function handleShotSelection(sb) {
+  selectedSb.value = sb
+}
+
+function handleGridHistoryToggle() {
+  showAllGridHistory.value = !showAllGridHistory.value
+}
+
+function handleShotFrameGenerate(payload) {
+  if (!payload?.sb || !payload?.frameType) return
+  genShotFrame(payload.sb, payload.frameType)
+}
+
+function handleGridModeChange(mode) {
+  gridMode.value = mode
+  gridSelected.value = []
+  gridSingleTarget.value = null
+  gridAssignmentsState.value = []
+}
+
+function handleGridShotToggle(payload) {
+  const id = Number(payload?.id || 0)
+  if (!id) return
+  const next = new Set(gridSelected.value)
+  if (payload?.checked) next.add(id)
+  else next.delete(id)
+  gridSelected.value = [...next]
+}
+
+function handleGridAssignmentPageChange(page) {
+  const nextPage = Math.max(0, Number(page) || 0)
+  gridAssignmentPage.value = Math.min(nextPage, Math.max(0, gridAssignmentTotalPages.value - 1))
+}
+
+function handleGridAssignmentUpdate(payload) {
+  if (payload?.index === undefined || !payload?.field) return
+  updateGridAssignment(payload.index, payload.field, payload.value)
+}
+
+async function handleGridDialogFinish() {
+  gridDialog.value = false
+  await refresh()
 }
 
 function gridSelectAll() {
@@ -2217,6 +1930,11 @@ function updateSceneField(s, field, value) {
   sceneAPI.update(s.id, { [field]: value })
 }
 
+function handleSceneFieldUpdate(payload) {
+  if (!payload?.scene || !payload?.field) return
+  updateSceneField(payload.scene, payload.field, payload.value)
+}
+
 function getStoryboardCharacterIds(sb) {
   return sb?.character_ids || sb?.characterIds || []
 }
@@ -2317,20 +2035,6 @@ function doBreakdown() {
   runAgent('storyboard_breaker', `请拆解分镜并生成视频提示词。视频模型：${label}，请根据该模型的特性和时长限制生成合适的视频提示词。`, dramaId, epId.value, refresh)
 }
 async function addShot() { await storyboardAPI.create({ episode_id: epId.value, storyboard_number: sbs.value.length + 1, title: `镜头${sbs.value.length + 1}`, duration: 10 }); refresh() }
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
-
-function watchAsyncResult(check, attempts = 24, delay = 2500) {
-  void (async () => {
-    for (let i = 0; i < attempts; i++) {
-      await sleep(delay)
-      await refresh()
-      if (check()) return
-    }
-  })()
-}
 
 async function genCharImg(id) {
   const char = chars.value.find(c => c.id === id)
@@ -3369,119 +3073,9 @@ onMounted(() => { refresh(); loadConfigs() })
 .dub-foot { display: flex; align-items: center; gap: 10px; padding-top: 8px; border-top: 1px solid rgba(27, 41, 64, 0.08); }
 .dub-audio { flex: 1; min-width: 0; height: 30px; }
 
-/* Asset grid */
-.asset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
-.asset-card {
-  display: flex; flex-direction: column; overflow: hidden;
-  transition: transform 0.18s var(--ease-out), box-shadow 0.18s var(--ease-out), border-color 0.18s var(--ease-out);
-}
-.asset-card:hover { transform: translateY(-2px); box-shadow: 0 16px 30px rgba(20, 32, 54, 0.08); }
-.asset-cover { position: relative; aspect-ratio: 1; background: var(--bg-2); overflow: hidden; }
-.asset-cover.wide { aspect-ratio: 16/9; }
-.asset-cover img { width: 100%; height: 100%; object-fit: cover; }
 .previewable-image { cursor: zoom-in; transition: transform 0.18s var(--ease-out), filter 0.18s var(--ease-out); }
 .previewable-image:hover { transform: scale(1.015); filter: saturate(1.04); }
-.asset-cover-badge {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: rgba(7,11,21,0.58);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 700;
-}
-.asset-cover-badge.is-ready {
-  background: rgba(36, 125, 72, 0.92);
-}
-.asset-cover-badge.is-pending {
-  background: rgba(19, 51, 121, 0.92);
-}
-.asset-cover-empty { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: var(--text-3); }
-.asset-body { padding: 8px 10px; }
-.asset-name { font-size: 13px; font-weight: 600; }
-.asset-meta { font-size: 11px; }
-.asset-prompt { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
-.asset-prompt-label { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; color: var(--text-3); }
-.asset-prompt-input {
-  width: 100%;
-  min-height: 72px;
-  resize: vertical;
-  border: 1px solid rgba(27, 41, 64, 0.08);
-  border-radius: 12px;
-  background: rgba(247, 249, 253, 0.92);
-  padding: 8px 10px;
-  font-size: 11px;
-  line-height: 1.55;
-  color: var(--text-1);
-  font-family: inherit;
-  outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-}
-.asset-prompt-input:hover { border-color: rgba(19, 51, 121, 0.18); background: rgba(255,255,255,0.96); }
-.asset-prompt-input:focus {
-  border-color: rgba(19, 51, 121, 0.4);
-  box-shadow: 0 0 0 3px rgba(76, 125, 255, 0.12);
-  background: #fff;
-}
-.asset-foot { display: flex; align-items: center; gap: 4px; padding: 6px 10px; border-top: 1px solid var(--border); }
 
-/* Frame grid */
-.frame-grid { display: flex; flex-direction: column; gap: 8px; }
-.frame-row {
-  display: flex; align-items: center; gap: 14px;
-  padding: 12px 14px; cursor: pointer;
-  border-radius: var(--radius-lg);
-  transition: all 0.15s;
-  border: 1.5px solid transparent;
-}
-.frame-row:hover { background: var(--bg-0); border-color: var(--border); }
-.frame-row.active {
-  background: var(--bg-0);
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-glow);
-}
-.frame-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
-.frame-top { display: flex; align-items: center; gap: 8px; }
-.frame-num {
-  font-size: 13px; font-family: var(--font-mono); font-weight: 800;
-  color: var(--accent);
-}
-.frame-badge {
-  font-size: 11px; font-weight: 600; padding: 2px 8px;
-  border-radius: 20px;
-  background: var(--accent-bg); color: var(--accent);
-  border: 1px solid var(--accent-glow);
-  white-space: nowrap;
-}
-.frame-desc {
-  font-size: 12px; line-height: 1.5; color: var(--text-1);
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.frame-meta { display: flex; align-items: center; gap: 6px; }
-.frame-thumbs { display: flex; gap: 8px; flex-shrink: 0; }
-.frame-thumb-wrap { display: flex; flex-direction: column; gap: 3px; align-items: center; }
-.frame-thumb-label { font-size: 10px; font-weight: 600; color: var(--text-3); }
-.frame-thumb {
-  position: relative; width: 130px; aspect-ratio: 16/9;
-  border-radius: 6px; overflow: hidden;
-  background: var(--bg-2); cursor: pointer;
-  transition: all 0.15s; border: 1.5px solid var(--border);
-}
-.frame-thumb:hover { border-color: var(--accent); box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
-.frame-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.frame-thumb-empty { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: var(--text-3); }
-.frame-re {
-  position: absolute; top: 3px; right: 3px; width: 18px; height: 18px;
-  border-radius: 50%; background: rgba(0,0,0,0.5); color: #fff;
-  display: none; align-items: center; justify-content: center;
-}
-.frame-thumb:hover .frame-re { display: flex; }
-.frame-scroll { flex: 1; overflow-y: auto; padding: 10px 12px; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--bg-3); flex-shrink: 0; }
 .dot.ok { background: var(--success); }
 .dot.pending {
@@ -3569,344 +3163,6 @@ onMounted(() => { refresh(); loadConfigs() })
   background: rgba(255,255,255,0.9);
 }
 
-/* Grid tool dialog */
-.grid-tool { width: min(1320px, calc(100vw - 40px)); max-height: calc(100vh - 48px); display: flex; flex-direction: column; overflow: hidden; animation: scaleIn 0.2s var(--ease-out); }
-.grid-tool-head { display: flex; align-items: center; gap: 8px; padding: 16px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-.grid-tool-body { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
-.grid-tool-body-preview { overflow: hidden; min-height: 0; padding-bottom: 10px; }
-.grid-tool-foot { display: flex; align-items: center; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); margin-top: 4px; }
-.grid-preview-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.72fr) minmax(340px, 400px);
-  gap: 14px;
-  min-height: 0;
-  flex: 1;
-  align-items: start;
-}
-.grid-preview-pane {
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.grid-assignment-pane {
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid rgba(27, 41, 64, 0.08);
-  border-radius: 18px;
-  background: rgba(255,255,255,0.66);
-  overflow: hidden;
-  max-height: min(70vh, 840px);
-}
-.grid-assign-head {
-  padding: 10px 12px;
-  border-bottom: 1px solid rgba(27, 41, 64, 0.08);
-  background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.72));
-}
-.grid-assign-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-0);
-  font-family: var(--font-display);
-}
-.grid-assign-subtitle {
-  margin-top: 2px;
-  font-size: 11px;
-  color: var(--text-3);
-}
-.grid-assign-pagination {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-bottom: 1px solid rgba(27, 41, 64, 0.08);
-  background: rgba(255,255,255,0.86);
-}
-.grid-assign-columns {
-  display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) 96px minmax(0, 1fr);
-  gap: 8px;
-  padding: 7px 12px;
-  border-bottom: 1px solid rgba(27, 41, 64, 0.08);
-  background: rgba(246, 248, 252, 0.92);
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--text-3);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-/* Prompt preview */
-.grid-prompt-summary { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; }
-.grid-prompt-label { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
-.grid-prompt-text { font-size: 12px; color: var(--text-1); line-height: 1.7; }
-
-.grid-blank-preview {
-  display: grid;
-  gap: 4px;
-  border: 1.5px dashed var(--border-strong);
-  border-radius: var(--radius);
-  padding: 8px;
-  min-height: 200px;
-}
-.grid-blank-cell {
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-height: 70px;
-}
-.grid-blank-cell.empty { opacity: 0.4; }
-.grid-blank-cell-index { font-size: 10px; font-weight: 700; color: var(--accent); font-family: var(--font-mono); }
-.grid-blank-cell-desc { font-size: 11px; color: var(--text-2); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.grid-mode-tabs { display: flex; gap: 6px; }
-.grid-mode-tab { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: var(--radius); background: var(--bg-0); cursor: pointer; transition: all 0.15s; text-align: left; }
-.grid-mode-tab:hover { border-color: var(--border-strong); }
-.grid-mode-tab.active { border-color: var(--accent); background: var(--accent-bg); }
-.grid-config { display: flex; gap: 12px; align-items: flex-end; }
-.grid-pick-list { display: flex; flex-direction: column; gap: 2px; max-height: 260px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius); padding: 4px; }
-.grid-pick-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; cursor: pointer; transition: background 0.1s; }
-.grid-pick-item:hover { background: var(--bg-hover); }
-.grid-pick-item.selected { background: var(--accent-bg); }
-.grid-pick-item input { accent-color: var(--accent); }
-.grid-preview-wrap {
-  border-radius: var(--radius);
-  overflow: auto;
-  border: 1px solid var(--border);
-  background: rgba(14, 19, 28, 0.06);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 300px;
-  max-height: min(70vh, 860px);
-  padding: 10px;
-}
-.grid-preview-stage {
-  position: relative;
-  width: fit-content;
-  max-width: 100%;
-  margin: auto;
-  line-height: 0;
-}
-.grid-preview-img {
-  display: block;
-  width: auto;
-  max-width: 100%;
-  max-height: min(66vh, 820px);
-  object-fit: contain;
-}
-.grid-overlay { position: absolute; inset: 0; display: grid; }
-.grid-overlay-cell {
-  border: 1px dashed rgba(255,255,255,0.42);
-  display: flex;
-  align-items: flex-end;
-  justify-content: flex-start;
-  padding: 4px 6px;
-  background: transparent;
-  cursor: pointer;
-  transition: background 0.15s ease, box-shadow 0.15s ease;
-}
-.grid-overlay-cell.active {
-  background: rgba(255,255,255,0.08);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.28);
-}
-.grid-cell-label { font-size: 10px; font-weight: 700; color: #fff; background: rgba(0,0,0,0.5); padding: 1px 5px; border-radius: 3px; }
-.grid-adjust-summary { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 0 2px; }
-.grid-assign-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  flex: 1;
-  overflow-y: auto;
-  min-height: 0;
-  padding: 4px 12px 10px;
-}
-.grid-assign-row {
-  display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) 112px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-  padding: 6px 0;
-  border-bottom: 1px dashed rgba(27, 41, 64, 0.08);
-}
-.grid-assign-row.active {
-  background: rgba(32, 86, 190, 0.05);
-  border-radius: 12px;
-  padding-left: 6px;
-  padding-right: 6px;
-}
-.grid-assign-row:last-child { border-bottom: 0; }
-.grid-assign-index {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--text-3);
-  font-family: var(--font-mono);
-}
-.grid-assign-bind {
-  font-size: 11px;
-  color: var(--text-2);
-  line-height: 1.45;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.grid-history-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 12px;
-  padding: 10px 12px 12px;
-  border: 1px solid rgba(27, 41, 64, 0.08);
-  border-radius: 20px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.82), rgba(255,255,255,0.64));
-}
-.grid-history-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.grid-history-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-0);
-  font-family: var(--font-display);
-}
-.grid-history-subtitle {
-  font-size: 11px;
-  color: var(--text-3);
-}
-.grid-history-list {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(160px, 182px);
-  gap: 10px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-}
-.grid-history-item {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 8px;
-  border: 1px solid rgba(27, 41, 64, 0.08);
-  border-radius: 16px;
-  background: rgba(255,255,255,0.78);
-  cursor: pointer;
-  text-align: left;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
-}
-.grid-history-item:hover {
-  border-color: rgba(33, 88, 255, 0.18);
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
-  transform: translateY(-1px);
-}
-.grid-history-item.active {
-  border-color: rgba(33, 88, 255, 0.26);
-  background: linear-gradient(180deg, rgba(244,248,255,0.96), rgba(255,255,255,0.86));
-  box-shadow: 0 14px 28px rgba(33, 88, 255, 0.12);
-}
-.grid-history-thumb {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  overflow: hidden;
-  border-radius: 12px;
-  border: 1px solid rgba(27, 41, 64, 0.08);
-  background: rgba(14, 19, 28, 0.05);
-}
-.grid-history-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.grid-history-copy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.grid-history-tags {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.grid-history-meta {
-  font-size: 10.5px;
-  color: var(--text-3);
-  line-height: 1.45;
-  word-break: break-word;
-}
-
-.latest-grid-strip {
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: center;
-  padding: 8px 10px;
-  border: 1px solid rgba(27, 41, 64, 0.08);
-  border-radius: 16px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.84), rgba(255,255,255,0.62));
-}
-.latest-grid-strip-thumb {
-  width: 72px;
-  height: 48px;
-  padding: 0;
-  border: 1px solid rgba(27, 41, 64, 0.08);
-  border-radius: 10px;
-  overflow: hidden;
-  background: rgba(14, 19, 28, 0.06);
-  cursor: zoom-in;
-  box-shadow: none;
-}
-.latest-grid-strip-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.latest-grid-strip-copy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.latest-grid-strip-head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.latest-grid-strip-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text-0);
-  font-family: var(--font-display);
-}
-.latest-grid-strip-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  font-size: 10px;
-  color: var(--text-3);
-}
-.latest-grid-strip-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
 /* Export */
 .export-split { flex: 1; display: flex; min-height: 0; }
 .export-main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px; }
@@ -3965,33 +3221,6 @@ onMounted(() => { refresh(); loadConfigs() })
     width: calc(100vw - 32px);
     max-height: calc(100vh - 32px);
   }
-
-  .grid-tool {
-    width: calc(100vw - 24px);
-    max-height: calc(100vh - 24px);
-  }
-
-  .grid-preview-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .grid-preview-wrap,
-  .grid-preview-img {
-    max-height: 42vh;
-  }
-
-  .grid-assignment-pane {
-    max-height: 42vh;
-  }
-
-  .grid-assign-columns {
-    display: none;
-  }
-
-  .grid-assign-row {
-    grid-template-columns: 1fr;
-    align-items: stretch;
-  }
 }
 
 @media (max-width: 860px) {
@@ -4016,7 +3245,6 @@ onMounted(() => { refresh(); loadConfigs() })
   }
 
   .extract-grid,
-  .asset-grid,
   .prod-grid {
     grid-template-columns: 1fr;
   }
@@ -4029,11 +3257,6 @@ onMounted(() => { refresh(); loadConfigs() })
     position: static;
   }
 
-  .frame-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
   .detail-hero {
     grid-template-columns: 1fr;
   }
@@ -4041,32 +3264,6 @@ onMounted(() => { refresh(); loadConfigs() })
   .field-grid-2,
   .field-grid-4 {
     grid-template-columns: 1fr;
-  }
-
-  .frame-thumbs {
-    width: 100%;
-  }
-
-  .frame-thumb {
-    width: 100%;
-  }
-
-  .latest-grid-strip {
-    grid-template-columns: 1fr;
-  }
-
-  .grid-history-list {
-    grid-auto-columns: minmax(148px, 168px);
-  }
-
-  .latest-grid-strip-thumb {
-    width: 100%;
-    height: auto;
-    aspect-ratio: 16 / 9;
-  }
-
-  .latest-grid-strip-actions {
-    justify-content: flex-start;
   }
 }
 </style>

@@ -51,3 +51,4 @@ docs/
 data/*.db*
 data/aidrama.db-wal
 data/aidrama.db-shm
+.tocodex
