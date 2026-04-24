@@ -16,6 +16,8 @@ export const dramas = sqliteTable('dramas', {
   thumbnail: text('thumbnail'),
   tags: text('tags'),
   metadata: text('metadata'),
+  imageConfigId: integer('image_config_id'),
+  videoConfigId: integer('video_config_id'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
   deletedAt: text('deleted_at'),

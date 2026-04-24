@@ -27,6 +27,8 @@ sqlite.exec(`
     thumbnail TEXT,
     tags TEXT,
     metadata TEXT,
+    image_config_id INTEGER,
+    video_config_id INTEGER,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT
@@ -349,6 +351,8 @@ function ensureColumn(table: string, column: string, definition: string) {
 
 ensureColumn('episodes', 'image_config_id', 'INTEGER')
 ensureColumn('episodes', 'video_config_id', 'INTEGER')
+ensureColumn('dramas', 'image_config_id', 'INTEGER')
+ensureColumn('dramas', 'video_config_id', 'INTEGER')
 ensureColumn('image_generations', 'normalized_request', 'TEXT')
 ensureColumn('image_generations', 'provider_request', 'TEXT')
 ensureColumn('image_generations', 'provider_response', 'TEXT')

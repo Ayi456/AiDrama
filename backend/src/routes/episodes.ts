@@ -49,7 +49,7 @@ app.put('/:id', async (c) => {
   const id = Number(c.req.param('id'))
   const body = await c.req.json()
 
-  const allowed = ['content', 'script_content', 'title', 'description', 'status']
+  const allowed = ['content', 'script_content', 'title', 'description', 'status', 'image_config_id', 'video_config_id']
   const updates: Record<string, any> = {}
   for (const key of allowed) {
     if (key in body) updates[key] = body[key]
@@ -62,6 +62,8 @@ app.put('/:id', async (c) => {
   if ('title' in updates) drizzleUpdates.title = updates.title
   if ('description' in updates) drizzleUpdates.description = updates.description
   if ('status' in updates) drizzleUpdates.status = updates.status
+  if ('image_config_id' in updates) drizzleUpdates.imageConfigId = Number(updates.image_config_id || 0) || null
+  if ('video_config_id' in updates) drizzleUpdates.videoConfigId = Number(updates.video_config_id || 0) || null
 
   db.update(schema.episodes).set(drizzleUpdates).where(eq(schema.episodes.id, id)).run()
   return success(c)

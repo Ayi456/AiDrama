@@ -52,6 +52,13 @@ app.get('/', async (c) => {
 app.post('/', async (c) => {
   const body = await c.req.json()
   const ts = now()
+  const imageConfigId = Number(body.image_config_id || 0) || null
+  const videoConfigId = Number(body.video_config_id || 0) || null
+
+  const allConfigs = db.select().from(schema.aiServiceConfigs).all()
+  const fallbackImageConfigId = imageConfigId ?? allConfigs.find((row) => row.serviceType === 'image' && row.isActive)?.id ?? null
+  const fallbackVideoConfigId = videoConfigId ?? allConfigs.find((row) => row.serviceType === 'video' && row.isActive)?.id ?? null
+
   const res = db.insert(schema.dramas).values({
     title: body.title,
     description: body.description,
@@ -59,6 +66,8 @@ app.post('/', async (c) => {
     style: body.style,
     tags: body.tags ? JSON.stringify(body.tags) : null,
     metadata: body.metadata,
+    imageConfigId: fallbackImageConfigId,
+    videoConfigId: fallbackVideoConfigId,
     status: 'draft',
     createdAt: ts,
     updatedAt: ts,
@@ -74,6 +83,8 @@ app.post('/', async (c) => {
       dramaId: result.id,
       episodeNumber: i,
       title: `第${i}集`,
+      imageConfigId: fallbackImageConfigId,
+      videoConfigId: fallbackVideoConfigId,
       status: 'draft',
       createdAt: ts,
       updatedAt: ts,
@@ -133,6 +144,8 @@ app.put('/:id', async (c) => {
   if (body.status !== undefined) updates.status = body.status
   if (body.tags !== undefined) updates.tags = JSON.stringify(body.tags)
   if (body.metadata !== undefined) updates.metadata = body.metadata
+  if (body.image_config_id !== undefined) updates.imageConfigId = Number(body.image_config_id || 0) || null
+  if (body.video_config_id !== undefined) updates.videoConfigId = Number(body.video_config_id || 0) || null
   db.update(schema.dramas).set(updates).where(eq(schema.dramas.id, id)).run()
   return success(c)
 })

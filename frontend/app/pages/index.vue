@@ -115,6 +115,16 @@
               <BaseSelect v-model="form.style" :options="styleSelectOptions" placeholder="选择风格" searchable />
             </label>
           </div>
+          <div class="field-row">
+            <label class="field">
+              <span class="field-label">图片模型</span>
+              <BaseSelect v-model="form.image_config_id" :options="imageConfigOptions" placeholder="选择图片模型" searchable />
+            </label>
+            <label class="field">
+              <span class="field-label">视频模型</span>
+              <BaseSelect v-model="form.video_config_id" :options="videoConfigOptions" placeholder="选择视频模型" searchable />
+            </label>
+          </div>
           <div class="modal-actions">
             <button type="button" class="btn" @click="showCreate = false">取消</button>
             <button type="submit" class="btn btn-primary">
@@ -132,15 +142,27 @@
 
 <script setup>
 import { toast } from 'vue-sonner'
-import { dramaAPI } from '~/composables/useApi'
+import { aiConfigAPI, dramaAPI } from '~/composables/useApi'
 import BaseSelect from '~/components/BaseSelect.vue'
 
 const dramas = ref([])
 const loading = ref(false)
 const showCreate = ref(false)
-const form = ref({ title: '', total_episodes: 1, style: '' })
+const imageConfigs = ref([])
+const videoConfigs = ref([])
+const form = ref({ title: '', total_episodes: 1, style: '', image_config_id: null, video_config_id: null })
 const styles = ['realistic', 'anime', 'ghibli', 'cinematic', 'comic', 'watercolor']
 const styleSelectOptions = computed(() => styles.map(s => ({ label: s, value: s })))
+const imageConfigOptions = computed(() => imageConfigs.value.map(c => ({ label: configLabel(c), value: c.id })))
+const videoConfigOptions = computed(() => videoConfigs.value.map(c => ({ label: configLabel(c), value: c.id })))
+
+function configLabel(config) {
+  if (!config) return ''
+  let modelName = ''
+  if (Array.isArray(config.model)) modelName = config.model[0] || ''
+  else try { const m = JSON.parse(config.model || '[]'); modelName = Array.isArray(m) ? (m[0] || '') : (m || '') } catch { modelName = config.model || '' }
+  return modelName ? `${config.name} · ${modelName} (${config.provider})` : `${config.name} (${config.provider})`
+}
 
 async function load() {
   loading.value = true
@@ -151,6 +173,21 @@ async function load() {
     toast.error(e.message)
   } finally {
     loading.value = false
+  }
+}
+
+async function loadConfigs() {
+  try {
+    const [imgs, vids] = await Promise.all([
+      aiConfigAPI.list('image'),
+      aiConfigAPI.list('video'),
+    ])
+    imageConfigs.value = imgs || []
+    videoConfigs.value = vids || []
+    if (!form.value.image_config_id && imageConfigs.value.length) form.value.image_config_id = imageConfigs.value[0].id
+    if (!form.value.video_config_id && videoConfigs.value.length) form.value.video_config_id = videoConfigs.value[0].id
+  } catch (e) {
+    toast.error(e.message)
   }
 }
 
@@ -195,7 +232,10 @@ function getProgress(d) {
   return Math.round((scripted / d.episodes.length) * 100)
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  loadConfigs()
+})
 </script>
 
 <style>

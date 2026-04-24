@@ -163,17 +163,22 @@ function hasScript(ep) { return !!(ep.script_content || ep.scriptContent) }
 function configLabel(config) {
   if (!config) return ''
   let modelName = ''
-  try { const m = JSON.parse(config.model || '[]'); modelName = Array.isArray(m) ? (m[0] || '') : (m || '') } catch { modelName = config.model || '' }
+  if (Array.isArray(config.model)) modelName = config.model[0] || ''
+  else try { const m = JSON.parse(config.model || '[]'); modelName = Array.isArray(m) ? (m[0] || '') : (m || '') } catch { modelName = config.model || '' }
   return modelName ? `${config.name} · ${modelName} (${config.provider})` : `${config.name} (${config.provider})`
 }
 
 const imageConfigOptions = computed(() => imageConfigs.value.map(c => ({ label: configLabel(c), value: c.id })))
 const videoConfigOptions = computed(() => videoConfigs.value.map(c => ({ label: configLabel(c), value: c.id })))
 const canCreateEpisode = computed(() => !!(newEpisodeImageConfigId.value && newEpisodeVideoConfigId.value))
+const dramaImageConfigId = computed(() => drama.value?.image_config_id || drama.value?.imageConfigId || null)
+const dramaVideoConfigId = computed(() => drama.value?.video_config_id || drama.value?.videoConfigId || null)
 
 async function load() {
   try {
     drama.value = await dramaAPI.get(dramaId)
+    if (dramaImageConfigId.value) newEpisodeImageConfigId.value = dramaImageConfigId.value
+    if (dramaVideoConfigId.value) newEpisodeVideoConfigId.value = dramaVideoConfigId.value
   } catch (e) {
     toast.error(e.message)
   }
@@ -187,8 +192,8 @@ async function loadConfigs() {
     ])
     imageConfigs.value = imgs || []
     videoConfigs.value = vids || []
-    if (!newEpisodeImageConfigId.value && imageConfigs.value.length) newEpisodeImageConfigId.value = imageConfigs.value[0].id
-    if (!newEpisodeVideoConfigId.value && videoConfigs.value.length) newEpisodeVideoConfigId.value = videoConfigs.value[0].id
+    if (!newEpisodeImageConfigId.value) newEpisodeImageConfigId.value = dramaImageConfigId.value || imageConfigs.value[0]?.id || null
+    if (!newEpisodeVideoConfigId.value) newEpisodeVideoConfigId.value = dramaVideoConfigId.value || videoConfigs.value[0]?.id || null
   } catch (e) {
     toast.error(e.message)
   }
@@ -196,6 +201,8 @@ async function loadConfigs() {
 
 function openAddEpisode() {
   newEpisodeTitle.value = ''
+  if (!newEpisodeImageConfigId.value) newEpisodeImageConfigId.value = dramaImageConfigId.value || imageConfigs.value[0]?.id || null
+  if (!newEpisodeVideoConfigId.value) newEpisodeVideoConfigId.value = dramaVideoConfigId.value || videoConfigs.value[0]?.id || null
   addDialog.value = true
 }
 
