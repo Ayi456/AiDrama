@@ -1,7 +1,6 @@
 /**
  * FFmpeg 单镜头合成：纯视频标准化输出
  */
-import ffmpeg from 'fluent-ffmpeg'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -10,6 +9,7 @@ import { db, schema } from '../db/index.js'
 import { eq } from 'drizzle-orm'
 import { now } from '../utils/response.js'
 import { logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
+import { ffmpeg, hasAudioStream } from './ffmpeg.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const STORAGE_ROOT = process.env.STORAGE_PATH || path.resolve(__dirname, '../../../data/static')
@@ -56,16 +56,29 @@ export async function composeStoryboard(storyboardId: number): Promise<string> {
   const outputPath = path.join(outputDir, outputFilename)
 
   try {
+    const hasAudio = await hasAudioStream(videoPath)
+
     await new Promise<void>((resolve, reject) => {
-      ffmpeg(videoPath)
+      const command = ffmpeg(videoPath)
+
+      if (!hasAudio) {
+        command.input('anullsrc=channel_layout=stereo:sample_rate=48000')
+          .inputOptions(['-f', 'lavfi'])
+      }
+
+      command
         .outputOptions([
           '-map', '0:v:0',
+          '-map', hasAudio ? '0:a:0' : '1:a:0',
           '-c:v', 'libx264',
           '-preset', 'fast',
           '-crf', '23',
           '-pix_fmt', 'yuv420p',
+          '-c:a', 'aac',
+          '-b:a', '192k',
+          '-ar', '48000',
+          '-shortest',
           '-movflags', '+faststart',
-          '-an',
         ])
         .output(outputPath)
         .on('end', () => resolve())
@@ -84,6 +97,7 @@ export async function composeStoryboard(storyboardId: number): Promise<string> {
       storyboardNumber: storyboard.storyboardNumber,
       output: composedRelative,
       mode: 'video-only',
+      hasAudio,
     })
 
     return composedRelative

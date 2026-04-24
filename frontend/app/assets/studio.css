@@ -199,6 +199,78 @@ select.input { appearance: none; cursor: pointer; background-image: url("data:im
 .tag-info { background: var(--info-bg); color: var(--info); }
 .tag-warning { background: var(--warning-bg); color: var(--warning); }
 
+/* === Toasts === */
+[data-sonner-toaster] {
+  --normal-bg: rgba(255, 255, 255, 0.88);
+  --normal-border: rgba(118, 139, 178, 0.22);
+  --normal-text: var(--text-1);
+  top: 18px !important;
+}
+[data-sonner-toast] {
+  min-width: 260px !important;
+  max-width: min(420px, calc(100vw - 32px)) !important;
+  padding: 12px 14px !important;
+  border: 1px solid rgba(118, 139, 178, 0.2) !important;
+  border-radius: 999px !important;
+  background: linear-gradient(135deg, rgba(255,255,255,0.96), rgba(246,249,255,0.9)) !important;
+  color: var(--text-1) !important;
+  box-shadow: 0 14px 34px rgba(50,74,114,0.14), 0 4px 12px rgba(50,74,114,0.08) !important;
+  backdrop-filter: blur(18px) saturate(1.25);
+  gap: 10px !important;
+}
+[data-sonner-toast]::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-bg);
+  flex: 0 0 auto;
+}
+[data-sonner-toast][data-type='success']::before {
+  background: var(--success);
+  box-shadow: 0 0 0 4px var(--success-bg);
+}
+[data-sonner-toast][data-type='error']::before {
+  background: var(--error);
+  box-shadow: 0 0 0 4px var(--error-bg);
+}
+[data-sonner-toast][data-type='warning']::before {
+  background: var(--warning);
+  box-shadow: 0 0 0 4px var(--warning-bg);
+}
+[data-sonner-toast] [data-icon] {
+  display: none !important;
+}
+[data-sonner-toast] [data-content] {
+  gap: 1px !important;
+}
+[data-sonner-toast] [data-title] {
+  font-family: var(--font-body) !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.01em !important;
+  line-height: 1.35 !important;
+}
+[data-sonner-toast] [data-description] {
+  color: var(--text-3) !important;
+  font-size: 11px !important;
+  line-height: 1.35 !important;
+}
+[data-sonner-toast] [data-close-button] {
+  width: 20px !important;
+  height: 20px !important;
+  border-radius: 999px !important;
+  border-color: rgba(118, 139, 178, 0.22) !important;
+  background: rgba(255,255,255,0.85) !important;
+  color: var(--text-3) !important;
+  transform: translate(30%, -30%) !important;
+}
+[data-sonner-toast] [data-close-button]:hover {
+  color: var(--text-1) !important;
+  border-color: rgba(118, 139, 178, 0.34) !important;
+}
+
 /* === Cards === */
 .card {
   border: 1px solid var(--border); border-radius: var(--radius-lg);

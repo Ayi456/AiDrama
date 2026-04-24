@@ -539,18 +539,30 @@ export function useEpisodeMediaPipeline(options: UseEpisodeMediaPipelineOptions)
   }
 
   async function doMerge() {
-    await mergeAPI.merge(options.epId.value)
-    toast.success('拼接中...')
-    const poll = setInterval(async () => {
-      try {
-        const mergeData = await mergeAPI.status(options.epId.value)
-        if (options.mergeData) options.mergeData.value = mergeData
-        if (mergeData?.status === 'completed' || mergeData?.status === 'failed') {
-          clearInterval(poll)
-          mergeData.status === 'completed' ? toast.success('拼接完成') : toast.error('拼接失败')
+    const composedCount = options.sbs.value.filter(sb => sb.composed_video_url || sb.composedVideoUrl).length
+    if (composedCount === 0) {
+      toast.error('请先至少合成 1 个镜头')
+      return
+    }
+
+    try {
+      await mergeAPI.merge(options.epId.value)
+      toast.success('正在拼接视频…')
+      const poll = setInterval(async () => {
+        try {
+          const mergeData = await mergeAPI.status(options.epId.value)
+          if (options.mergeData) options.mergeData.value = mergeData
+          if (mergeData?.status === 'completed' || mergeData?.status === 'failed') {
+            clearInterval(poll)
+            mergeData.status === 'completed' ? toast.success('视频拼接完成') : toast.error(mergeData?.error_msg || mergeData?.errorMsg || '拼接失败')
+          }
+        } catch (error: any) {
+          toast.error(error.message || '查询拼接状态失败')
         }
-      } catch {}
-    }, 3000)
+      }, 3000)
+    } catch (error: any) {
+      toast.error(error.message || '拼接启动失败')
+    }
   }
 
   async function pollComposeStatus() {

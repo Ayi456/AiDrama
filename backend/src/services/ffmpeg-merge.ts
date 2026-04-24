@@ -1,7 +1,6 @@
 /**
  * FFmpeg 多镜头拼接 — 将所有合成后的镜头视频拼接为一集
  */
-import ffmpeg from 'fluent-ffmpeg'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -10,6 +9,7 @@ import { db, schema } from '../db/index.js'
 import { eq } from 'drizzle-orm'
 import { now } from '../utils/response.js'
 import { logTaskError, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
+import { escapeConcatPath, ffmpeg, getVideoDuration } from './ffmpeg.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const STORAGE_ROOT = process.env.STORAGE_PATH || path.resolve(__dirname, '../../../data/static')
@@ -19,6 +19,37 @@ function toAbsPath(relativePath: string): string {
   if (path.isAbsolute(relativePath)) return relativePath
   if (relativePath.startsWith('static/')) return path.join(DATA_ROOT, relativePath)
   return path.join(STORAGE_ROOT, relativePath)
+}
+
+function removeManagedFile(fileUrl: string | null | undefined) {
+  if (!fileUrl) return
+  const filePath = toAbsPath(fileUrl)
+  const resolved = path.resolve(filePath)
+  const allowedRoots = [path.resolve(DATA_ROOT), path.resolve(STORAGE_ROOT)]
+  if (!allowedRoots.some(root => resolved === root || resolved.startsWith(`${root}${path.sep}`))) return
+  try {
+    if (fs.existsSync(resolved)) fs.unlinkSync(resolved)
+  } catch (error) {
+    console.warn(`[Merge] Failed to remove previous file: ${resolved}`, error)
+  }
+}
+
+function clearPreviousEpisodeMerge(episodeId: number) {
+  const previousMerges = db.select().from(schema.videoMerges)
+    .where(eq(schema.videoMerges.episodeId, episodeId))
+    .all()
+
+  previousMerges.forEach(merge => removeManagedFile(merge.mergedUrl))
+
+  db.update(schema.videoMerges)
+    .set({ status: 'replaced', mergedUrl: null, deletedAt: now() })
+    .where(eq(schema.videoMerges.episodeId, episodeId))
+    .run()
+
+  db.update(schema.episodes)
+    .set({ videoUrl: null, updatedAt: now() })
+    .where(eq(schema.episodes.id, episodeId))
+    .run()
 }
 
 /**
@@ -31,16 +62,15 @@ export async function mergeEpisodeVideos(episodeId: number, dramaId: number): Pr
     .all()
 
   const composedStoryboards = storyboards.filter(sb => !!sb.composedVideoUrl)
-  if (composedStoryboards.length !== storyboards.length) {
-    throw new Error(`Only composed storyboards can be merged (${composedStoryboards.length}/${storyboards.length} ready)`)
-  }
   const videos = composedStoryboards
     .map(sb => sb.composedVideoUrl)
     .filter(Boolean) as string[]
 
-  if (videos.length === 0) throw new Error('No videos to merge')
+  if (videos.length === 0) throw new Error('No composed videos to merge')
 
   logTaskStart('MergeTask', 'episode-merge', { episodeId, dramaId, clips: videos.length })
+
+  clearPreviousEpisodeMerge(episodeId)
 
   // 创建 merge 记录
   const ts = now()
@@ -51,7 +81,11 @@ export async function mergeEpisodeVideos(episodeId: number, dramaId: number): Pr
     provider: 'ffmpeg',
     model: 'ffmpeg-concat-h264-aac',
     status: 'processing',
-    scenes: JSON.stringify(videos),
+    scenes: JSON.stringify(composedStoryboards.map(sb => ({
+      storyboardId: sb.id,
+      storyboardNumber: sb.storyboardNumber,
+      videoUrl: sb.composedVideoUrl,
+    }))),
     createdAt: ts,
   }).run()
   const mergeId = Number(res.lastInsertRowid)
@@ -75,7 +109,7 @@ async function doMerge(mergeId: number, episodeId: number, videos: string[]) {
   const listPath = path.join(listDir, `${uuid()}.txt`)
 
   const listContent = videos
-    .map(v => `file '${toAbsPath(v)}'`)
+    .map(v => `file '${escapeConcatPath(toAbsPath(v))}'`)
     .join('\n')
   fs.writeFileSync(listPath, listContent, 'utf-8')
 
@@ -85,28 +119,30 @@ async function doMerge(mergeId: number, episodeId: number, videos: string[]) {
   const outputFilename = `${uuid()}.mp4`
   const outputPath = path.join(outputDir, outputFilename)
 
-  await new Promise<void>((resolve, reject) => {
-    ffmpeg()
-      .input(listPath)
-      .inputOptions(['-f', 'concat', '-safe', '0'])
-      .outputOptions([
-        '-fflags', '+genpts',
-        '-c:v', 'libx264',
-        '-preset', 'medium',
-        '-crf', '23',
-        '-c:a', 'aac',
-        '-ar', '48000',
-        '-b:a', '192k',
-        '-movflags', '+faststart',
-      ])
-      .output(outputPath)
-      .on('end', () => resolve())
-      .on('error', (err) => reject(err))
-      .run()
-  })
-
-  // 清理临时文件
-  fs.unlinkSync(listPath)
+  try {
+    await new Promise<void>((resolve, reject) => {
+      ffmpeg()
+        .input(listPath)
+        .inputOptions(['-f', 'concat', '-safe', '0'])
+        .outputOptions([
+          '-fflags', '+genpts',
+          '-c:v', 'libx264',
+          '-preset', 'medium',
+          '-crf', '23',
+          '-pix_fmt', 'yuv420p',
+          '-c:a', 'aac',
+          '-ar', '48000',
+          '-b:a', '192k',
+          '-movflags', '+faststart',
+        ])
+        .output(outputPath)
+        .on('end', () => resolve())
+        .on('error', (err) => reject(err))
+        .run()
+    })
+  } finally {
+    if (fs.existsSync(listPath)) fs.unlinkSync(listPath)
+  }
 
   // 获取时长
   const duration = await getVideoDuration(outputPath)
@@ -126,11 +162,3 @@ async function doMerge(mergeId: number, episodeId: number, videos: string[]) {
   logTaskSuccess('MergeTask', 'episode-merge', { mergeId, episodeId, output: mergedRelative, duration, clips: videos.length })
 }
 
-function getVideoDuration(filePath: string): Promise<number> {
-  return new Promise((resolve) => {
-    ffmpeg.ffprobe(filePath, (err, metadata) => {
-      if (err) { resolve(0); return }
-      resolve(Math.round(metadata.format.duration || 0))
-    })
-  })
-}

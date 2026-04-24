@@ -2,7 +2,7 @@
   <NuxtLayout>
     <NuxtPage />
   </NuxtLayout>
-  <Toaster position="top-right" :duration="3000" />
+  <Toaster position="top-center" :duration="3000" rich-colors close-button />
 </template>
 
 <script setup>
