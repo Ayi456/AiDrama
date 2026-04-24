@@ -697,6 +697,7 @@
             :grid-frame-type-options="gridFrameTypeOptions"
             :get-first-frame="getFirstFrame"
             :get-last-frame="getLastFrame"
+            :get-shot-reference-images="getShotReferenceImages"
             :is-pending-shot-frame="isPendingShotFrame"
             :grid-cell-label="gridCellLabel"
             :grid-cell-title="gridCellTitle"
@@ -710,6 +711,7 @@
             @select-grid-history="selectGridHistory"
             @select-shot="handleShotSelection"
             @open-storyboard="handleStoryboardOpen"
+            @update-shot-field="handleShotFieldUpdate"
             @generate-shot-frame="handleShotFrameGenerate"
             @open-image-viewer="handleGalleryViewerOpen"
             @close-grid-dialog="gridDialog = false"
@@ -1509,6 +1511,11 @@ function handleGridHistoryToggle() {
 function handleShotFrameGenerate(payload) {
   if (!payload?.sb || !payload?.frameType) return
   genShotFrame(payload.sb, payload.frameType)
+}
+
+function handleShotFieldUpdate(payload) {
+  if (!payload?.sb || !payload?.field) return
+  updateField(payload.sb, payload.field, payload.value)
 }
 
 function handleGridModeChange(mode) {
