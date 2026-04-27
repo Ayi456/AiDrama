@@ -121,7 +121,7 @@ app.get('/', async (c) => {
     return success(c, [])
   }
 
-  let rows = db.select().from(schema.aiServiceConfigs).all()
+  let rows = (await db.select().from(schema.aiServiceConfigs).all())
     .filter((row) => VALID_SERVICE_TYPES.has(row.serviceType))
   if (serviceType) rows = rows.filter((row) => row.serviceType === serviceType)
 
@@ -146,7 +146,7 @@ app.post('/', async (c) => {
     return badRequest(c, 'service_type must be one of text, image or video')
   }
 
-  const res = db.insert(schema.aiServiceConfigs).values({
+  const res = (await db.insert(schema.aiServiceConfigs).values({
     serviceType: body.service_type,
     provider: body.provider,
     name: body.name || `${body.provider}-${body.service_type}`,
@@ -158,10 +158,10 @@ app.post('/', async (c) => {
     isActive: true,
     createdAt: ts,
     updatedAt: ts,
-  }).run()
+  }).run())
 
-  const [row] = db.select().from(schema.aiServiceConfigs)
-    .where(eq(schema.aiServiceConfigs.id, Number(res.lastInsertRowid))).all()
+  const [row] = (await db.select().from(schema.aiServiceConfigs)
+    .where(eq(schema.aiServiceConfigs.id, Number(res.lastInsertRowid))).all())
 
   return created(c, {
     ...toSnakeCase(row),
@@ -245,7 +245,7 @@ app.post('/test', async (c) => {
 // GET /ai-configs/:id
 app.get('/:id', async (c) => {
   const id = Number(c.req.param('id'))
-  const [row] = db.select().from(schema.aiServiceConfigs).where(eq(schema.aiServiceConfigs.id, id)).all()
+  const [row] = (await db.select().from(schema.aiServiceConfigs).where(eq(schema.aiServiceConfigs.id, id)).all())
   if (!row || !VALID_SERVICE_TYPES.has(row.serviceType)) return notFound(c)
   return success(c, {
     ...toSnakeCase(row),
@@ -269,21 +269,21 @@ app.put('/:id', async (c) => {
   if ('priority' in body) updates.priority = body.priority
   if ('is_active' in body) updates.isActive = body.is_active
 
-  db.update(schema.aiServiceConfigs).set(updates).where(eq(schema.aiServiceConfigs.id, id)).run()
+  await db.update(schema.aiServiceConfigs).set(updates).where(eq(schema.aiServiceConfigs.id, id)).run()
   return success(c)
 })
 
 // DELETE /ai-configs/:id
 app.delete('/:id', async (c) => {
   const id = Number(c.req.param('id'))
-  db.delete(schema.aiServiceConfigs).where(eq(schema.aiServiceConfigs.id, id)).run()
+  await db.delete(schema.aiServiceConfigs).where(eq(schema.aiServiceConfigs.id, id)).run()
   return success(c)
 })
 
 // GET /ai-providers
 export const aiProviders = new Hono()
 aiProviders.get('/', async (c) => {
-  const rows = db.select().from(schema.aiServiceProviders).all()
+  const rows = (await db.select().from(schema.aiServiceProviders).all())
   const parsed = rows.map(r => ({
     ...toSnakeCase(r),
     preset_models: r.presetModels ? JSON.parse(r.presetModels) : [],

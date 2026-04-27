@@ -28,9 +28,9 @@ AiDrama 是一个基于 AI 的短剧自动化生产平台，实现从剧本生�
 
 ```
 frontend/   — Nuxt 3 + Vue 3 + TypeScript (纯 CSS，无 UI 框架)
-backend/    — Hono + Drizzle ORM + Mastra AI Agents + better-sqlite3
+backend/    — Hono + Drizzle ORM + Mastra AI Agents + mysql2
 configs/    — config.yaml 配置文件
-data/       — SQLite 数据库 + 生成资源文件
+data/       — 生成资源文件（数据库使用 MySQL）
 skills/     — Agent 技能定义 (SKILL.md)
 ```
 
@@ -159,8 +159,8 @@ server:
     - "http://localhost:3013"
 
 database:
-  type: "sqlite"
-  path: "./data/aidrama.db"
+  type: "mysql"
+  name: "AiDrama"
 
 storage:
   type: "local"
@@ -225,10 +225,20 @@ cd ../backend && npm start
 
 ### 🗄️ 数据库
 
-数据库表在首次启动时自动创建，无需手动迁移。默认路径 `data/aidrama.db`，可通过环境变量覆盖：
+项目后端使用 MySQL，默认数据库名为 `AiDrama`。数据库连接信息从项目根目录 `.env` 或系统环境变量读取，首次启动时会自动创建数据库和表结构。
+
+支持以下两种配置方式：
 
 ```bash
-DB_PATH=/path/to/your.db npm start
+# 方式一：连接串
+DATABASE_URL=mysql://user:password@host:3306/your_database
+
+# 方式二：独立字段
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=your_password
+DB_NAME=your_database
 ```
 
 ---
@@ -330,7 +340,7 @@ server {
 
 - **运行时**: Node.js 20+
 - **Web 框架**: Hono
-- **ORM**: Drizzle ORM + better-sqlite3
+- **ORM**: Drizzle ORM + mysql2
 - **AI Agent**: Mastra + AI SDK (OpenAI compatible)
 - **视频处理**: FFmpeg (fluent-ffmpeg)
 - **图片处理**: Sharp
@@ -374,7 +384,7 @@ A: 后端会在首次启动时自动创建所有表，检查日志确认初始�
 #### 🚀 重大更新
 
 - 项目全面迁移至 TypeScript 技术栈
-  - 后端：Hono + Drizzle ORM + better-sqlite3
+  - 后端：Hono + Drizzle ORM + mysql2
   - 前端：Nuxt 3 + Vue 3
   - AI Agent：Mastra 框架
 - 重做单集工作台 UI 和生产流程
@@ -383,32 +393,12 @@ A: 后端会在首次启动时自动创建所有表，检查日志确认初始�
   - 重做镜头图、视频、合成、导出界面
 - 新增 Docker 部署支持，前后端合并为单镜像
 - 增加运行时 Skill 加载机制
+- 数据库从 SQLite 迁移到 MySQL，默认数据库名为 `AiDrama`
 - 扩展多厂商媒体 Adapter
   - 图片：OpenAI、Gemini、MiniMax、火山引擎、阿里
   - 视频：MiniMax、火山引擎/Seedance、Vidu、阿里
 - 增加宫格图生成、切分和重新分配流程
 - 优化本地文件处理与参考图按需转码
-
-### v1.0.4 (2026-01-27)
-
-- 引入本地存储策略，规避外部资源链接失效
-- Base64 参考图嵌入式传输
-- 修复镜头切换状态重置问题
-- 添加场景迁移至章节
-
-### v1.0.3 (2026-01-16)
-
-- SQLite 纯 Go 驱动，支持 CGO_ENABLED=0 跨平台编译
-- 优化并发性能（WAL 模式）
-- Docker 跨平台支持 host.docker.internal
-
-### v1.0.2 (2026-01-14)
-
-- 修复视频生成 API 响应解析问题
-- 添加 OpenAI Sora 视频端点配置
-- 优化错误处理和日志输出
-
----
 
 ## 🤝 贡献指南
 

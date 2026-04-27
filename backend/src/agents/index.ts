@@ -157,16 +157,16 @@ const DEFAULT_PROMPTS: Record<string, { name: string; instructions: string }> = 
 
 export const validAgentTypes = Object.keys(DEFAULT_PROMPTS)
 
-function getAgentConfig(agentType: string) {
-  const rows = db.select().from(schema.agentConfigs)
+async function getAgentConfig(agentType: string) {
+  const rows = (await db.select().from(schema.agentConfigs)
     .where(and(eq(schema.agentConfigs.agentType, agentType), isNull(schema.agentConfigs.deletedAt)))
-    .all()
+    .all())
   // Return active one, or first one
   return rows.find(r => r.isActive) || rows[0] || null
 }
 
-function getModel(dbConfig: any) {
-  const textConfig = getTextConfig()
+async function getModel(dbConfig: any) {
+  const textConfig = await getTextConfig()
   const resolvedBaseURL = getTextProviderBaseUrl(textConfig)
   const protocol = getTextProviderProtocol(textConfig)
   const modelName = dbConfig?.model || textConfig.model
@@ -193,12 +193,12 @@ function getModel(dbConfig: any) {
   return provider.chat(modelName)
 }
 
-export function createAgent(type: string, episodeId: number, dramaId: number): Agent | null {
+export async function createAgent(type: string, episodeId: number, dramaId: number): Promise<Agent | null> {
   const defaults = DEFAULT_PROMPTS[type]
   if (!defaults) return null
 
-  const dbConfig = getAgentConfig(type)
-  const model = getModel(dbConfig)
+  const dbConfig = await getAgentConfig(type)
+  const model = await getModel(dbConfig)
   const baseInstructions = dbConfig?.systemPrompt?.trim() || defaults.instructions
   const skillInstructions = loadAgentSkills(type)
   const instructions = skillInstructions

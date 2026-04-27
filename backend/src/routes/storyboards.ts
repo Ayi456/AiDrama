@@ -7,8 +7,8 @@ import { logTaskPayload, logTaskStart, logTaskSuccess } from '../utils/task-logg
 
 const app = new Hono()
 
-function syncStoryboardCharacters(storyboardId: number, characterIds: number[]) {
-  db.delete(schema.storyboardCharacters)
+async function syncStoryboardCharacters(storyboardId: number, characterIds: number[]) {
+  await db.delete(schema.storyboardCharacters)
     .where(eq(schema.storyboardCharacters.storyboardId, storyboardId))
     .run()
 
@@ -16,31 +16,31 @@ function syncStoryboardCharacters(storyboardId: number, characterIds: number[]) 
   if (!uniqueIds.length) return
 
   for (const characterId of uniqueIds) {
-    db.insert(schema.storyboardCharacters).values({
+    await db.insert(schema.storyboardCharacters).values({
       storyboardId,
       characterId,
     }).run()
   }
 }
 
-function getStoryboardCharacterIds(storyboardId: number) {
-  return db.select().from(schema.storyboardCharacters)
+async function getStoryboardCharacterIds(storyboardId: number) {
+  return (await db.select().from(schema.storyboardCharacters)
     .where(eq(schema.storyboardCharacters.storyboardId, storyboardId))
-    .all()
+    .all())
     .map((link) => link.characterId)
 }
 
-function validateStoryboardBindings(episodeId: number, sceneId: number | null | undefined, characterIds: number[] | undefined) {
+async function validateStoryboardBindings(episodeId: number, sceneId: number | null | undefined, characterIds: number[] | undefined) {
   const episodeSceneIds = new Set(
-    db.select().from(schema.episodeScenes)
+    (await db.select().from(schema.episodeScenes)
       .where(eq(schema.episodeScenes.episodeId, episodeId))
-      .all()
+      .all())
       .map((link) => link.sceneId),
   )
   const episodeCharacterIds = new Set(
-    db.select().from(schema.episodeCharacters)
+    (await db.select().from(schema.episodeCharacters)
       .where(eq(schema.episodeCharacters.episodeId, episodeId))
-      .all()
+      .all())
       .map((link) => link.characterId),
   )
 
@@ -67,8 +67,8 @@ app.post('/', async (c) => {
   })
   logTaskPayload('StoryboardAPI', 'create body', body)
 
-  validateStoryboardBindings(body.episode_id, body.scene_id, body.character_ids)
-  const res = db.insert(schema.storyboards).values({
+  await validateStoryboardBindings(body.episode_id, body.scene_id, body.character_ids)
+  const res = (await db.insert(schema.storyboards).values({
     episodeId: body.episode_id,
     storyboardNumber: body.storyboard_number || 1,
     title: body.title,
@@ -79,12 +79,12 @@ app.post('/', async (c) => {
     duration: body.duration || 10,
     createdAt: ts,
     updatedAt: ts,
-  }).run()
+  }).run())
 
-  syncStoryboardCharacters(Number(res.lastInsertRowid), body.character_ids || [])
-  const [result] = db.select().from(schema.storyboards)
+  await syncStoryboardCharacters(Number(res.lastInsertRowid), body.character_ids || [])
+  const [result] = (await db.select().from(schema.storyboards)
     .where(eq(schema.storyboards.id, Number(res.lastInsertRowid)))
-    .all()
+    .all())
 
   logTaskSuccess('StoryboardAPI', 'create', {
     storyboardId: result.id,
@@ -102,7 +102,7 @@ app.post('/', async (c) => {
 app.put('/:id', async (c) => {
   const id = Number(c.req.param('id'))
   const body = await c.req.json()
-  const [storyboard] = db.select().from(schema.storyboards).where(eq(schema.storyboards.id, id)).all()
+  const [storyboard] = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.id, id)).all())
   if (!storyboard) return badRequest(c, 'Storyboard not found')
 
   logTaskStart('StoryboardAPI', 'update', {
@@ -137,14 +137,14 @@ app.put('/:id', async (c) => {
     if (snakeKey in body) updates[camelKey] = body[snakeKey]
   }
 
-  validateStoryboardBindings(
+  await validateStoryboardBindings(
     storyboard.episodeId,
     'scene_id' in body ? body.scene_id : storyboard.sceneId,
     'character_ids' in body ? body.character_ids : getStoryboardCharacterIds(id),
   )
 
-  db.update(schema.storyboards).set(updates).where(eq(schema.storyboards.id, id)).run()
-  if ('character_ids' in body) syncStoryboardCharacters(id, body.character_ids || [])
+  await db.update(schema.storyboards).set(updates).where(eq(schema.storyboards.id, id)).run()
+  if ('character_ids' in body) await syncStoryboardCharacters(id, body.character_ids || [])
 
   logTaskSuccess('StoryboardAPI', 'update', {
     storyboardId: id,
@@ -158,8 +158,8 @@ app.put('/:id', async (c) => {
 app.delete('/:id', async (c) => {
   const id = Number(c.req.param('id'))
   logTaskStart('StoryboardAPI', 'delete', { storyboardId: id })
-  db.delete(schema.storyboardCharacters).where(eq(schema.storyboardCharacters.storyboardId, id)).run()
-  db.delete(schema.storyboards).where(eq(schema.storyboards.id, id)).run()
+  await db.delete(schema.storyboardCharacters).where(eq(schema.storyboardCharacters.storyboardId, id)).run()
+await db.delete(schema.storyboards).where(eq(schema.storyboards.id, id)).run()
   logTaskSuccess('StoryboardAPI', 'delete', { storyboardId: id })
   return success(c)
 })

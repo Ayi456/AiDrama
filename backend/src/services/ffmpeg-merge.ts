@@ -34,19 +34,19 @@ function removeManagedFile(fileUrl: string | null | undefined) {
   }
 }
 
-function clearPreviousEpisodeMerge(episodeId: number) {
-  const previousMerges = db.select().from(schema.videoMerges)
+async function clearPreviousEpisodeMerge(episodeId: number) {
+  const previousMerges = (await db.select().from(schema.videoMerges)
     .where(eq(schema.videoMerges.episodeId, episodeId))
-    .all()
+    .all())
 
   previousMerges.forEach(merge => removeManagedFile(merge.mergedUrl))
 
-  db.update(schema.videoMerges)
+  await db.update(schema.videoMerges)
     .set({ status: 'replaced', mergedUrl: null, deletedAt: now() })
     .where(eq(schema.videoMerges.episodeId, episodeId))
     .run()
 
-  db.update(schema.episodes)
+    await db.update(schema.episodes)
     .set({ videoUrl: null, updatedAt: now() })
     .where(eq(schema.episodes.id, episodeId))
     .run()
@@ -56,10 +56,10 @@ function clearPreviousEpisodeMerge(episodeId: number) {
  * 拼接一集的所有合成镜头视频
  */
 export async function mergeEpisodeVideos(episodeId: number, dramaId: number): Promise<number> {
-  const storyboards = db.select().from(schema.storyboards)
+  const storyboards = (await db.select().from(schema.storyboards)
     .where(eq(schema.storyboards.episodeId, episodeId))
     .orderBy(schema.storyboards.storyboardNumber)
-    .all()
+    .all())
 
   const composedStoryboards = storyboards.filter(sb => !!sb.composedVideoUrl)
   const videos = composedStoryboards
@@ -74,7 +74,7 @@ export async function mergeEpisodeVideos(episodeId: number, dramaId: number): Pr
 
   // 创建 merge 记录
   const ts = now()
-  const res = db.insert(schema.videoMerges).values({
+  const res = (await db.insert(schema.videoMerges).values({
     episodeId,
     dramaId,
     title: `Episode ${episodeId} Merge`,
@@ -87,14 +87,14 @@ export async function mergeEpisodeVideos(episodeId: number, dramaId: number): Pr
       videoUrl: sb.composedVideoUrl,
     }))),
     createdAt: ts,
-  }).run()
+  }).run())
   const mergeId = Number(res.lastInsertRowid)
 
   // 异步执行
-  doMerge(mergeId, episodeId, videos).catch(err => {
+  doMerge(mergeId, episodeId, videos).catch(async err => {
     logTaskError('MergeTask', 'episode-merge', { mergeId, episodeId, error: err.message })
     console.error(`[Merge] Failed:`, err)
-    db.update(schema.videoMerges)
+    await db.update(schema.videoMerges)
       .set({ status: 'failed', errorMsg: err.message })
       .where(eq(schema.videoMerges.id, mergeId)).run()
   })
@@ -150,12 +150,12 @@ async function doMerge(mergeId: number, episodeId: number, videos: string[]) {
   const mergedRelative = `static/merged/${outputFilename}`
 
   // 更新 merge 记录
-  db.update(schema.videoMerges)
+  await db.update(schema.videoMerges)
     .set({ status: 'completed', mergedUrl: mergedRelative, duration, completedAt: now() })
     .where(eq(schema.videoMerges.id, mergeId)).run()
 
   // 更新 episode
-  db.update(schema.episodes)
+  await db.update(schema.episodes)
     .set({ videoUrl: mergedRelative, updatedAt: now() })
     .where(eq(schema.episodes.id, episodeId)).run()
 

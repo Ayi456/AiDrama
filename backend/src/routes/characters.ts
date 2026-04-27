@@ -19,14 +19,14 @@ app.put('/:id', async (c) => {
     else if (key in body) updates[key] = body[key]
   }
 
-  db.update(schema.characters).set(updates).where(eq(schema.characters.id, id)).run()
+  await db.update(schema.characters).set(updates).where(eq(schema.characters.id, id)).run()
   return success(c)
 })
 
 // DELETE /characters/:id
 app.delete('/:id', async (c) => {
   const id = Number(c.req.param('id'))
-  db.update(schema.characters).set({ deletedAt: now() }).where(eq(schema.characters.id, id)).run()
+  await db.update(schema.characters).set({ deletedAt: now() }).where(eq(schema.characters.id, id)).run()
   return success(c)
 })
 
@@ -34,11 +34,11 @@ app.delete('/:id', async (c) => {
 app.post('/:id/generate-image', async (c) => {
   const id = Number(c.req.param('id'))
   const body = await c.req.json()
-  const [char] = db.select().from(schema.characters).where(eq(schema.characters.id, id)).all()
+  const [char] = (await db.select().from(schema.characters).where(eq(schema.characters.id, id)).all())
   if (!char) return badRequest(c, 'Character not found')
   if (!body.episode_id) return badRequest(c, 'episode_id is required')
 
-  const [ep] = db.select().from(schema.episodes).where(eq(schema.episodes.id, Number(body.episode_id))).all()
+  const [ep] = (await db.select().from(schema.episodes).where(eq(schema.episodes.id, Number(body.episode_id))).all())
   if (!ep) return badRequest(c, 'Episode not found')
 
   const descParts = [char.appearance, char.description, char.personality].filter(Boolean).join(', ')
@@ -60,12 +60,12 @@ app.post('/batch-generate-images', async (c) => {
   const ids: number[] = body.character_ids || []
   if (!body.episode_id) return badRequest(c, 'episode_id is required')
 
-  const [ep] = db.select().from(schema.episodes).where(eq(schema.episodes.id, Number(body.episode_id))).all()
+  const [ep] = (await db.select().from(schema.episodes).where(eq(schema.episodes.id, Number(body.episode_id))).all())
   if (!ep) return badRequest(c, 'Episode not found')
 
   const results: number[] = []
   for (const charId of ids) {
-    const [char] = db.select().from(schema.characters).where(eq(schema.characters.id, charId)).all()
+    const [char] = (await db.select().from(schema.characters).where(eq(schema.characters.id, charId)).all())
     if (!char) continue
     const descParts = [char.appearance, char.description, char.personality].filter(Boolean).join(', ')
     const prompt = `${char.name}, ${descParts || '人物立绘'}, 高清质感, 正面, 白色背景`

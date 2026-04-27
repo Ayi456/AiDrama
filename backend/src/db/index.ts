@@ -1,61 +1,168 @@
-import Database from 'better-sqlite3'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
+import mysql, { type Pool, type PoolOptions, type RowDataPacket } from 'mysql2/promise'
+import { drizzle } from 'drizzle-orm/mysql2'
 import * as schema from './schema.js'
+import { eq } from 'drizzle-orm'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const DB_PATH = process.env.DB_PATH || path.resolve(__dirname, '../../../data/aidrama.db')
+const PROJECT_ROOT = path.resolve(__dirname, '../../..')
+const DEFAULT_DB_NAME = 'AiDrama'
 
-fs.mkdirSync(path.dirname(DB_PATH), { recursive: true })
+function parseLooseEnvFile(filePath: string) {
+  const values: Record<string, string> = {}
+  if (!fs.existsSync(filePath)) return values
 
-const sqlite = new Database(DB_PATH, { timeout: 30000 })
-sqlite.pragma('journal_mode = WAL')
-sqlite.pragma('busy_timeout = 30000')
+  const raw = fs.readFileSync(filePath, 'utf8')
+  for (const sourceLine of raw.split(/\r?\n/)) {
+    const line = sourceLine.trim()
+    if (!line || line.startsWith('#')) continue
 
-sqlite.exec(`
-  CREATE TABLE IF NOT EXISTS dramas (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    const keyValue = line.match(/^([^=]+)=(.*)$/)
+    if (keyValue) {
+      values[keyValue[1].trim()] = keyValue[2].trim().replace(/^["']|["']$/g, '')
+      continue
+    }
+
+    const labelValue = line.match(/^([^:：]+)[:：](.*)$/)
+    if (labelValue) {
+      values[labelValue[1].trim()] = labelValue[2].trim()
+    }
+  }
+
+  return values
+}
+
+const looseEnv = parseLooseEnvFile(path.join(PROJECT_ROOT, '.env'))
+
+function envValue(...keys: string[]) {
+  for (const key of keys) {
+    const value = process.env[key] ?? looseEnv[key]
+    if (value != null && String(value).trim()) return String(value).trim()
+  }
+  return ''
+}
+
+function numberEnv(defaultValue: number, ...keys: string[]) {
+  const raw = envValue(...keys)
+  const parsed = Number(raw)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultValue
+}
+
+function identifier(value: string) {
+  if (!/^[A-Za-z0-9_]+$/.test(value)) {
+    throw new Error(`Invalid MySQL identifier: ${value}`)
+  }
+  return `\`${value}\``
+}
+
+function getMysqlConfig(): PoolOptions {
+  const databaseUrl = envValue('DATABASE_URL', 'MYSQL_URL')
+  if (databaseUrl) {
+    const url = new URL(databaseUrl)
+    return {
+      host: url.hostname,
+      port: url.port ? Number(url.port) : 3306,
+      user: decodeURIComponent(url.username),
+      password: decodeURIComponent(url.password),
+      database: decodeURIComponent(url.pathname.replace(/^\/+/, '')) || DEFAULT_DB_NAME,
+      waitForConnections: true,
+      connectionLimit: numberEnv(10, 'DB_CONNECTION_LIMIT', 'MYSQL_CONNECTION_LIMIT'),
+      charset: 'utf8mb4',
+    }
+  }
+
+  const host = envValue('DB_HOST', 'MYSQL_HOST', '主机')
+  const user = envValue('DB_USER', 'MYSQL_USER', '用户名')
+  const password = envValue('DB_PASSWORD', 'MYSQL_PASSWORD', '密码')
+  const database = envValue('DB_NAME', 'MYSQL_DATABASE', 'DATABASE_NAME', '数据库') || DEFAULT_DB_NAME
+
+  const missing = [
+    !host && 'DB_HOST',
+    !user && 'DB_USER',
+  ].filter(Boolean)
+  if (missing.length) {
+    throw new Error(`Missing MySQL database config: ${missing.join(', ')}`)
+  }
+
+  return {
+    host,
+    port: numberEnv(3306, 'DB_PORT', 'MYSQL_PORT', '端口'),
+    user,
+    password,
+    database,
+    waitForConnections: true,
+    connectionLimit: numberEnv(10, 'DB_CONNECTION_LIMIT', 'MYSQL_CONNECTION_LIMIT'),
+    charset: 'utf8mb4',
+  }
+}
+
+const mysqlConfig = getMysqlConfig()
+
+async function ensureDatabaseExists(config: PoolOptions) {
+  const database = String(config.database || DEFAULT_DB_NAME)
+  const bootstrap = mysql.createPool({
+    ...config,
+    database: undefined,
+    waitForConnections: true,
+    connectionLimit: 1,
+  })
+
+  try {
+    await bootstrap.query(
+      `CREATE DATABASE IF NOT EXISTS ${identifier(database)} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+    )
+  } catch {
+    // Some managed MySQL accounts cannot create databases. The normal pool
+    // connection below will still succeed when the database already exists.
+  } finally {
+    await bootstrap.end()
+  }
+}
+
+const tableStatements = [
+  `CREATE TABLE IF NOT EXISTS dramas (
+    id INT AUTO_INCREMENT PRIMARY KEY,
     title TEXT NOT NULL,
     description TEXT,
     genre TEXT,
-    style TEXT DEFAULT 'realistic',
-    total_episodes INTEGER DEFAULT 1,
-    total_duration INTEGER DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'draft',
+    style VARCHAR(64) DEFAULT 'realistic',
+    total_episodes INT DEFAULT 1,
+    total_duration INT DEFAULT 0,
+    status VARCHAR(32) NOT NULL DEFAULT 'draft',
     thumbnail TEXT,
     tags TEXT,
     metadata TEXT,
-    image_config_id INTEGER,
-    video_config_id INTEGER,
+    image_config_id INT,
+    video_config_id INT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT
-  );
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
-  CREATE TABLE IF NOT EXISTS episodes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    drama_id INTEGER NOT NULL,
-    episode_number INTEGER NOT NULL,
+  `CREATE TABLE IF NOT EXISTS episodes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    drama_id INT NOT NULL,
+    episode_number INT NOT NULL,
     title TEXT NOT NULL,
     content TEXT,
     script_content TEXT,
     description TEXT,
-    duration INTEGER DEFAULT 0,
-    status TEXT DEFAULT 'draft',
+    duration INT DEFAULT 0,
+    status VARCHAR(32) DEFAULT 'draft',
     video_url TEXT,
     thumbnail TEXT,
-    image_config_id INTEGER,
-    video_config_id INTEGER,
+    image_config_id INT,
+    video_config_id INT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT
-  );
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
-  CREATE TABLE IF NOT EXISTS characters (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    drama_id INTEGER NOT NULL,
+  `CREATE TABLE IF NOT EXISTS characters (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    drama_id INT NOT NULL,
     name TEXT NOT NULL,
     role TEXT,
     description TEXT,
@@ -64,34 +171,34 @@ sqlite.exec(`
     image_url TEXT,
     reference_images TEXT,
     seed_value TEXT,
-    sort_order INTEGER,
+    sort_order INT,
     local_path TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT
-  );
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
-  CREATE TABLE IF NOT EXISTS scenes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    drama_id INTEGER NOT NULL,
-    episode_id INTEGER,
+  `CREATE TABLE IF NOT EXISTS scenes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    drama_id INT NOT NULL,
+    episode_id INT,
     location TEXT NOT NULL,
     time TEXT NOT NULL,
     prompt TEXT NOT NULL,
-    storyboard_count INTEGER DEFAULT 1,
+    storyboard_count INT DEFAULT 1,
     image_url TEXT,
-    status TEXT DEFAULT 'pending',
+    status VARCHAR(32) DEFAULT 'pending',
     local_path TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT
-  );
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
-  CREATE TABLE IF NOT EXISTS storyboards (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    episode_id INTEGER NOT NULL,
-    scene_id INTEGER,
-    storyboard_number INTEGER NOT NULL,
+  `CREATE TABLE IF NOT EXISTS storyboards (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    episode_id INT NOT NULL,
+    scene_id INT,
+    storyboard_number INT NOT NULL,
     title TEXT,
     location TEXT,
     time TEXT,
@@ -107,7 +214,7 @@ sqlite.exec(`
     sound_effect TEXT,
     dialogue TEXT,
     description TEXT,
-    duration INTEGER DEFAULT 0,
+    duration INT DEFAULT 0,
     composed_image TEXT,
     first_frame_image TEXT,
     last_frame_image TEXT,
@@ -116,46 +223,34 @@ sqlite.exec(`
     tts_audio_url TEXT,
     subtitle_url TEXT,
     composed_video_url TEXT,
-    status TEXT DEFAULT 'pending',
+    status VARCHAR(32) DEFAULT 'pending',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT
-  );
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
-  CREATE TABLE IF NOT EXISTS episode_characters (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    episode_id INTEGER NOT NULL,
-    character_id INTEGER NOT NULL,
+  `CREATE TABLE IF NOT EXISTS episode_characters (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    episode_id INT NOT NULL,
+    character_id INT NOT NULL,
     created_at TEXT NOT NULL
-  );
-  CREATE INDEX IF NOT EXISTS idx_episode_characters_episode_id
-    ON episode_characters (episode_id);
-  CREATE INDEX IF NOT EXISTS idx_episode_characters_character_id
-    ON episode_characters (character_id);
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
-  CREATE TABLE IF NOT EXISTS episode_scenes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    episode_id INTEGER NOT NULL,
-    scene_id INTEGER NOT NULL,
+  `CREATE TABLE IF NOT EXISTS episode_scenes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    episode_id INT NOT NULL,
+    scene_id INT NOT NULL,
     created_at TEXT NOT NULL
-  );
-  CREATE INDEX IF NOT EXISTS idx_episode_scenes_episode_id
-    ON episode_scenes (episode_id);
-  CREATE INDEX IF NOT EXISTS idx_episode_scenes_scene_id
-    ON episode_scenes (scene_id);
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
-  CREATE TABLE IF NOT EXISTS storyboard_characters (
-    storyboard_id INTEGER NOT NULL,
-    character_id INTEGER NOT NULL,
+  `CREATE TABLE IF NOT EXISTS storyboard_characters (
+    storyboard_id INT NOT NULL,
+    character_id INT NOT NULL,
     PRIMARY KEY (storyboard_id, character_id)
-  );
-  CREATE INDEX IF NOT EXISTS idx_storyboard_characters_storyboard_id
-    ON storyboard_characters (storyboard_id);
-  CREATE INDEX IF NOT EXISTS idx_storyboard_characters_character_id
-    ON storyboard_characters (character_id);
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
-  CREATE TABLE IF NOT EXISTS ai_service_configs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+  `CREATE TABLE IF NOT EXISTS ai_service_configs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
     service_type TEXT NOT NULL,
     provider TEXT,
     name TEXT NOT NULL,
@@ -164,16 +259,16 @@ sqlite.exec(`
     model TEXT,
     endpoint TEXT,
     query_endpoint TEXT,
-    priority INTEGER DEFAULT 0,
-    is_default INTEGER DEFAULT 0,
-    is_active INTEGER DEFAULT 1,
+    priority INT DEFAULT 0,
+    is_default TINYINT(1) DEFAULT 0,
+    is_active TINYINT(1) DEFAULT 1,
     settings TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
-  );
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
-  CREATE TABLE IF NOT EXISTS ai_service_providers (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+  `CREATE TABLE IF NOT EXISTS ai_service_providers (
+    id INT AUTO_INCREMENT PRIMARY KEY,
     name TEXT NOT NULL,
     display_name TEXT,
     service_type TEXT NOT NULL,
@@ -181,34 +276,34 @@ sqlite.exec(`
     default_url TEXT,
     preset_models TEXT,
     description TEXT,
-    is_active INTEGER DEFAULT 1,
+    is_active TINYINT(1) DEFAULT 1,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
-  );
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
-  CREATE TABLE IF NOT EXISTS agent_configs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+  `CREATE TABLE IF NOT EXISTS agent_configs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
     agent_type TEXT NOT NULL,
     name TEXT NOT NULL,
     description TEXT,
     model TEXT,
     system_prompt TEXT,
-    temperature REAL,
-    max_tokens INTEGER,
-    max_iterations INTEGER,
-    is_active INTEGER DEFAULT 1,
+    temperature DOUBLE,
+    max_tokens INT,
+    max_iterations INT,
+    is_active TINYINT(1) DEFAULT 1,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT
-  );
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
-  CREATE TABLE IF NOT EXISTS image_generations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    storyboard_id INTEGER,
-    drama_id INTEGER,
-    scene_id INTEGER,
-    character_id INTEGER,
-    prop_id INTEGER,
+  `CREATE TABLE IF NOT EXISTS image_generations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    storyboard_id INT,
+    drama_id INT,
+    scene_id INT,
+    character_id INT,
+    prop_id INT,
     image_type TEXT,
     frame_type TEXT,
     provider TEXT,
@@ -218,17 +313,17 @@ sqlite.exec(`
     size TEXT,
     quality TEXT,
     style TEXT,
-    steps INTEGER,
-    cfg_scale REAL,
-    seed INTEGER,
+    steps INT,
+    cfg_scale DOUBLE,
+    seed INT,
     image_url TEXT,
     minio_url TEXT,
     local_path TEXT,
-    status TEXT DEFAULT 'pending',
+    status VARCHAR(32) DEFAULT 'pending',
     task_id TEXT,
     error_msg TEXT,
-    width INTEGER,
-    height INTEGER,
+    width INT,
+    height INT,
     reference_images TEXT,
     normalized_request TEXT,
     provider_request TEXT,
@@ -236,37 +331,37 @@ sqlite.exec(`
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     completed_at TEXT
-  );
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
-  CREATE TABLE IF NOT EXISTS video_generations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    storyboard_id INTEGER,
-    drama_id INTEGER,
+  `CREATE TABLE IF NOT EXISTS video_generations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    storyboard_id INT,
+    drama_id INT,
     provider TEXT,
     prompt TEXT,
     model TEXT,
-    image_gen_id INTEGER,
+    image_gen_id INT,
     reference_mode TEXT,
     image_url TEXT,
     first_frame_url TEXT,
     last_frame_url TEXT,
     reference_image_urls TEXT,
-    duration INTEGER,
-    fps INTEGER,
+    duration INT,
+    fps INT,
     resolution TEXT,
     aspect_ratio TEXT,
     style TEXT,
-    motion_level INTEGER,
+    motion_level INT,
     camera_motion TEXT,
-    seed INTEGER,
+    seed INT,
     video_url TEXT,
     minio_url TEXT,
     local_path TEXT,
-    status TEXT DEFAULT 'pending',
+    status VARCHAR(32) DEFAULT 'pending',
     task_id TEXT,
     error_msg TEXT,
-    width INTEGER,
-    height INTEGER,
+    width INT,
+    height INT,
     normalized_request TEXT,
     provider_request TEXT,
     provider_response TEXT,
@@ -274,29 +369,29 @@ sqlite.exec(`
     updated_at TEXT NOT NULL,
     completed_at TEXT,
     deleted_at TEXT
-  );
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
-  CREATE TABLE IF NOT EXISTS video_merges (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    episode_id INTEGER,
-    drama_id INTEGER,
+  `CREATE TABLE IF NOT EXISTS video_merges (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    episode_id INT,
+    drama_id INT,
     title TEXT,
-    provider TEXT NOT NULL,
-    model TEXT NOT NULL,
-    status TEXT DEFAULT 'pending',
+    provider TEXT,
+    model TEXT,
+    status VARCHAR(32) DEFAULT 'pending',
     scenes TEXT,
     merged_url TEXT,
-    duration INTEGER,
+    duration INT,
     task_id TEXT,
     error_msg TEXT,
     created_at TEXT NOT NULL,
     completed_at TEXT,
     deleted_at TEXT
-  );
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
-  CREATE TABLE IF NOT EXISTS props (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    drama_id INTEGER NOT NULL,
+  `CREATE TABLE IF NOT EXISTS props (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    drama_id INT NOT NULL,
     name TEXT NOT NULL,
     type TEXT,
     description TEXT,
@@ -307,14 +402,14 @@ sqlite.exec(`
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT
-  );
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
-  CREATE TABLE IF NOT EXISTS assets (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    drama_id INTEGER,
-    episode_id INTEGER,
-    storyboard_id INTEGER,
-    storyboard_num INTEGER,
+  `CREATE TABLE IF NOT EXISTS assets (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    drama_id INT,
+    episode_id INT,
+    storyboard_id INT,
+    storyboard_num INT,
     name TEXT,
     description TEXT,
     type TEXT,
@@ -322,44 +417,110 @@ sqlite.exec(`
     url TEXT,
     thumbnail_url TEXT,
     local_path TEXT,
-    file_size INTEGER,
+    file_size INT,
     mime_type TEXT,
-    width INTEGER,
-    height INTEGER,
-    duration INTEGER,
+    width INT,
+    height INT,
+    duration INT,
     format TEXT,
-    image_gen_id INTEGER,
-    video_gen_id INTEGER,
-    is_favorite INTEGER DEFAULT 0,
-    view_count INTEGER DEFAULT 0,
+    image_gen_id INT,
+    video_gen_id INT,
+    is_favorite TINYINT(1) DEFAULT 0,
+    view_count INT DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT
-  );
-`)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+]
 
-function ensureColumn(table: string, column: string, definition: string) {
-  const tableExists = sqlite.prepare(
-    `SELECT 1 as ok FROM sqlite_master WHERE type='table' AND name=? LIMIT 1`,
-  ).get(table) as { ok: number } | undefined
-  if (!tableExists) return
-  const columns = sqlite.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>
-  if (!columns.some(col => col.name === column)) {
-    sqlite.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+async function ensureColumn(pool: Pool, database: string, table: string, column: string, definition: string) {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT 1 AS ok
+       FROM information_schema.columns
+      WHERE table_schema = ?
+        AND table_name = ?
+        AND column_name = ?
+      LIMIT 1`,
+    [database, table, column],
+  )
+
+  if (!rows.length) {
+    await pool.query(`ALTER TABLE ${identifier(table)} ADD COLUMN ${identifier(column)} ${definition}`)
   }
 }
 
-ensureColumn('episodes', 'image_config_id', 'INTEGER')
-ensureColumn('episodes', 'video_config_id', 'INTEGER')
-ensureColumn('dramas', 'image_config_id', 'INTEGER')
-ensureColumn('dramas', 'video_config_id', 'INTEGER')
-ensureColumn('image_generations', 'normalized_request', 'TEXT')
-ensureColumn('image_generations', 'provider_request', 'TEXT')
-ensureColumn('image_generations', 'provider_response', 'TEXT')
-ensureColumn('video_generations', 'normalized_request', 'TEXT')
-ensureColumn('video_generations', 'provider_request', 'TEXT')
-ensureColumn('video_generations', 'provider_response', 'TEXT')
+async function initializeDatabase(pool: Pool, database: string) {
+  for (const statement of tableStatements) {
+    await pool.query(statement)
+  }
 
-export const db = drizzle(sqlite, { schema })
+  await ensureColumn(pool, database, 'episodes', 'image_config_id', 'INT')
+  await ensureColumn(pool, database, 'episodes', 'video_config_id', 'INT')
+  await ensureColumn(pool, database, 'dramas', 'image_config_id', 'INT')
+  await ensureColumn(pool, database, 'dramas', 'video_config_id', 'INT')
+  await ensureColumn(pool, database, 'image_generations', 'normalized_request', 'TEXT')
+  await ensureColumn(pool, database, 'image_generations', 'provider_request', 'TEXT')
+  await ensureColumn(pool, database, 'image_generations', 'provider_response', 'TEXT')
+  await ensureColumn(pool, database, 'video_generations', 'normalized_request', 'TEXT')
+  await ensureColumn(pool, database, 'video_generations', 'provider_request', 'TEXT')
+  await ensureColumn(pool, database, 'video_generations', 'provider_response', 'TEXT')
+}
+
+await ensureDatabaseExists(mysqlConfig)
+
+export const mysqlPool = mysql.createPool(mysqlConfig)
+await initializeDatabase(mysqlPool, String(mysqlConfig.database || DEFAULT_DB_NAME))
+
+const mysqlDb = drizzle(mysqlPool, { schema, mode: 'default' })
+
+type CompatRunResult = Record<string, unknown> & {
+  lastInsertRowid: number
+}
+
+declare module 'drizzle-orm/query-promise' {
+  interface QueryPromise<T> {
+    all(): Promise<T>
+    run(): Promise<CompatRunResult>
+  }
+}
+
+function normalizeRunResult(result: any) {
+  const packet = Array.isArray(result) ? result[0] : result
+  const insertId = packet && typeof packet === 'object' && 'insertId' in packet
+    ? Number(packet.insertId)
+    : 0
+  return {
+    ...(packet && typeof packet === 'object' ? packet : {}),
+    lastInsertRowid: insertId,
+  }
+}
+
+function installSqliteCompatMethods(query: any) {
+  let proto = Object.getPrototypeOf(query)
+  while (proto && proto !== Object.prototype) {
+    if (!Object.prototype.hasOwnProperty.call(proto, 'all')) {
+      Object.defineProperty(proto, 'all', {
+        value: function all() {
+          return this.execute()
+        },
+      })
+    }
+    if (!Object.prototype.hasOwnProperty.call(proto, 'run')) {
+      Object.defineProperty(proto, 'run', {
+        value: async function run() {
+          return normalizeRunResult(await this.execute())
+        },
+      })
+    }
+    proto = Object.getPrototypeOf(proto)
+  }
+}
+
+installSqliteCompatMethods(mysqlDb.select().from(schema.dramas))
+installSqliteCompatMethods(mysqlDb.insert(schema.dramas).values({ title: '', createdAt: '', updatedAt: '' }))
+installSqliteCompatMethods(mysqlDb.update(schema.dramas).set({ updatedAt: '' }).where(eq(schema.dramas.id, 0)))
+installSqliteCompatMethods(mysqlDb.delete(schema.dramas).where(eq(schema.dramas.id, 0)))
+
+export const db = mysqlDb
 export { schema }
 export type DB = typeof db

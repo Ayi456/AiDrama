@@ -25,11 +25,11 @@ function toAbsPath(relativePath: string): string {
  * 合成单个镜头：仅输出标准化视频，不再生成音频或字幕。
  */
 export async function composeStoryboard(storyboardId: number): Promise<string> {
-  const [storyboard] = db.select().from(schema.storyboards).where(eq(schema.storyboards.id, storyboardId)).all()
+  const [storyboard] = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.id, storyboardId)).all())
   if (!storyboard) throw new Error(`Storyboard ${storyboardId} not found`)
   if (!storyboard.videoUrl) throw new Error(`Storyboard ${storyboardId} has no video`)
 
-  db.update(schema.storyboards)
+  await db.update(schema.storyboards)
     .set({ status: 'compose_processing', composedVideoUrl: null, updatedAt: now() })
     .where(eq(schema.storyboards.id, storyboardId))
     .run()
@@ -43,7 +43,7 @@ export async function composeStoryboard(storyboardId: number): Promise<string> {
 
   const videoPath = toAbsPath(storyboard.videoUrl)
   if (!fs.existsSync(videoPath)) {
-    db.update(schema.storyboards)
+    await db.update(schema.storyboards)
       .set({ status: 'compose_failed', composedVideoUrl: null, updatedAt: now() })
       .where(eq(schema.storyboards.id, storyboardId))
       .run()
@@ -87,7 +87,7 @@ export async function composeStoryboard(storyboardId: number): Promise<string> {
     })
 
     const composedRelative = `static/composed/${outputFilename}`
-    db.update(schema.storyboards)
+    await db.update(schema.storyboards)
       .set({ composedVideoUrl: composedRelative, status: 'compose_completed', updatedAt: now() })
       .where(eq(schema.storyboards.id, storyboardId))
       .run()
@@ -102,7 +102,7 @@ export async function composeStoryboard(storyboardId: number): Promise<string> {
 
     return composedRelative
   } catch (error) {
-    db.update(schema.storyboards)
+    await db.update(schema.storyboards)
       .set({ status: 'compose_failed', composedVideoUrl: null, updatedAt: now() })
       .where(eq(schema.storyboards.id, storyboardId))
       .run()

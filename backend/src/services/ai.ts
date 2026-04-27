@@ -65,10 +65,10 @@ export function getTextProviderBaseUrl(config: AIConfig) {
   return config.baseUrl
 }
 
-export function getActiveConfig(serviceType: ServiceType): AIConfig | null {
-  const rows = db.select().from(schema.aiServiceConfigs)
+export async function getActiveConfig(serviceType: ServiceType): Promise<AIConfig | null> {
+  const rows = (await db.select().from(schema.aiServiceConfigs)
     .where(eq(schema.aiServiceConfigs.serviceType, serviceType))
-    .all()
+    .all())
     .filter(r => r.isActive)
     .sort((a, b) => (b.priority || 0) - (a.priority || 0)) // 高优先级优先
 
@@ -95,15 +95,15 @@ export function getActiveConfig(serviceType: ServiceType): AIConfig | null {
   }
 }
 
-export function getTextConfig(): AIConfig {
-  const config = getActiveConfig('text')
+export async function getTextConfig(): Promise<AIConfig> {
+  const config = await getActiveConfig('text')
   if (!config) throw new Error('No active text AI config')
   return config
 }
 
-export function getConfigById(id: number): AIConfig | null {
-  const [row] = db.select().from(schema.aiServiceConfigs)
-    .where(eq(schema.aiServiceConfigs.id, id)).all()
+export async function getConfigById(id: number): Promise<AIConfig | null> {
+  const [row] = (await db.select().from(schema.aiServiceConfigs)
+    .where(eq(schema.aiServiceConfigs.id, id)).all())
   if (!row || !row.isActive) {
     logTaskWarn('AIConfig', 'config-by-id-missing', { configId: id })
     return null

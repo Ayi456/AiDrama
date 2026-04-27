@@ -34,11 +34,11 @@ function toJson(value: unknown) {
 export async function generateVideo(params: GenerateVideoParams): Promise<number> {
   const ts = now()
   const config = params.configId
-    ? getConfigById(params.configId)
-    : getActiveConfig('video')
+    ? await getConfigById(params.configId)
+    : await getActiveConfig('video')
   if (!config) throw new Error('No active video AI config')
 
-  const res = db.insert(schema.videoGenerations).values({
+  const res = (await db.insert(schema.videoGenerations).values({
     storyboardId: params.storyboardId,
     dramaId: params.dramaId,
     prompt: params.prompt,
@@ -54,7 +54,7 @@ export async function generateVideo(params: GenerateVideoParams): Promise<number
     status: 'processing',
     createdAt: ts,
     updatedAt: ts,
-  }).run()
+  }).run())
 
   const lastId = Number(res.lastInsertRowid)
   logTaskStart('VideoTask', 'enqueue', {
@@ -85,7 +85,7 @@ async function processVideoGeneration(id: number, config: AIConfig) {
   const adapter = getVideoAdapter(config.provider)
 
   try {
-    const rows = db.select().from(schema.videoGenerations).where(eq(schema.videoGenerations.id, id)).all()
+    const rows = (await db.select().from(schema.videoGenerations).where(eq(schema.videoGenerations.id, id)).all())
     const record = rows[0]
     if (!record) return
     logTaskProgress('VideoTask', 'build-request', {
@@ -110,7 +110,7 @@ async function processVideoGeneration(id: number, config: AIConfig) {
       duration: record.duration,
       aspectRatio: record.aspectRatio,
     }, config.settings as any)
-    db.update(schema.videoGenerations)
+    await db.update(schema.videoGenerations)
       .set({ normalizedRequest: toJson(normalizedSpec), updatedAt: now() })
       .where(eq(schema.videoGenerations.id, id))
       .run()
@@ -128,7 +128,7 @@ async function processVideoGeneration(id: number, config: AIConfig) {
       aspectRatio: record.aspectRatio,
       normalizedSpec,
     })
-    db.update(schema.videoGenerations)
+    await db.update(schema.videoGenerations)
       .set({ providerRequest: toJson(body), updatedAt: now() })
       .where(eq(schema.videoGenerations.id, id))
       .run()
@@ -156,7 +156,7 @@ async function processVideoGeneration(id: number, config: AIConfig) {
 
     if (!resp.ok) throw new Error(`API error ${resp.status}: ${await resp.text()}`)
     const result = await resp.json() as any
-    db.update(schema.videoGenerations)
+    await db.update(schema.videoGenerations)
       .set({ providerResponse: toJson(result), updatedAt: now() })
       .where(eq(schema.videoGenerations.id, id))
       .run()
@@ -171,7 +171,7 @@ async function processVideoGeneration(id: number, config: AIConfig) {
     }
 
     // 异步模式：更新 taskId，开始轮询
-    db.update(schema.videoGenerations)
+    await db.update(schema.videoGenerations)
       .set({ taskId, status: 'processing', updatedAt: now() })
       .where(eq(schema.videoGenerations.id, id))
       .run()
@@ -186,7 +186,7 @@ async function processVideoGeneration(id: number, config: AIConfig) {
     pollVideoTask(id, config, taskId!, record.storyboardId)
   } catch (err: any) {
     logTaskError('VideoTask', 'process', { id, provider: config.provider, error: err.message })
-    db.update(schema.videoGenerations)
+    await db.update(schema.videoGenerations)
       .set({ status: 'failed', errorMsg: err.message, updatedAt: now() })
       .where(eq(schema.videoGenerations.id, id))
       .run()
@@ -245,7 +245,7 @@ async function pollVideoTask(id: number, config: AIConfig, taskId: string, story
       const resp = await fetch(url, { method, headers })
       if (!resp.ok) continue
       const result = await resp.json() as any
-      db.update(schema.videoGenerations)
+      await db.update(schema.videoGenerations)
         .set({ providerResponse: toJson(result), updatedAt: now() })
         .where(eq(schema.videoGenerations.id, id))
         .run()
@@ -264,7 +264,7 @@ async function pollVideoTask(id: number, config: AIConfig, taskId: string, story
     } catch (err: any) {
       if (i === 299) {
         logTaskError('VideoTask', 'poll-timeout', { id, taskId, error: err.message })
-        db.update(schema.videoGenerations)
+        await db.update(schema.videoGenerations)
           .set({ status: 'failed', errorMsg: `Timeout: ${err.message}`, updatedAt: now() })
           .where(eq(schema.videoGenerations.id, id))
           .run()
@@ -277,14 +277,14 @@ async function pollVideoTask(id: number, config: AIConfig, taskId: string, story
 
 async function handleVideoComplete(id: number, videoUrl: string, duration: number | null | undefined, storyboardId?: number | null) {
   const localPath = await downloadFile(videoUrl, 'videos')
-  db.update(schema.videoGenerations)
+  await db.update(schema.videoGenerations)
     .set({ videoUrl, localPath, status: 'completed', completedAt: now(), updatedAt: now() })
     .where(eq(schema.videoGenerations.id, id))
     .run()
   logTaskSuccess('VideoTask', 'downloaded', { id, localPath, storyboardId, duration })
 
   if (storyboardId) {
-    db.update(schema.storyboards)
+    await db.update(schema.storyboards)
       .set({ videoUrl: localPath, duration: duration || undefined, updatedAt: now() })
       .where(eq(schema.storyboards.id, storyboardId))
       .run()

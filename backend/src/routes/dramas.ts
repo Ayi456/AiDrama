@@ -55,11 +55,11 @@ app.post('/', async (c) => {
   const imageConfigId = Number(body.image_config_id || 0) || null
   const videoConfigId = Number(body.video_config_id || 0) || null
 
-  const allConfigs = db.select().from(schema.aiServiceConfigs).all()
+  const allConfigs = (await db.select().from(schema.aiServiceConfigs).all())
   const fallbackImageConfigId = imageConfigId ?? allConfigs.find((row) => row.serviceType === 'image' && row.isActive)?.id ?? null
   const fallbackVideoConfigId = videoConfigId ?? allConfigs.find((row) => row.serviceType === 'video' && row.isActive)?.id ?? null
 
-  const res = db.insert(schema.dramas).values({
+  const res = (await db.insert(schema.dramas).values({
     title: body.title,
     description: body.description,
     genre: body.genre,
@@ -71,15 +71,15 @@ app.post('/', async (c) => {
     status: 'draft',
     createdAt: ts,
     updatedAt: ts,
-  }).run()
+  }).run())
 
-  const [result] = db.select().from(schema.dramas)
-    .where(eq(schema.dramas.id, Number(res.lastInsertRowid))).all()
+  const [result] = (await db.select().from(schema.dramas)
+    .where(eq(schema.dramas.id, Number(res.lastInsertRowid))).all())
 
   // Create default episodes
   const totalEpisodes = body.total_episodes || 1
   for (let i = 1; i <= totalEpisodes; i++) {
-    db.insert(schema.episodes).values({
+    await db.insert(schema.episodes).values({
       dramaId: result.id,
       episodeNumber: i,
       title: `第${i}集`,
@@ -97,7 +97,7 @@ app.post('/', async (c) => {
 
 // GET /dramas/stats — must be before /:id
 app.get('/stats', async (c) => {
-  const all = db.select().from(schema.dramas).where(isNull(schema.dramas.deletedAt)).all()
+  const all = (await db.select().from(schema.dramas).where(isNull(schema.dramas.deletedAt)).all())
   const byStatus = Object.entries(
     all.reduce((acc, d) => {
       acc[d.status || 'draft'] = (acc[d.status || 'draft'] || 0) + 1
@@ -146,7 +146,7 @@ app.put('/:id', async (c) => {
   if (body.metadata !== undefined) updates.metadata = body.metadata
   if (body.image_config_id !== undefined) updates.imageConfigId = Number(body.image_config_id || 0) || null
   if (body.video_config_id !== undefined) updates.videoConfigId = Number(body.video_config_id || 0) || null
-  db.update(schema.dramas).set(updates).where(eq(schema.dramas.id, id)).run()
+  await db.update(schema.dramas).set(updates).where(eq(schema.dramas.id, id)).run()
   return success(c)
 })
 

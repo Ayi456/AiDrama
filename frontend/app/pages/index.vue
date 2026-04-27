@@ -105,16 +105,10 @@
             <span class="field-label">项目名称 <span class="required">*</span></span>
             <input v-model="form.title" class="input" placeholder="例如：都市情感短剧《时光邮局》" required autofocus />
           </label>
-          <div class="field-row">
-            <label class="field">
-              <span class="field-label">计划集数</span>
-              <input v-model.number="form.total_episodes" class="input" type="number" min="1" max="100" />
-            </label>
-            <label class="field">
-              <span class="field-label">视觉风格</span>
-              <BaseSelect v-model="form.style" :options="styleSelectOptions" placeholder="选择风格" searchable />
-            </label>
-          </div>
+          <label class="field">
+            <span class="field-label">计划集数</span>
+            <input v-model.number="form.total_episodes" class="input" type="number" min="1" max="100" />
+          </label>
           <div class="field-row">
             <label class="field">
               <span class="field-label">图片模型</span>
@@ -150,9 +144,7 @@ const loading = ref(false)
 const showCreate = ref(false)
 const imageConfigs = ref([])
 const videoConfigs = ref([])
-const form = ref({ title: '', total_episodes: 1, style: '', image_config_id: null, video_config_id: null })
-const styles = ['realistic', 'anime', 'ghibli', 'cinematic', 'comic', 'watercolor']
-const styleSelectOptions = computed(() => styles.map(s => ({ label: s, value: s })))
+const form = ref({ title: '', total_episodes: 1, image_config_id: null, video_config_id: null })
 const imageConfigOptions = computed(() => imageConfigs.value.map(c => ({ label: configLabel(c), value: c.id })))
 const videoConfigOptions = computed(() => videoConfigs.value.map(c => ({ label: configLabel(c), value: c.id })))
 
