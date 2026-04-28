@@ -6,9 +6,11 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import sharp from 'sharp'
 import { v4 as uuid } from 'uuid'
+import { resolveStorageRoot } from './runtime-paths.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const STORAGE_ROOT = process.env.STORAGE_PATH || path.resolve(__dirname, '../../../data/static')
+const PROJECT_ROOT = path.resolve(__dirname, '../../..')
+const STORAGE_ROOT = resolveStorageRoot(PROJECT_ROOT)
 
 /**
  * 下载远程文件到本地存储

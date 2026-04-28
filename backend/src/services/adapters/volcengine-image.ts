@@ -10,7 +10,7 @@ import type {
   ImageGenerationRecord,
   ImageGenResponse,
   ImagePollResponse,
-} from './types'
+} from './types.js'
 import { joinProviderUrl } from './url.js'
 
 export class VolcEngineImageAdapter implements ImageProviderAdapter {

@@ -9,8 +9,8 @@ import type {
   ImageGenerationRecord,
   ImageGenResponse,
   ImagePollResponse,
-} from './types'
-import { joinProviderUrl } from './url'
+} from './types.js'
+import { joinProviderUrl } from './url.js'
 
 export class MiniMaxImageAdapter implements ImageProviderAdapter {
   provider = 'minimax'

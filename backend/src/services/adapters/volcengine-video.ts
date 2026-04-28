@@ -10,7 +10,7 @@ import type {
   VideoGenerationRecord,
   VideoGenResponse,
   VideoPollResponse,
-} from './types'
+} from './types.js'
 import { joinProviderUrl } from './url.js'
 
 export class VolcEngineVideoAdapter implements VideoProviderAdapter {

@@ -9,11 +9,13 @@ import { db, schema } from '../db/index.js'
 import { eq } from 'drizzle-orm'
 import { now } from '../utils/response.js'
 import { logTaskError, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
+import { resolveDataRoot, resolveStorageRoot } from '../utils/runtime-paths.js'
 import { escapeConcatPath, ffmpeg, getVideoDuration } from './ffmpeg.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const STORAGE_ROOT = process.env.STORAGE_PATH || path.resolve(__dirname, '../../../data/static')
-const DATA_ROOT = path.resolve(__dirname, '../../../data')
+const PROJECT_ROOT = path.resolve(__dirname, '../../..')
+const DATA_ROOT = resolveDataRoot(PROJECT_ROOT)
+const STORAGE_ROOT = resolveStorageRoot(PROJECT_ROOT)
 
 function toAbsPath(relativePath: string): string {
   if (path.isAbsolute(relativePath)) return relativePath
@@ -46,7 +48,7 @@ async function clearPreviousEpisodeMerge(episodeId: number) {
     .where(eq(schema.videoMerges.episodeId, episodeId))
     .run()
 
-    await db.update(schema.episodes)
+  await db.update(schema.episodes)
     .set({ videoUrl: null, updatedAt: now() })
     .where(eq(schema.episodes.id, episodeId))
     .run()

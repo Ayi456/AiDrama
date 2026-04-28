@@ -1,0 +1,35 @@
+component: scf
+name: aidrama-web
+
+inputs:
+  src:
+    src: ./deploy/scf
+    exclude:
+      - .env
+      - .env.*
+      - data/**
+      - tmp/**
+  type: web
+  name: aidrama-web-function
+  region: ap-guangzhou
+  runtime: Nodejs20.19
+  installDependency: true
+  memorySize: 2048
+  timeout: 900
+  environment:
+    variables:
+      NODE_ENV: production
+      PORT: "9000"
+      HOST: 0.0.0.0
+      DB_NAME: AiDrama
+      DATA_ROOT: /tmp/aidrama
+      STORAGE_PATH: /tmp/aidrama/static
+  events:
+    - apigw:
+        parameters:
+          protocols:
+            - https
+          environment: release
+          endpoints:
+            - path: /
+              method: ANY

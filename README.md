@@ -231,14 +231,14 @@ cd ../backend && npm start
 
 ```bash
 # 方式一：连接串
-DATABASE_URL=mysql://user:password@host:3306/your_database
+DATABASE_URL=mysql://user:password@host:3306/AiDrama
 
 # 方式二：独立字段
 DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_USER=root
 DB_PASSWORD=your_password
-DB_NAME=your_database
+DB_NAME=AiDrama
 ```
 
 ---
@@ -296,6 +296,57 @@ docker run -d --name aidrama -p 5679:5679 \
 
 ---
 
+### ☁️ 腾讯云 SCF Web 函数部署
+
+项目可以打包为单个腾讯云 SCF Web 函数，由一个 Hono Web Server 同时承载后端 API 和 Nuxt 静态前端。
+
+```bash
+# 1. 生成 SCF 部署产物
+node scripts/build-scf.mjs
+
+# 2. 部署到腾讯云
+scf deploy
+```
+
+部署产物位于 `deploy/scf/`：
+
+```text
+deploy/scf/
+  scf_bootstrap
+  serverless.yml
+  public/
+  backend/
+  skills/
+```
+
+SCF 运行要求：
+
+- `scf_bootstrap` 会启动 `backend/dist/server.js`
+- 运行环境选择 `Node.js 20.19`，当前依赖链中的 `lru-cache@11` 不兼容 `Node.js 18.15`
+- Web Server 监听 `9000` 端口和 `0.0.0.0`
+- 前端静态文件路径由 `FRONTEND_PUBLIC_PATH` 指定
+- 临时文件路径使用 `DATA_ROOT=/tmp/aidrama` 和 `STORAGE_PATH=/tmp/aidrama/static`
+- MySQL 连接信息必须在 SCF 环境变量中配置，不要提交真实密码
+
+必须配置的数据库环境变量：
+
+```text
+DB_HOST
+DB_PORT
+DB_USER
+DB_PASSWORD
+DB_NAME=AiDrama
+```
+
+生产注意事项：
+
+- SCF 标准运行时只有 `/tmp` 可写，且不保证持久化；生成的图片、视频文件生产环境应迁移到 COS。
+- FFmpeg 合成/拼接能力需要通过 Layer、自定义运行时或镜像部署提供。
+- 当前部分图片/视频任务会在请求返回后继续轮询处理，云函数生命周期可能中断这类后台工作；生产环境应拆到队列、回调或定时任务。
+- 如果 MySQL 在私有网络内，需要配置 SCF VPC、数据库安全组和访问白名单。
+
+---
+
 ### 🏭 传统部署方式
 
 ```bash
@@ -309,8 +360,8 @@ cd backend && npm start
 需要上传到服务器的文件：
 
 ```
-backend/          # 后端源码 + node_modules
-frontend/dist/    # 前端构建产物
+backend/                  # 后端源码 + node_modules
+frontend/.output/public/  # 前端静态构建产物
 configs/config.yaml
 data/             # 数据目录（首次运行自动创建）
 skills/           # Agent 技能文件

@@ -2,8 +2,8 @@
  * 阿里云百炼（万相）视频生成 Adapter
  * API 文档: https://help.aliyun.com/zh/model-studio/image-to-video-api-reference
  */
-import type { VideoProviderAdapter, VideoGenerationRecord } from './types'
-import { joinProviderUrl } from './url'
+import type { VideoProviderAdapter, VideoGenerationRecord } from './types.js'
+import { joinProviderUrl } from './url.js'
 
 export class AliVideoAdapter implements VideoProviderAdapter {
   readonly provider = 'ali'

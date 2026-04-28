@@ -2,16 +2,16 @@
  * Provider Adapter 注册表
  * 根据 provider 名称返回对应的 Adapter 实例
  */
-import { MiniMaxImageAdapter } from './minimax-image'
-import { MiniMaxVideoAdapter } from './minimax-video'
-import { OpenAIImageAdapter } from './openai-image'
-import { GeminiImageAdapter } from './gemini-image'
-import { VolcEngineImageAdapter } from './volcengine-image'
-import { VolcEngineVideoAdapter } from './volcengine-video'
-import { ViduVideoAdapter } from './vidu-video'
-import { AliImageAdapter } from './ali-image'
-import { AliVideoAdapter } from './ali-video'
-import type { ImageProviderAdapter, VideoProviderAdapter } from './types'
+import { MiniMaxImageAdapter } from './minimax-image.js'
+import { MiniMaxVideoAdapter } from './minimax-video.js'
+import { OpenAIImageAdapter } from './openai-image.js'
+import { GeminiImageAdapter } from './gemini-image.js'
+import { VolcEngineImageAdapter } from './volcengine-image.js'
+import { VolcEngineVideoAdapter } from './volcengine-video.js'
+import { ViduVideoAdapter } from './vidu-video.js'
+import { AliImageAdapter } from './ali-image.js'
+import { AliVideoAdapter } from './ali-video.js'
+import type { ImageProviderAdapter, VideoProviderAdapter } from './types.js'
 
 // 图片 Adapter 注册表
 export const imageAdapters: Record<string, ImageProviderAdapter> = {

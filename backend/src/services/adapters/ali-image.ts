@@ -2,8 +2,8 @@
  * 阿里云百炼（万相）图片生成 Adapter
  * API 文档: https://help.aliyun.com/zh/model-studio/text-to-image-v2-api-reference
  */
-import type { ImageProviderAdapter, ImageGenerationRecord } from './types'
-import { joinProviderUrl } from './url'
+import type { ImageProviderAdapter, ImageGenerationRecord } from './types.js'
+import { joinProviderUrl } from './url.js'
 
 export class AliImageAdapter implements ImageProviderAdapter {
   readonly provider = 'ali'
