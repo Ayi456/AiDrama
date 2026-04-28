@@ -15,6 +15,15 @@ import { createExtractTools } from './tools/extract-tools.js'
 import { createStoryboardTools } from './tools/storyboard-tools.js'
 import { createGridPromptTools } from './tools/grid-prompt-tools.js'
 import { loadAgentSkills } from './skills.js'
+import type { StoryboardChunk } from './storyboard-chunks.js'
+
+type CreateAgentOptions = {
+  storyboard?: {
+    scriptChunk?: StoryboardChunk
+    appendMode?: boolean
+    clearBeforeAppend?: boolean
+  }
+}
 
 // Default prompts (used when DB has no config)
 const DEFAULT_PROMPTS: Record<string, { name: string; instructions: string }> = {
@@ -193,7 +202,7 @@ async function getModel(dbConfig: any) {
   return provider.chat(modelName)
 }
 
-export async function createAgent(type: string, episodeId: number, dramaId: number): Promise<Agent | null> {
+export async function createAgent(type: string, episodeId: number, dramaId: number, options: CreateAgentOptions = {}): Promise<Agent | null> {
   const defaults = DEFAULT_PROMPTS[type]
   if (!defaults) return null
 
@@ -210,7 +219,7 @@ export async function createAgent(type: string, episodeId: number, dramaId: numb
   switch (type) {
     case 'script_rewriter': tools = createScriptTools(episodeId); break
     case 'extractor': tools = createExtractTools(episodeId, dramaId); break
-    case 'storyboard_breaker': tools = createStoryboardTools(episodeId, dramaId); break
+    case 'storyboard_breaker': tools = createStoryboardTools(episodeId, dramaId, options.storyboard); break
     case 'grid_prompt_generator': tools = createGridPromptTools(episodeId, dramaId); break
     default: return null
   }
