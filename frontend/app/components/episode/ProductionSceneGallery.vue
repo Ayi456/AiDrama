@@ -5,7 +5,6 @@
         <span class="scene-gallery__kicker">Scene Canvas</span>
         <div class="scene-gallery__title-row">
           <span class="scene-gallery__title">场景图片画廊</span>
-          <span class="scene-gallery__count">{{ scenes.length }} 个场景</span>
         </div>
         <div class="scene-gallery__desc">每张卡片里的图片提示词都会直接参与下一次生成，用它来控制光线、天气、材质和整体氛围。</div>
       </div>
@@ -56,12 +55,9 @@
             </span>
           </div>
 
-          <div class="scene-gallery__body-desc">修改提示词后失焦自动保存；下一次生成会直接使用这里的内容。</div>
-
           <label class="scene-gallery__prompt">
             <div class="scene-gallery__prompt-head">
               <span class="scene-gallery__prompt-label">图片提示词</span>
-              <span class="scene-gallery__prompt-tip">失焦自动保存</span>
             </div>
             <textarea
               class="scene-gallery__prompt-input"
@@ -76,15 +72,27 @@
         <div class="scene-gallery__foot">
           <div class="scene-gallery__status">
             <div class="scene-gallery__status-line">
-              <span :class="['dot', hasSceneImage(scene) && 'ok', isPendingSceneImage(scene.id) && 'pending']" />
-              <span>{{ hasSceneImage(scene) ? '已生成' : (isPendingSceneImage(scene.id) ? '生成中' : '待生成') }}</span>
             </div>
-            <div class="scene-gallery__status-note">{{ hasSceneImage(scene) ? '再次生成会沿用当前提示词重新抽一张' : '首次生成将使用当前提示词直接出图' }}</div>
           </div>
 
-          <button class="btn btn-sm scene-gallery__action" :disabled="isPendingSceneImage(scene.id)" @click="emit('generate', scene.id)">
-            {{ getGenerateButtonLabel(scene) }}
-          </button>
+          <div class="scene-gallery__foot-actions">
+            <label
+              :class="['btn btn-sm scene-gallery__replace', (isPendingSceneImage(scene.id) || isReplacingSceneImage(scene.id)) && 'is-disabled']"
+              title="上传图片替换当前场景图"
+            >
+              <input
+                class="scene-gallery__replace-input"
+                type="file"
+                accept="image/*"
+                :disabled="isPendingSceneImage(scene.id) || isReplacingSceneImage(scene.id)"
+                @change="handleReplaceFile(scene, $event)"
+              />
+              {{ isReplacingSceneImage(scene.id) ? '替换中' : '替换' }}
+            </label>
+            <button class="btn btn-sm scene-gallery__action" :disabled="isPendingSceneImage(scene.id) || isReplacingSceneImage(scene.id)" @click="emit('generate', scene.id)">
+              {{ getGenerateButtonLabel(scene) }}
+            </button>
+          </div>
         </div>
       </article>
     </div>
@@ -105,9 +113,13 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  replacingSceneImageIds: {
+    type: Array,
+    default: () => [],
+  },
 })
 
-const emit = defineEmits(['batch-generate', 'generate', 'update-scene-field', 'open-image-viewer'])
+const emit = defineEmits(['batch-generate', 'generate', 'replace-image', 'update-scene-field', 'open-image-viewer'])
 
 function getSceneImage(scene) {
   return scene?.image_url || scene?.imageUrl || ''
@@ -119,6 +131,10 @@ function hasSceneImage(scene) {
 
 function isPendingSceneImage(id) {
   return props.pendingSceneImageIds.includes(id)
+}
+
+function isReplacingSceneImage(id) {
+  return props.replacingSceneImageIds.includes(id)
 }
 
 function getGenerateButtonLabel(scene) {
@@ -133,6 +149,13 @@ function openSceneImage(scene) {
     src: assetUrl(src),
     title: `${scene.location} 场景图`,
   })
+}
+
+function handleReplaceFile(scene, event) {
+  const input = event.target
+  const file = input?.files?.[0]
+  if (file) emit('replace-image', { scene, file })
+  if (input) input.value = ''
 }
 </script>
 

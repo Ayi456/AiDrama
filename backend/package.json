@@ -7,9 +7,11 @@
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "build": "tsc",
-    "test": "tsc -p tsconfig.json && node dist/services/__tests__/provider-spec.test.js && node dist/services/__tests__/ffmpeg.test.js && node dist/utils/__tests__/runtime-paths.test.js && node dist/utils/__tests__/cos.test.js && node dist/agents/__tests__/storyboard-chunks.test.js",
+    "test": "tsc -p tsconfig.json && node dist/services/__tests__/provider-spec.test.js && node dist/services/__tests__/ffmpeg.test.js && node dist/utils/__tests__/runtime-paths.test.js && node dist/utils/__tests__/cos.test.js && node dist/utils/__tests__/asset-proxy.test.js && node dist/utils/__tests__/external-asset-redirect.test.js && node dist/utils/__tests__/public-asset.test.js && node dist/db/__tests__/asset-url-backfill.test.js && node dist/agents/__tests__/storyboard-chunks.test.js && node dist/routes/__tests__/agent-normalize.test.js",
+    "db:backfill-cos-assets": "tsc -p tsconfig.json && node dist/scripts/backfill-cos-asset-urls.js",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
+    "db:check-cos-assets": "tsc -p tsconfig.json && node dist/scripts/check-cos-asset-urls.js",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [],

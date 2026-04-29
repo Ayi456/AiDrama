@@ -4,6 +4,7 @@ import { db, schema } from '../db/index.js'
 import { success, created, badRequest } from '../utils/response.js'
 import { generateVideo } from '../services/video-generation.js'
 import { logTaskError, logTaskPayload, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
+import { presentVideoGenerationAsset, presentVideoGenerationAssets } from '../utils/public-asset.js'
 
 const app = new Hono()
 
@@ -47,7 +48,7 @@ app.post('/', async (c) => {
     const [record] = (await db.select().from(schema.videoGenerations)
       .where(eq(schema.videoGenerations.id, id)).all())
     logTaskSuccess('VideoAPI', 'generate', { generationId: id, provider: record?.provider })
-    return created(c, record)
+    return created(c, record ? presentVideoGenerationAsset(record) : record)
   } catch (err: any) {
     logTaskError('VideoAPI', 'generate', { error: err.message })
     return badRequest(c, err.message)
@@ -59,7 +60,7 @@ app.get('/:id', async (c) => {
   const id = Number(c.req.param('id'))
   const [row] = (await db.select().from(schema.videoGenerations)
     .where(eq(schema.videoGenerations.id, id)).all())
-  return success(c, row || null)
+  return success(c, row ? presentVideoGenerationAsset(row) : null)
 })
 
 // GET /videos — List by storyboard_id or drama_id
@@ -72,7 +73,7 @@ app.get('/', async (c) => {
   if (storyboardId) rows = rows.filter(r => r.storyboardId === Number(storyboardId))
   if (dramaId) rows = rows.filter(r => r.dramaId === Number(dramaId))
 
-  return success(c, rows)
+  return success(c, presentVideoGenerationAssets(rows))
 })
 
 // DELETE /videos/:id

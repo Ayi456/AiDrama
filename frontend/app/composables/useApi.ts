@@ -28,11 +28,47 @@ async function req<T = any>(method: string, path: string, body?: any): Promise<T
   }
 }
 
+async function uploadReq<T = any>(path: string, formData: FormData): Promise<T> {
+  const start = performance.now()
+  console.log(`%c[API] %cPOST %c${path}`, 'color:#888', 'color:#4fc3f7;font-weight:bold', 'color:#ccc', '[multipart]')
+
+  try {
+    const resp = await fetch(`${BASE}${path}`, {
+      method: 'POST',
+      body: formData,
+    })
+    const json = await resp.json()
+    const ms = Math.round(performance.now() - start)
+
+    if (!resp.ok || (json.code && json.code >= 400)) {
+      console.log(`%c[API] %cPOST ${path} %c${resp.status} %c${ms}ms`, 'color:#888', 'color:#ef5350', 'color:#ef5350;font-weight:bold', 'color:#888', json.message || '')
+      throw new Error(json.message || `${resp.status}`)
+    }
+
+    console.log(`%c[API] %cPOST ${path} %c${resp.status} %c${ms}ms`, 'color:#888', 'color:#66bb6a', 'color:#66bb6a;font-weight:bold', 'color:#888')
+    return json.data ?? json
+  } catch (err: any) {
+    if (!err.message?.match(/^\d{3}$/)) {
+      const ms = Math.round(performance.now() - start)
+      console.log(`%c[API] %cPOST ${path} %cERROR %c${ms}ms`, 'color:#888', 'color:#ef5350', 'color:#ef5350;font-weight:bold', 'color:#888', err.message)
+    }
+    throw err
+  }
+}
+
 export const api = {
   get: <T = any>(p: string) => req<T>('GET', p),
   post: <T = any>(p: string, b?: any) => req<T>('POST', p, b),
   put: <T = any>(p: string, b?: any) => req<T>('PUT', p, b),
   del: <T = any>(p: string) => req<T>('DELETE', p),
+}
+
+export const uploadAPI = {
+  image: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return uploadReq<{ url: string; path: string }>('/upload/image', formData)
+  },
 }
 
 export const dramaAPI = {

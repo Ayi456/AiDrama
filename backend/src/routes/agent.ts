@@ -5,52 +5,14 @@ import { splitScriptIntoStoryboardChunks } from '../agents/storyboard-chunks.js'
 import { db, schema } from '../db/index.js'
 import { success, badRequest } from '../utils/response.js'
 import { logTaskError, logTaskPayload, logTaskProgress, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
+import {
+  normalizeAgentResult,
+  wasToolUsed,
+  type NormalizedToolCall,
+  type NormalizedToolResult,
+} from '../agents/result-normalizer.js'
 
 const app = new Hono()
-
-type NormalizedToolCall = {
-  toolName: string | null
-  args: unknown
-}
-
-type NormalizedToolResult = {
-  toolName: string | null
-  result: string
-}
-
-function normalizeToolName(entry: any) {
-  return entry?.toolName
-    || entry?.tool?.toolName
-    || entry?.tool?.id
-    || entry?.name
-    || entry?.type
-    || null
-}
-
-function normalizeToolResult(entry: any) {
-  const result = entry?.result ?? entry?.output ?? entry?.data ?? null
-  return typeof result === 'string' ? result : JSON.stringify(result)
-}
-
-function normalizeAgentResult(result: any): {
-  text: string
-  toolCalls: NormalizedToolCall[]
-  toolResults: NormalizedToolResult[]
-} {
-  const toolCalls = result.toolCalls || []
-  const toolResults = result.toolResults || []
-  return {
-    text: result.text || '',
-    toolCalls: toolCalls.map((tc: any) => ({
-      toolName: normalizeToolName(tc),
-      args: tc?.args ?? tc?.input ?? null,
-    })),
-    toolResults: toolResults.map((tr: any) => ({
-      toolName: normalizeToolName(tr),
-      result: normalizeToolResult(tr),
-    })),
-  }
-}
 
 async function runChunkedStoryboardBreaker(
   message: string,
@@ -136,7 +98,7 @@ async function runChunkedStoryboardBreaker(
       toolCalls: chunkToolNames,
     })
 
-    if (!chunkToolNames.includes('append_storyboards')) {
+    if (!wasToolUsed(normalized, 'append_storyboards')) {
       throw new Error(`Storyboard chunk ${chunk.index}/${chunk.total} did not call append_storyboards`)
     }
   }

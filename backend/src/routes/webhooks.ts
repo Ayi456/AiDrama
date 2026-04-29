@@ -49,7 +49,7 @@ app.post('/vidu', async (c) => {
       const publicUrl = await uploadStaticAssetToCos(localPath) || localPath
       await db.update(schema.videoGenerations)
         .set({
-          videoUrl: video_url,
+          videoUrl: publicUrl,
           localPath,
           minioUrl: publicUrl,
           status: 'completed',

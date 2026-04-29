@@ -1,7 +1,7 @@
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { toast } from 'vue-sonner'
 import {
-  characterAPI, sceneAPI, imageAPI, videoAPI, composeAPI, mergeAPI,
+  characterAPI, sceneAPI, imageAPI, videoAPI, composeAPI, mergeAPI, uploadAPI,
 } from '~/composables/useApi'
 import { useImageGenerationMonitor } from '~/composables/useImageGenerationMonitor'
 
@@ -28,6 +28,8 @@ interface UseEpisodeMediaPipelineOptions {
 export function useEpisodeMediaPipeline(options: UseEpisodeMediaPipelineOptions) {
   const pendingCharImageIds = ref<number[]>([])
   const pendingSceneImageIds = ref<number[]>([])
+  const replacingCharacterImageIds = ref<number[]>([])
+  const replacingSceneImageIds = ref<number[]>([])
   const pendingShotFrameKeys = ref<string[]>([])
   const pendingVideoIds = ref<number[]>([])
   const pendingComposeIds = ref<number[]>([])
@@ -42,6 +44,14 @@ export function useEpisodeMediaPipeline(options: UseEpisodeMediaPipelineOptions)
 
   function isPendingSceneImage(id: number) {
     return pendingSceneImageIds.value.includes(id)
+  }
+
+  function isReplacingCharacterImage(id: number) {
+    return replacingCharacterImageIds.value.includes(id)
+  }
+
+  function isReplacingSceneImage(id: number) {
+    return replacingSceneImageIds.value.includes(id)
   }
 
   function hasCharacterImage(char: any) {
@@ -319,6 +329,36 @@ export function useEpisodeMediaPipeline(options: UseEpisodeMediaPipelineOptions)
     }
   }
 
+  async function replaceCharImage(payload: { character?: any; file?: File }) {
+    const character = payload?.character
+    const file = payload?.file
+    if (!character?.id || !file) return
+    if (!file.type?.startsWith('image/')) {
+      toast.error('请选择图片文件')
+      return
+    }
+
+    const id = Number(character.id)
+    try {
+      if (!isReplacingCharacterImage(id)) replacingCharacterImageIds.value.push(id)
+      const uploaded = await uploadAPI.image(file)
+      await characterAPI.update(id, {
+        image_url: uploaded.url,
+        local_path: uploaded.path,
+      })
+      character.image_url = uploaded.url
+      character.imageUrl = uploaded.url
+      character.local_path = uploaded.path
+      character.localPath = uploaded.path
+      toast.success('角色图片已替换')
+      await options.refresh()
+    } catch (error: any) {
+      toast.error(error.message || '角色图片替换失败')
+    } finally {
+      replacingCharacterImageIds.value = replacingCharacterImageIds.value.filter(item => item !== id)
+    }
+  }
+
   function batchCharImages() {
     const ids = options.visualChars.value.filter(c => !(c.image_url || c.imageUrl)).map(c => c.id)
     if (!ids.length) {
@@ -366,6 +406,38 @@ export function useEpisodeMediaPipeline(options: UseEpisodeMediaPipelineOptions)
     } catch (error: any) {
       pendingSceneImageIds.value = pendingSceneImageIds.value.filter(item => item !== id)
       toast.error(error.message)
+    }
+  }
+
+  async function replaceSceneImage(payload: { scene?: any; file?: File }) {
+    const scene = payload?.scene
+    const file = payload?.file
+    if (!scene?.id || !file) return
+    if (!file.type?.startsWith('image/')) {
+      toast.error('请选择图片文件')
+      return
+    }
+
+    const id = Number(scene.id)
+    try {
+      if (!isReplacingSceneImage(id)) replacingSceneImageIds.value.push(id)
+      const uploaded = await uploadAPI.image(file)
+      await sceneAPI.update(id, {
+        image_url: uploaded.url,
+        local_path: uploaded.path,
+        status: 'completed',
+      })
+      scene.image_url = uploaded.url
+      scene.imageUrl = uploaded.url
+      scene.local_path = uploaded.path
+      scene.localPath = uploaded.path
+      scene.status = 'completed'
+      toast.success('场景图片已替换')
+      await options.refresh()
+    } catch (error: any) {
+      toast.error(error.message || '场景图片替换失败')
+    } finally {
+      replacingSceneImageIds.value = replacingSceneImageIds.value.filter(item => item !== id)
     }
   }
 
@@ -612,6 +684,8 @@ export function useEpisodeMediaPipeline(options: UseEpisodeMediaPipelineOptions)
   return {
     pendingCharImageIds,
     pendingSceneImageIds,
+    replacingCharacterImageIds,
+    replacingSceneImageIds,
     pendingShotFrameKeys,
     pendingVideoIds,
     pendingComposeIds,
@@ -620,6 +694,8 @@ export function useEpisodeMediaPipeline(options: UseEpisodeMediaPipelineOptions)
     shotImageHistory,
     isPendingCharImage,
     isPendingSceneImage,
+    isReplacingCharacterImage,
+    isReplacingSceneImage,
     hasCharacterImage,
     hasSceneImage,
     getImageGenerateButtonLabel,
@@ -659,8 +735,10 @@ export function useEpisodeMediaPipeline(options: UseEpisodeMediaPipelineOptions)
     removeShotImageHistory,
     buildShotImagePrompt,
     genCharImg,
+    replaceCharImage,
     batchCharImages,
     genSceneImg,
+    replaceSceneImage,
     batchSceneImages,
     genShotFrame,
     genVid,

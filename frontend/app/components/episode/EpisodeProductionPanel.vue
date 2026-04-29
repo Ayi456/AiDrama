@@ -36,9 +36,11 @@
         :characters="state.visualChars"
         :locked-image-config-label="state.lockedImageConfigLabel"
         :pending-character-image-ids="state.pendingCharImageIds"
+        :replacing-character-image-ids="state.replacingCharacterImageIds"
         :has-narrator-only="state.chars.length > state.visualChars.length"
         @batch-generate="handlers.batchCharImages"
         @generate="handlers.genCharImg"
+        @replace-image="handlers.replaceCharImage"
         @update-character-description="handlers.handleCharacterDescriptionUpdate"
         @open-image-viewer="handlers.handleGalleryViewerOpen"
       />
@@ -48,8 +50,10 @@
         :scenes="state.scenes"
         :locked-image-config-label="state.lockedImageConfigLabel"
         :pending-scene-image-ids="state.pendingSceneImageIds"
+        :replacing-scene-image-ids="state.replacingSceneImageIds"
         @batch-generate="handlers.batchSceneImages"
         @generate="handlers.genSceneImg"
+        @replace-image="handlers.replaceSceneImage"
         @update-scene-field="handlers.handleSceneFieldUpdate"
         @open-image-viewer="handlers.handleGalleryViewerOpen"
       />

@@ -280,7 +280,7 @@ async function handleVideoComplete(id: number, videoUrl: string, duration: numbe
   const localPath = await downloadFile(videoUrl, 'videos')
   const publicUrl = await uploadStaticAssetToCos(localPath) || localPath
   await db.update(schema.videoGenerations)
-    .set({ videoUrl, localPath, minioUrl: publicUrl, status: 'completed', completedAt: now(), updatedAt: now() })
+    .set({ videoUrl: publicUrl, localPath, minioUrl: publicUrl, status: 'completed', completedAt: now(), updatedAt: now() })
     .where(eq(schema.videoGenerations.id, id))
     .run()
   logTaskSuccess('VideoTask', 'downloaded', { id, localPath, publicUrl, storyboardId, duration })

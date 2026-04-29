@@ -390,6 +390,34 @@
   box-shadow: none;
 }
 
+.scene-gallery__foot-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scene-gallery__replace {
+  position: relative;
+  min-width: 72px;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.scene-gallery__replace.is-disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.scene-gallery__replace-input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 @media (max-width: 1240px) {
   .scene-gallery__toolbar {
     flex-direction: column;
@@ -430,5 +458,14 @@
 
   .scene-gallery__action {
     width: 100%;
+  }
+
+  .scene-gallery__foot-actions {
+    width: 100%;
+  }
+
+  .scene-gallery__replace,
+  .scene-gallery__action {
+    flex: 1;
   }
 }

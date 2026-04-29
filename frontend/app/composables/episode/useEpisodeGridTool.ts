@@ -308,6 +308,10 @@ export function useEpisodeGridTool(options: UseEpisodeGridToolOptions) {
     return { rows: Number(match[1]) || 3, cols: Number(match[2]) || 3 }
   }
 
+  function getGeneratedAssetPath(row: any) {
+    return row?.minio_url || row?.minioUrl || row?.image_url || row?.imageUrl || row?.local_path || row?.localPath || ''
+  }
+
   function continueGridSplit() {
     if (!gridImagePath.value) {
       toast.warning('还没有可继续切割的宫格图')
@@ -415,10 +419,11 @@ export function useEpisodeGridTool(options: UseEpisodeGridToolOptions) {
       try {
         const res = await gridAPI.status(gridGenId.value)
         gridStatusText.value = `状态: ${res.status}`
-        if (res.status === 'completed' && res.local_path) {
-          gridImagePath.value = res.local_path
+        const imagePath = getGeneratedAssetPath(res)
+        if (res.status === 'completed' && imagePath) {
+          gridImagePath.value = imagePath
           gridGenId.value = gridGenId.value || res.id || null
-          persistGridImagePath(res.local_path)
+          persistGridImagePath(imagePath)
           gridStep.value = 3
           return
         }
@@ -438,14 +443,14 @@ export function useEpisodeGridTool(options: UseEpisodeGridToolOptions) {
       const rows = await imageAPI.list({ drama_id: options.dramaId })
       const list = Array.isArray(rows) ? rows : []
       const grids = list
-        .filter((row) => row?.status === 'completed' && String(row?.frame_type || row?.frameType || '').startsWith('grid_') && (row?.local_path || row?.localPath))
+        .filter((row) => row?.status === 'completed' && String(row?.frame_type || row?.frameType || '').startsWith('grid_') && getGeneratedAssetPath(row))
         .sort((a, b) => Number(b?.id || 0) - Number(a?.id || 0))
         .map((row) => {
           const frameType = String(row?.frame_type || row?.frameType || '')
           const parsedLayout = parseGridLayoutFromFrameType(frameType) || { rows: 3, cols: 3 }
           return {
             id: row.id,
-            localPath: row?.local_path || row?.localPath || '',
+            localPath: getGeneratedAssetPath(row),
             layout: parsedLayout,
             modeLabel: frameType.replace(/^grid_/, '').replace(/_/g, ' · '),
             createdAtLabel: row?.created_at || row?.createdAt || '',

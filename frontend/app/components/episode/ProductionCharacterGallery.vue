@@ -5,9 +5,7 @@
         <span class="character-gallery__kicker">Character Board</span>
         <div class="character-gallery__title-row">
           <span class="character-gallery__title">角色形象画板</span>
-          <span class="character-gallery__count">{{ characters.length }} 个待生成角色</span>
         </div>
-        <div class="character-gallery__desc">这里管理角色形象首轮出图和再生成。旁白角色默认不进入图片生成，只保留声音链路。</div>
       </div>
       <div class="character-gallery__actions">
         <span class="tag">{{ lockedImageConfigLabel }}</span>
@@ -47,12 +45,9 @@
               {{ hasCharacterImage(character) ? '已出图' : (isPendingCharacterImage(character.id) ? '生成中' : '待出图') }}
             </span>
           </div>
-          <div class="character-gallery__note">{{ hasCharacterImage(character) ? '再次生成会沿用当前角色描述重新抽一张' : '首次生成会根据角色描述直接出图' }}</div>
-
           <label class="character-gallery__prompt">
             <div class="character-gallery__prompt-head">
               <span class="character-gallery__prompt-label">角色描述词</span>
-              <span class="character-gallery__prompt-tip">失焦自动保存</span>
             </div>
             <textarea
               class="character-gallery__prompt-input"
@@ -66,12 +61,26 @@
 
         <div class="character-gallery__foot">
           <div class="character-gallery__status">
-            <span :class="['dot', hasCharacterImage(character) && 'ok', isPendingCharacterImage(character.id) && 'pending']" />
-            <span>{{ hasCharacterImage(character) ? '已生成' : (isPendingCharacterImage(character.id) ? '生成中' : '待生成') }}</span>
+            
           </div>
-          <button class="btn btn-sm character-gallery__action" :disabled="isPendingCharacterImage(character.id)" @click="emit('generate', character.id)">
-            {{ getGenerateButtonLabel(character) }}
-          </button>
+          <div class="character-gallery__foot-actions">
+            <label
+              :class="['btn btn-sm character-gallery__replace', (isPendingCharacterImage(character.id) || isReplacingCharacterImage(character.id)) && 'is-disabled']"
+              title="上传图片替换当前角色图"
+            >
+              <input
+                class="character-gallery__replace-input"
+                type="file"
+                accept="image/*"
+                :disabled="isPendingCharacterImage(character.id) || isReplacingCharacterImage(character.id)"
+                @change="handleReplaceFile(character, $event)"
+              />
+              {{ isReplacingCharacterImage(character.id) ? '替换中' : '替换' }}
+            </label>
+            <button class="btn btn-sm character-gallery__action" :disabled="isPendingCharacterImage(character.id) || isReplacingCharacterImage(character.id)" @click="emit('generate', character.id)">
+              {{ getGenerateButtonLabel(character) }}
+            </button>
+          </div>
         </div>
       </article>
     </div>
@@ -92,13 +101,17 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  replacingCharacterImageIds: {
+    type: Array,
+    default: () => [],
+  },
   hasNarratorOnly: {
     type: Boolean,
     default: false,
   },
 })
 
-const emit = defineEmits(['batch-generate', 'generate', 'update-character-description', 'open-image-viewer'])
+const emit = defineEmits(['batch-generate', 'generate', 'replace-image', 'update-character-description', 'open-image-viewer'])
 
 function getCharacterImage(character) {
   return character?.image_url || character?.imageUrl || ''
@@ -116,6 +129,10 @@ function isPendingCharacterImage(id) {
   return props.pendingCharacterImageIds.includes(id)
 }
 
+function isReplacingCharacterImage(id) {
+  return props.replacingCharacterImageIds.includes(id)
+}
+
 function getGenerateButtonLabel(character) {
   if (isPendingCharacterImage(character.id)) return '生成中'
   return hasCharacterImage(character) ? '再生成' : '生成'
@@ -128,6 +145,13 @@ function openCharacterImage(character) {
     src: assetUrl(src),
     title: `${character.name} 角色形象`,
   })
+}
+
+function handleReplaceFile(character, event) {
+  const input = event.target
+  const file = input?.files?.[0]
+  if (file) emit('replace-image', { character, file })
+  if (input) input.value = ''
 }
 </script>
 

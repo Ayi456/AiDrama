@@ -20,8 +20,10 @@ import compose from './routes/compose.js'
 import merge from './routes/merge.js'
 import grid from './routes/grid.js'
 import skills from './routes/skills.js'
+import assets from './routes/assets.js'
 import webhooks from './routes/webhooks.js'
 import { requestLogger, errorHandler } from './middleware/logger.js'
+import { externalAssetRedirectUrl } from './utils/external-asset-redirect.js'
 import { resolveDataRoot, resolveFrontendPublicPath } from './utils/runtime-paths.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -67,9 +69,16 @@ export function createApp() {
   api.route('/merge', merge)
   api.route('/grid', grid)
   api.route('/skills', skills)
+  api.route('/assets', assets)
 
   app.route('/api/v1', api)
   app.route('/webhooks', webhooks)
+
+  app.use('*', async (c, next) => {
+    const target = externalAssetRedirectUrl(c.req.url)
+    if (target) return c.redirect(target, 302)
+    await next()
+  })
 
   app.use('/static/*', serveStatic({ root: resolveDataRoot(projectRoot) }))
 

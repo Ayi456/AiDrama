@@ -7,6 +7,7 @@ import { splitGridImage } from '../services/grid-split.js'
 import { createAgent } from '../agents/index.js'
 import { logTaskError, logTaskPayload, logTaskProgress } from '../utils/task-logger.js'
 import { uploadStaticAssetToCos } from '../utils/cos.js'
+import { presentImageGenerationAsset } from '../utils/public-asset.js'
 
 const app = new Hono()
 
@@ -606,11 +607,13 @@ app.get('/status/:id', async (c) => {
   const [row] = (await db.select().from(schema.imageGenerations)
     .where(eq(schema.imageGenerations.id, id)).all())
   if (!row) return badRequest(c, 'Not found')
+  const asset = presentImageGenerationAsset(row)
   return success(c, {
     id: row.id,
     status: row.status,
-    local_path: row.localPath,
-    image_url: row.imageUrl,
+    local_path: asset.local_path || row.localPath,
+    image_url: asset.image_url || row.imageUrl,
+    minio_url: asset.minio_url || row.minioUrl,
     error_msg: row.errorMsg,
   })
 })

@@ -316,7 +316,7 @@ async function handleImageComplete(id: number, provider: string, imageUrl: strin
   const record = rows[0]
 
   await db.update(schema.imageGenerations)
-    .set({ imageUrl, localPath, minioUrl: publicUrl, status: 'completed', updatedAt: now() })
+    .set({ imageUrl: publicUrl, localPath, minioUrl: publicUrl, status: 'completed', updatedAt: now() })
     .where(eq(schema.imageGenerations.id, id))
     .run()
   logTaskSuccess('ImageTask', 'downloaded', { id, provider, localPath, publicUrl })
@@ -344,7 +344,7 @@ async function handleImageCompleteBase64(id: number, provider: string, base64Dat
   const record = rows[0]
 
   await db.update(schema.imageGenerations)
-    .set({ localPath, minioUrl: publicUrl, status: 'completed', updatedAt: now() })
+    .set({ imageUrl: publicUrl, localPath, minioUrl: publicUrl, status: 'completed', updatedAt: now() })
     .where(eq(schema.imageGenerations.id, id))
     .run()
   logTaskSuccess('ImageTask', 'saved-base64', { id, provider, mimeType, localPath, publicUrl })

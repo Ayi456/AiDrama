@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { backfillPersistedAssetUrls } from './asset-url-backfill.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PROJECT_ROOT = path.resolve(__dirname, '../../..')
@@ -470,6 +471,15 @@ await ensureDatabaseExists(mysqlConfig)
 
 export const mysqlPool = mysql.createPool(mysqlConfig)
 await initializeDatabase(mysqlPool, String(mysqlConfig.database || DEFAULT_DB_NAME))
+try {
+  const assetBackfillResults = await backfillPersistedAssetUrls(mysqlPool)
+  const changed = assetBackfillResults.filter(result => result.affectedRows > 0)
+  if (changed.length) {
+    console.log(`[DB] Backfilled COS asset URLs: ${changed.map(result => `${result.name}=${result.affectedRows}`).join(', ')}`)
+  }
+} catch (error) {
+  console.warn('[DB] Failed to backfill COS asset URLs:', error)
+}
 
 const mysqlDb = drizzle(mysqlPool, { schema, mode: 'default' })
 

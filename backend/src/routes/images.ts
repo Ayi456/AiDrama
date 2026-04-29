@@ -4,6 +4,7 @@ import { db, schema } from '../db/index.js'
 import { success, created, now, badRequest } from '../utils/response.js'
 import { generateImage } from '../services/image-generation.js'
 import { logTaskError, logTaskPayload, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
+import { presentImageGenerationAsset, presentImageGenerationAssets } from '../utils/public-asset.js'
 
 const app = new Hono()
 
@@ -46,7 +47,7 @@ app.post('/', async (c) => {
     const [record] = (await db.select().from(schema.imageGenerations)
       .where(eq(schema.imageGenerations.id, id)).all())
     logTaskSuccess('ImageAPI', 'generate', { generationId: id, provider: record?.provider })
-    return created(c, record)
+    return created(c, record ? presentImageGenerationAsset(record) : record)
   } catch (err: any) {
     logTaskError('ImageAPI', 'generate', { error: err.message })
     return badRequest(c, err.message)
@@ -58,7 +59,7 @@ app.get('/:id', async (c) => {
   const id = Number(c.req.param('id'))
   const [row] = (await db.select().from(schema.imageGenerations)
     .where(eq(schema.imageGenerations.id, id)).all())
-  return success(c, row || null)
+  return success(c, row ? presentImageGenerationAsset(row) : null)
 })
 
 // GET /images — List by storyboard_id or drama_id
@@ -71,7 +72,7 @@ app.get('/', async (c) => {
   if (storyboardId) rows = rows.filter(r => r.storyboardId === Number(storyboardId))
   if (dramaId) rows = rows.filter(r => r.dramaId === Number(dramaId))
 
-  return success(c, rows)
+  return success(c, presentImageGenerationAssets(rows))
 })
 
 // DELETE /images/:id
