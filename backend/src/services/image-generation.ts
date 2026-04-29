@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { getActiveConfig, getConfigById } from './ai.js'
 import { now } from '../utils/response.js'
 import { downloadFile, readImageAsCompressedDataUrl, saveBase64Image } from '../utils/storage.js'
+import { uploadStaticAssetToCos } from '../utils/cos.js'
 import { getImageAdapter } from './adapters/registry.js'
 import type { AIConfig } from './adapters/types.js'
 import { buildImageJobSpecFromLegacyRequest } from './provider-spec.js'
@@ -310,54 +311,56 @@ async function pollImageTask(id: number, config: AIConfig, taskId: string) {
 
 async function handleImageComplete(id: number, provider: string, imageUrl: string) {
   const localPath = await downloadFile(imageUrl, 'images')
+  const publicUrl = await uploadStaticAssetToCos(localPath) || localPath
   const rows = (await db.select().from(schema.imageGenerations).where(eq(schema.imageGenerations.id, id)).all())
   const record = rows[0]
 
   await db.update(schema.imageGenerations)
-    .set({ imageUrl, localPath, status: 'completed', updatedAt: now() })
+    .set({ imageUrl, localPath, minioUrl: publicUrl, status: 'completed', updatedAt: now() })
     .where(eq(schema.imageGenerations.id, id))
     .run()
-  logTaskSuccess('ImageTask', 'downloaded', { id, provider, localPath })
+  logTaskSuccess('ImageTask', 'downloaded', { id, provider, localPath, publicUrl })
 
   // 更新关联表
   if (record?.storyboardId) {
     const sbUpdate: Record<string, any> = { updatedAt: now() }
-    if (record.frameType === 'first_frame') sbUpdate.firstFrameImage = localPath
-    else if (record.frameType === 'last_frame') sbUpdate.lastFrameImage = localPath
-    else sbUpdate.composedImage = localPath
+    if (record.frameType === 'first_frame') sbUpdate.firstFrameImage = publicUrl
+    else if (record.frameType === 'last_frame') sbUpdate.lastFrameImage = publicUrl
+    else sbUpdate.composedImage = publicUrl
     await db.update(schema.storyboards).set(sbUpdate).where(eq(schema.storyboards.id, record.storyboardId)).run()
   }
   if (record?.characterId) {
-    await db.update(schema.characters).set({ imageUrl: localPath, updatedAt: now() }).where(eq(schema.characters.id, record.characterId)).run()
+    await db.update(schema.characters).set({ imageUrl: publicUrl, localPath, updatedAt: now() }).where(eq(schema.characters.id, record.characterId)).run()
   }
   if (record?.sceneId) {
-    await db.update(schema.scenes).set({ imageUrl: localPath, status: 'completed', updatedAt: now() }).where(eq(schema.scenes.id, record.sceneId)).run()
+    await db.update(schema.scenes).set({ imageUrl: publicUrl, localPath, status: 'completed', updatedAt: now() }).where(eq(schema.scenes.id, record.sceneId)).run()
   }
 }
 
 async function handleImageCompleteBase64(id: number, provider: string, base64Data: string, mimeType: string) {
   const localPath = await saveBase64Image(base64Data, mimeType, 'images')
+  const publicUrl = await uploadStaticAssetToCos(localPath) || localPath
   const rows = (await db.select().from(schema.imageGenerations).where(eq(schema.imageGenerations.id, id)).all())
   const record = rows[0]
 
   await db.update(schema.imageGenerations)
-    .set({ localPath, status: 'completed', updatedAt: now() })
+    .set({ localPath, minioUrl: publicUrl, status: 'completed', updatedAt: now() })
     .where(eq(schema.imageGenerations.id, id))
     .run()
-  logTaskSuccess('ImageTask', 'saved-base64', { id, provider, mimeType, localPath })
+  logTaskSuccess('ImageTask', 'saved-base64', { id, provider, mimeType, localPath, publicUrl })
 
   // 更新关联表
   if (record?.storyboardId) {
     const sbUpdate: Record<string, any> = { updatedAt: now() }
-    if (record.frameType === 'first_frame') sbUpdate.firstFrameImage = localPath
-    else if (record.frameType === 'last_frame') sbUpdate.lastFrameImage = localPath
-    else sbUpdate.composedImage = localPath
+    if (record.frameType === 'first_frame') sbUpdate.firstFrameImage = publicUrl
+    else if (record.frameType === 'last_frame') sbUpdate.lastFrameImage = publicUrl
+    else sbUpdate.composedImage = publicUrl
     await db.update(schema.storyboards).set(sbUpdate).where(eq(schema.storyboards.id, record.storyboardId)).run()
   }
   if (record?.characterId) {
-    await db.update(schema.characters).set({ imageUrl: localPath, updatedAt: now() }).where(eq(schema.characters.id, record.characterId)).run()
+    await db.update(schema.characters).set({ imageUrl: publicUrl, localPath, updatedAt: now() }).where(eq(schema.characters.id, record.characterId)).run()
   }
   if (record?.sceneId) {
-    await db.update(schema.scenes).set({ imageUrl: localPath, status: 'completed', updatedAt: now() }).where(eq(schema.scenes.id, record.sceneId)).run()
+    await db.update(schema.scenes).set({ imageUrl: publicUrl, localPath, status: 'completed', updatedAt: now() }).where(eq(schema.scenes.id, record.sceneId)).run()
   }
 }

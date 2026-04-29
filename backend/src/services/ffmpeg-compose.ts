@@ -10,6 +10,7 @@ import { eq } from 'drizzle-orm'
 import { now } from '../utils/response.js'
 import { logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
 import { resolveDataRoot, resolveStorageRoot } from '../utils/runtime-paths.js'
+import { staticAssetToLocalPath, uploadStaticAssetToCos } from '../utils/cos.js'
 import { ffmpeg, hasAudioStream } from './ffmpeg.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -18,9 +19,7 @@ const DATA_ROOT = resolveDataRoot(PROJECT_ROOT)
 const STORAGE_ROOT = resolveStorageRoot(PROJECT_ROOT)
 
 function toAbsPath(relativePath: string): string {
-  if (path.isAbsolute(relativePath)) return relativePath
-  if (relativePath.startsWith('static/')) return path.join(DATA_ROOT, relativePath)
-  return path.join(STORAGE_ROOT, relativePath)
+  return staticAssetToLocalPath(relativePath, DATA_ROOT, STORAGE_ROOT)
 }
 
 /**
@@ -89,20 +88,22 @@ export async function composeStoryboard(storyboardId: number): Promise<string> {
     })
 
     const composedRelative = `static/composed/${outputFilename}`
+    const composedUrl = await uploadStaticAssetToCos(composedRelative, outputPath) || composedRelative
     await db.update(schema.storyboards)
-      .set({ composedVideoUrl: composedRelative, status: 'compose_completed', updatedAt: now() })
+      .set({ composedVideoUrl: composedUrl, status: 'compose_completed', updatedAt: now() })
       .where(eq(schema.storyboards.id, storyboardId))
       .run()
 
     logTaskSuccess('ComposeTask', 'storyboard-compose', {
       storyboardId,
       storyboardNumber: storyboard.storyboardNumber,
-      output: composedRelative,
+      output: composedUrl,
+      localPath: composedRelative,
       mode: 'video-only',
       hasAudio,
     })
 
-    return composedRelative
+    return composedUrl
   } catch (error) {
     await db.update(schema.storyboards)
       .set({ status: 'compose_failed', composedVideoUrl: null, updatedAt: now() })

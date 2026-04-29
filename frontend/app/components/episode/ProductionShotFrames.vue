@@ -154,9 +154,9 @@
                 :key="src + index"
                 class="shot-ref-strip__item"
                 type="button"
-                @click="openViewer('/' + src, `镜头 #${selectedShotIndexLabel} 参考图 ${index + 1}`)"
+                @click="openViewer(assetUrl(src), `镜头 #${selectedShotIndexLabel} 参考图 ${index + 1}`)"
               >
-                <img :src="'/' + src" class="previewable-image" />
+                <img :src="assetUrl(src)" class="previewable-image" />
                 <span class="shot-ref-strip__remove" @click.stop="removeReferenceImage(src)">×</span>
               </button>
             </div>
@@ -221,7 +221,7 @@
               @keydown.space.prevent="emit('select-shot', sb)"
             >
               <div class="shot-board__thumb">
-                <img v-if="getShotCover(sb)" :src="'/' + getShotCover(sb)" class="previewable-image" />
+                <img v-if="getShotCover(sb)" :src="assetUrl(getShotCover(sb))" class="previewable-image" />
                 <div v-else class="shot-board__thumb-empty">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                 </div>
@@ -295,7 +295,7 @@
                 <span class="shot-result-card__check"></span>
                 <img
                   v-if="card.imageSrc"
-                  :src="'/' + card.imageSrc"
+                  :src="assetUrl(card.imageSrc)"
                   class="shot-result-card__image previewable-image"
                   @click.stop="openFrameViewer(card)"
                 />
@@ -346,7 +346,7 @@
               type="button"
               @click="restoreHistoryImage(item)"
             >
-              <img :src="'/' + item.src" class="previewable-image" />
+              <img :src="assetUrl(item.src)" class="previewable-image" />
               <span>{{ item.slotLabel }}</span>
             </button>
           </div>
@@ -378,7 +378,7 @@
             :class="['shot-reference-picker__item', { selected: selectedReferenceDisplayImages.includes(option.src) }]"
             @click="addReferenceImage(option.src)"
           >
-            <img :src="'/' + option.src" class="previewable-image" />
+            <img :src="assetUrl(option.src)" class="previewable-image" />
             <span>{{ option.label }}</span>
           </button>
         </div>
@@ -393,8 +393,8 @@
 
     <div v-if="gridHistory.length" class="grid-history-panel">
       <div v-if="gridImagePath" class="latest-grid-strip">
-        <button class="latest-grid-strip-thumb" @click="openViewer(`/${gridImagePath}`, '当前宫格图')">
-          <img :src="'/' + gridImagePath" class="previewable-image" />
+        <button class="latest-grid-strip-thumb" @click="openViewer(assetUrl(gridImagePath), '当前宫格图')">
+          <img :src="assetUrl(gridImagePath)" class="previewable-image" />
         </button>
         <div class="latest-grid-strip-copy">
           <div class="latest-grid-strip-head">
@@ -432,7 +432,7 @@
           @click="emit('select-grid-history', item)"
         >
           <div class="grid-history-thumb">
-            <img :src="'/' + item.localPath" class="previewable-image" />
+            <img :src="assetUrl(item.localPath)" class="previewable-image" />
           </div>
           <div class="grid-history-copy">
             <div class="grid-history-tags">
@@ -456,7 +456,7 @@
         <div class="frame-card__cover" :style="{ aspectRatio: frameCardAspectRatio }">
           <img
             v-if="card.imageSrc"
-            :src="'/' + card.imageSrc"
+            :src="assetUrl(card.imageSrc)"
             class="frame-card__image previewable-image"
             @click.stop="openFrameViewer(card)"
           />
@@ -645,9 +645,9 @@
               <div class="grid-preview-wrap">
                 <div class="grid-preview-stage">
                   <img
-                    :src="'/' + gridImagePath"
+                    :src="assetUrl(gridImagePath)"
                     class="grid-preview-img previewable-image"
-                    @click.stop="openViewer('/' + gridImagePath, '宫格图预览')"
+                    @click.stop="openViewer(assetUrl(gridImagePath), '宫格图预览')"
                   />
                   <div class="grid-overlay" :style="gridOverlayStyle">
                     <button
@@ -1070,7 +1070,7 @@ const selectedShotPendingAny = computed(() => (
 
 function openFrameViewer(card) {
   if (!card.imageSrc) return
-  openViewer('/' + card.imageSrc, card.viewerTitle)
+  openViewer(assetUrl(card.imageSrc), card.viewerTitle)
 }
 
 function generateFrame(card) {

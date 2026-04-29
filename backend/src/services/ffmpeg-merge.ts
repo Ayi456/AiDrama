@@ -10,6 +10,7 @@ import { eq } from 'drizzle-orm'
 import { now } from '../utils/response.js'
 import { logTaskError, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
 import { resolveDataRoot, resolveStorageRoot } from '../utils/runtime-paths.js'
+import { staticAssetToLocalPath, uploadStaticAssetToCos } from '../utils/cos.js'
 import { escapeConcatPath, ffmpeg, getVideoDuration } from './ffmpeg.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -18,9 +19,7 @@ const DATA_ROOT = resolveDataRoot(PROJECT_ROOT)
 const STORAGE_ROOT = resolveStorageRoot(PROJECT_ROOT)
 
 function toAbsPath(relativePath: string): string {
-  if (path.isAbsolute(relativePath)) return relativePath
-  if (relativePath.startsWith('static/')) return path.join(DATA_ROOT, relativePath)
-  return path.join(STORAGE_ROOT, relativePath)
+  return staticAssetToLocalPath(relativePath, DATA_ROOT, STORAGE_ROOT)
 }
 
 function removeManagedFile(fileUrl: string | null | undefined) {
@@ -72,7 +71,7 @@ export async function mergeEpisodeVideos(episodeId: number, dramaId: number): Pr
 
   logTaskStart('MergeTask', 'episode-merge', { episodeId, dramaId, clips: videos.length })
 
-  clearPreviousEpisodeMerge(episodeId)
+  await clearPreviousEpisodeMerge(episodeId)
 
   // 创建 merge 记录
   const ts = now()
@@ -150,17 +149,18 @@ async function doMerge(mergeId: number, episodeId: number, videos: string[]) {
   const duration = await getVideoDuration(outputPath)
 
   const mergedRelative = `static/merged/${outputFilename}`
+  const mergedUrl = await uploadStaticAssetToCos(mergedRelative, outputPath) || mergedRelative
 
   // 更新 merge 记录
   await db.update(schema.videoMerges)
-    .set({ status: 'completed', mergedUrl: mergedRelative, duration, completedAt: now() })
+    .set({ status: 'completed', mergedUrl, duration, completedAt: now() })
     .where(eq(schema.videoMerges.id, mergeId)).run()
 
   // 更新 episode
   await db.update(schema.episodes)
-    .set({ videoUrl: mergedRelative, updatedAt: now() })
+    .set({ videoUrl: mergedUrl, updatedAt: now() })
     .where(eq(schema.episodes.id, episodeId)).run()
 
-  logTaskSuccess('MergeTask', 'episode-merge', { mergeId, episodeId, output: mergedRelative, duration, clips: videos.length })
+  logTaskSuccess('MergeTask', 'episode-merge', { mergeId, episodeId, output: mergedUrl, localPath: mergedRelative, duration, clips: videos.length })
 }
 

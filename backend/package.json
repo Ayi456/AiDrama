@@ -7,7 +7,7 @@
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "build": "tsc",
-    "test": "tsc -p tsconfig.json && node dist/services/__tests__/provider-spec.test.js && node dist/services/__tests__/ffmpeg.test.js && node dist/utils/__tests__/runtime-paths.test.js && node dist/agents/__tests__/storyboard-chunks.test.js",
+    "test": "tsc -p tsconfig.json && node dist/services/__tests__/provider-spec.test.js && node dist/services/__tests__/ffmpeg.test.js && node dist/utils/__tests__/runtime-paths.test.js && node dist/utils/__tests__/cos.test.js && node dist/agents/__tests__/storyboard-chunks.test.js",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "typecheck": "tsc --noEmit"

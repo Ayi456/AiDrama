@@ -24,7 +24,7 @@
         <div class="character-gallery__cover">
           <img
             v-if="hasCharacterImage(character)"
-            :src="'/' + getCharacterImage(character)"
+            :src="assetUrl(getCharacterImage(character))"
             class="character-gallery__image"
             @click.stop="openCharacterImage(character)"
           />
@@ -125,7 +125,7 @@ function openCharacterImage(character) {
   const src = getCharacterImage(character)
   if (!src) return
   emit('open-image-viewer', {
-    src: `/${src}`,
+    src: assetUrl(src),
     title: `${character.name} 角色形象`,
   })
 }

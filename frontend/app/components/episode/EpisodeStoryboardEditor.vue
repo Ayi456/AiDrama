@@ -102,7 +102,7 @@
                 <div class="detail-preview-media">
                   <img
                     v-if="getFirstFrame(selectedSb)"
-                    :src="'/' + getFirstFrame(selectedSb)"
+                    :src="assetUrl(getFirstFrame(selectedSb))"
                     class="previewable-image"
                     @click.stop="openViewer(getFirstFrame(selectedSb), `镜头 #${selectedShotNumber} 首帧`)"
                   />
@@ -114,7 +114,7 @@
                 <div class="detail-preview-media">
                   <img
                     v-if="getLastFrame(selectedSb)"
-                    :src="'/' + getLastFrame(selectedSb)"
+                    :src="assetUrl(getLastFrame(selectedSb))"
                     class="previewable-image"
                     @click.stop="openViewer(getLastFrame(selectedSb), `镜头 #${selectedShotNumber} 尾帧`)"
                   />
@@ -395,6 +395,6 @@ function isCharacterSelected(charId) {
 
 function openViewer(src, title) {
   if (!src) return
-  emit('open-image-viewer', { src: `/${src}`, title })
+  emit('open-image-viewer', { src: assetUrl(src), title })
 }
 </script>

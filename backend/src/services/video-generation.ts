@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { getActiveConfig, getConfigById } from './ai.js'
 import { now } from '../utils/response.js'
 import { downloadFile, readImageAsCompressedDataUrl } from '../utils/storage.js'
+import { uploadStaticAssetToCos } from '../utils/cos.js'
 import { getVideoAdapter } from './adapters/registry.js'
 import type { AIConfig } from './adapters/types.js'
 import { buildVideoJobSpecFromLegacyRequest } from './provider-spec.js'
@@ -166,7 +167,7 @@ async function processVideoGeneration(id: number, config: AIConfig) {
     if (!isAsync && videoUrl) {
       logTaskProgress('VideoTask', 'sync-complete', { id, videoUrl })
       // 同步模式
-      await handleVideoComplete(id, videoUrl, record.duration)
+      await handleVideoComplete(id, videoUrl, record.duration, record.storyboardId)
       return
     }
 
@@ -277,15 +278,16 @@ async function pollVideoTask(id: number, config: AIConfig, taskId: string, story
 
 async function handleVideoComplete(id: number, videoUrl: string, duration: number | null | undefined, storyboardId?: number | null) {
   const localPath = await downloadFile(videoUrl, 'videos')
+  const publicUrl = await uploadStaticAssetToCos(localPath) || localPath
   await db.update(schema.videoGenerations)
-    .set({ videoUrl, localPath, status: 'completed', completedAt: now(), updatedAt: now() })
+    .set({ videoUrl, localPath, minioUrl: publicUrl, status: 'completed', completedAt: now(), updatedAt: now() })
     .where(eq(schema.videoGenerations.id, id))
     .run()
-  logTaskSuccess('VideoTask', 'downloaded', { id, localPath, storyboardId, duration })
+  logTaskSuccess('VideoTask', 'downloaded', { id, localPath, publicUrl, storyboardId, duration })
 
   if (storyboardId) {
     await db.update(schema.storyboards)
-      .set({ videoUrl: localPath, duration: duration || undefined, updatedAt: now() })
+      .set({ videoUrl: publicUrl, duration: duration || undefined, updatedAt: now() })
       .where(eq(schema.storyboards.id, storyboardId))
       .run()
   }

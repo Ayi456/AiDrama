@@ -6,6 +6,7 @@ import { generateImage } from '../services/image-generation.js'
 import { splitGridImage } from '../services/grid-split.js'
 import { createAgent } from '../agents/index.js'
 import { logTaskError, logTaskPayload, logTaskProgress } from '../utils/task-logger.js'
+import { uploadStaticAssetToCos } from '../utils/cos.js'
 
 const app = new Hono()
 
@@ -577,19 +578,20 @@ app.post('/split', async (c) => {
       const { storyboard_id, frame_type } = assignments[i]
       const cell = cells[i]
       if (!storyboard_id) continue
+      const publicPath = await uploadStaticAssetToCos(cell.localPath) || cell.localPath
 
       const update: Record<string, any> = { updatedAt: now() }
-      if (frame_type === 'first_frame') update.firstFrameImage = cell.localPath
-      else if (frame_type === 'last_frame') update.lastFrameImage = cell.localPath
+      if (frame_type === 'first_frame') update.firstFrameImage = publicPath
+      else if (frame_type === 'last_frame') update.lastFrameImage = publicPath
       else if (frame_type === 'reference') {
         const [sb] = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.id, storyboard_id)).all())
         const existing = sb?.referenceImages ? JSON.parse(sb.referenceImages) : []
-        existing.push(cell.localPath)
+        existing.push(publicPath)
         update.referenceImages = JSON.stringify(existing)
       }
 
       await db.update(schema.storyboards).set(update).where(eq(schema.storyboards.id, storyboard_id)).run()
-      results.push({ storyboard_id, frame_type, local_path: cell.localPath })
+      results.push({ storyboard_id, frame_type, local_path: cell.localPath, public_url: publicPath })
     }
 
     return success(c, { cells: results })

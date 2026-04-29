@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm'
 import { db, schema } from '../db/index.js'
 import { success, badRequest } from '../utils/response.js'
 import { downloadFile } from '../utils/storage.js'
+import { uploadStaticAssetToCos } from '../utils/cos.js'
 import { ViduVideoAdapter } from '../services/adapters/vidu-video.js'
 import { logTaskError, logTaskProgress, logTaskSuccess, logTaskWarn } from '../utils/task-logger.js'
 
@@ -45,10 +46,12 @@ app.post('/vidu', async (c) => {
   if (state === 'success' && video_url) {
     try {
       const localPath = await downloadFile(video_url, 'videos')
+      const publicUrl = await uploadStaticAssetToCos(localPath) || localPath
       await db.update(schema.videoGenerations)
         .set({
           videoUrl: video_url,
           localPath,
+          minioUrl: publicUrl,
           status: 'completed',
           updatedAt: new Date().toISOString(),
         })
@@ -58,7 +61,7 @@ app.post('/vidu', async (c) => {
       // 更新 storyboard
       if (record.storyboardId) {
         await db.update(schema.storyboards)
-          .set({ videoUrl: localPath, updatedAt: new Date().toISOString() })
+          .set({ videoUrl: publicUrl, updatedAt: new Date().toISOString() })
           .where(eq(schema.storyboards.id, record.storyboardId))
           .run()
       }
@@ -68,6 +71,7 @@ app.post('/vidu', async (c) => {
         generationId: record.id,
         storyboardId: record.storyboardId,
         localPath,
+        publicUrl,
       })
       return success(c, { message: 'Video updated successfully' })
     } catch (err: any) {

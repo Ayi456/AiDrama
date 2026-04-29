@@ -24,7 +24,7 @@
         <div class="prod-cover">
           <video
             v-if="state.hasComposed(sb)"
-            :src="'/' + state.getComposedVideoUrl(sb)"
+            :src="assetUrl(state.getComposedVideoUrl(sb))"
             class="prod-video"
             controls
             preload="metadata"
@@ -32,7 +32,7 @@
           />
           <video
             v-else-if="state.hasVid(sb)"
-            :src="'/' + state.getVideoUrl(sb)"
+            :src="assetUrl(state.getVideoUrl(sb))"
             class="prod-video"
             controls
             preload="metadata"
@@ -40,7 +40,7 @@
           />
           <img
             v-else-if="state.hasImg(sb)"
-            :src="'/' + state.getStoryboardCover(sb)"
+            :src="assetUrl(state.getStoryboardCover(sb))"
             class="previewable-image"
             @click.stop="handlers.openImageByPath(state.getStoryboardCover(sb), `镜头 #${String(i + 1).padStart(2, '0')} 参考图`)"
           />

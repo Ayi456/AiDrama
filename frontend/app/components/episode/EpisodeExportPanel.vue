@@ -11,7 +11,7 @@
     <div v-else class="export-split">
       <div class="export-main">
         <template v-if="mergeUrl">
-          <video :src="'/' + mergeUrl" controls class="export-video" />
+          <video :src="assetUrl(mergeUrl)" controls class="export-video" />
           <div class="export-bar">
             <span class="tag tag-success">拼接完成</span>
             <span class="dim" style="font-size:12px">{{ sbs.length }} 镜头 · {{ totalDuration }}s</span>
@@ -19,7 +19,7 @@
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>
               重新拼接
             </button>
-            <a :href="'/' + mergeUrl" download class="btn btn-primary">
+            <a :href="assetUrl(mergeUrl)" download class="btn btn-primary">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               下载视频
             </a>

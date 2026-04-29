@@ -836,7 +836,7 @@ const productionPanelHandlers = {
   batchCompose,
   doCompose,
   openImageByPath: (path, title) => {
-    if (path) openImageViewer('/' + path, title)
+    if (path) openImageViewer(assetUrl(path), title)
   },
 }
 

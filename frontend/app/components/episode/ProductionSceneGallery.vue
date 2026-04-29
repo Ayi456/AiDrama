@@ -23,7 +23,7 @@
         <div class="scene-gallery__cover">
           <img
             v-if="hasSceneImage(scene)"
-            :src="'/' + getSceneImage(scene)"
+            :src="assetUrl(getSceneImage(scene))"
             class="scene-gallery__image"
             @click.stop="openSceneImage(scene)"
           />
@@ -130,7 +130,7 @@ function openSceneImage(scene) {
   const src = getSceneImage(scene)
   if (!src) return
   emit('open-image-viewer', {
-    src: `/${src}`,
+    src: assetUrl(src),
     title: `${scene.location} 场景图`,
   })
 }

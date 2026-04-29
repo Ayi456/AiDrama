@@ -84,12 +84,12 @@
             </div>
             <div class="video-workbench__refs">
               <button class="video-workbench__ref" type="button" @click="openReference(firstFrame, `镜头 #${selectedShotIndexLabel} 首帧`)">
-                <img v-if="firstFrame" :src="'/' + firstFrame" class="previewable-image" />
+                <img v-if="firstFrame" :src="assetUrl(firstFrame)" class="previewable-image" />
                 <div v-else class="prod-cover-empty">暂无首帧</div>
                 <b>首帧</b>
               </button>
               <button class="video-workbench__ref" type="button" @click="openReference(lastFrame, `镜头 #${selectedShotIndexLabel} 尾帧`)">
-                <img v-if="lastFrame" :src="'/' + lastFrame" class="previewable-image" />
+                <img v-if="lastFrame" :src="assetUrl(lastFrame)" class="previewable-image" />
                 <div v-else class="prod-cover-empty">暂无尾帧</div>
                 <b>尾帧</b>
               </button>
@@ -144,12 +144,12 @@
               <div class="shot-board__thumb">
                 <video
                   v-if="state.hasVid(sb)"
-                  :src="'/' + state.getVideoUrl(sb)"
+                  :src="assetUrl(state.getVideoUrl(sb))"
                   muted
                   playsinline
                   preload="metadata"
                 />
-                <img v-else-if="state.hasImg(sb)" :src="'/' + state.getStoryboardCover(sb)" class="previewable-image" />
+                <img v-else-if="state.hasImg(sb)" :src="assetUrl(state.getStoryboardCover(sb))" class="previewable-image" />
                 <div v-else class="shot-board__thumb-empty">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
                 </div>
@@ -209,7 +209,7 @@
         <div class="video-workbench__result">
           <video
             v-if="state.hasVid(selectedShot)"
-            :src="'/' + state.getVideoUrl(selectedShot)"
+            :src="assetUrl(state.getVideoUrl(selectedShot))"
             class="prod-video"
             controls
             preload="metadata"
@@ -217,7 +217,7 @@
           />
           <img
             v-else-if="state.hasImg(selectedShot)"
-            :src="'/' + state.getStoryboardCover(selectedShot)"
+            :src="assetUrl(state.getStoryboardCover(selectedShot))"
             class="previewable-image"
             @click.stop="handlers.openImageByPath(state.getStoryboardCover(selectedShot), `镜头 #${selectedShotIndexLabel} 参考图`)"
           />
