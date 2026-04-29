@@ -1,7 +1,8 @@
 <template>
-  <div class="page" v-if="drama">
-    <!-- Header -->
-    <div class="page-head">
+  <div class="drama-detail page" v-if="drama">
+    <div class="drama-detail-main">
+      <!-- Header -->
+      <div class="page-head">
       <div class="head-left">
         <button class="back-btn" @click="navigateTo('/')">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -32,10 +33,10 @@
         </svg>
         添加集
       </button>
-    </div>
+      </div>
 
-    <!-- Episode List -->
-    <div class="section-label">
+      <!-- Episode List -->
+      <div class="section-label">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
         <rect x="2" y="2" width="20" height="20" rx="2.5"/>
         <line x1="7" y1="8" x2="7" y2="16"/>
@@ -44,9 +45,9 @@
         <line x1="16" y1="8" x2="16" y2="16"/>
       </svg>
       剧集列表
-    </div>
+      </div>
 
-    <div class="ep-grid">
+      <div class="ep-grid">
       <div
         v-for="(ep, i) in drama.episodes"
         :key="ep.id"
@@ -80,6 +81,7 @@
           </svg>
         </div>
         <p>点击上方「添加集」创建第一集</p>
+      </div>
       </div>
     </div>
 

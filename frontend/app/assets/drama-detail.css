@@ -1,21 +1,25 @@
-.page {
+.drama-detail.page {
   padding: 28px 48px 40px;
   overflow-y: auto;
   height: 100%;
   animation: fadeUp 0.35s var(--ease-out) both;
 }
 
-.page-head {
+.drama-detail .drama-detail-main {
+  width: min(760px, 100%);
+}
+
+.drama-detail .page-head {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
   margin-bottom: 24px;
   gap: 20px;
 }
-.head-left { display: flex; align-items: flex-start; gap: 12px; }
-.head-info { display: flex; flex-direction: column; gap: 8px; }
+.drama-detail .head-left { display: flex; align-items: flex-start; gap: 12px; }
+.drama-detail .head-info { display: flex; flex-direction: column; gap: 8px; }
 
-.back-btn {
+.drama-detail .back-btn {
   display: flex; align-items: center; gap: 6px;
   padding: 7px 12px; font-size: 13px; font-weight: 500;
   border: 1px solid var(--border); border-radius: var(--radius);
@@ -23,30 +27,30 @@
   cursor: pointer; transition: all 0.18s var(--ease-out);
   box-shadow: var(--shadow-xs);
 }
-.back-btn:hover { background: var(--bg-hover); border-color: var(--border-strong); color: var(--text-0); }
+.drama-detail .back-btn:hover { background: var(--bg-hover); border-color: var(--border-strong); color: var(--text-0); }
 
-.page-title {
+.drama-detail .page-title {
   font-family: var(--font-display);
   font-size: 26px; font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.2;
 }
 
-.page-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.style-chip {
+.drama-detail .page-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.drama-detail .style-chip {
   font-size: 11px; font-weight: 500;
   padding: 2px 8px;
   background: var(--accent-bg); color: var(--accent-text);
   border-radius: 99px; border: 1px solid rgba(184,120,20,0.12);
 }
-.meta-divider { width: 3px; height: 3px; border-radius: 50%; background: var(--text-3); }
-.meta-item {
+.drama-detail .meta-divider { width: 3px; height: 3px; border-radius: 50%; background: var(--text-3); }
+.drama-detail .meta-item {
   display: flex; align-items: center; gap: 5px;
   font-size: 12px; color: var(--text-2);
 }
 
 /* Section label */
-.section-label {
+.drama-detail .section-label {
   display: flex; align-items: center; gap: 7px;
   font-size: 11px; font-weight: 700;
   color: var(--text-3); letter-spacing: 0.08em;
@@ -55,22 +59,22 @@
 }
 
 /* Episode Grid */
-.ep-grid { display: flex; flex-direction: column; gap: 10px; max-width: 760px; }
+.drama-detail .ep-grid { display: flex; flex-direction: column; gap: 10px; width: 100%; }
 
-.ep-card {
+.drama-detail .ep-card {
   display: flex; align-items: center; gap: 16px;
   padding: 14px 16px;
   cursor: pointer;
   animation: fadeUp 0.35s var(--ease-out) both;
   transition: transform 0.18s var(--ease-out), box-shadow 0.18s var(--ease-out), border-color 0.18s;
 }
-.ep-card:hover {
+.drama-detail .ep-card:hover {
   border-color: var(--accent);
   box-shadow: var(--shadow);
   transform: translateX(4px);
 }
 
-.ep-number {
+.drama-detail .ep-number {
   width: 44px; height: 44px; flex-shrink: 0;
   border-radius: var(--radius);
   background: var(--bg-2);
@@ -81,38 +85,38 @@
   color: var(--text-2);
   transition: all 0.18s;
 }
-.ep-card:hover .ep-number {
+.drama-detail .ep-card:hover .ep-number {
   background: var(--accent-bg);
   border-color: rgba(184,120,20,0.2);
   color: var(--accent);
 }
 
-.ep-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
-.ep-title { font-size: 14px; font-weight: 600; color: var(--text-0); }
-.ep-status { display: flex; align-items: center; gap: 6px; }
-.status-dot {
+.drama-detail .ep-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.drama-detail .ep-title { font-size: 14px; font-weight: 600; color: var(--text-0); }
+.drama-detail .ep-status { display: flex; align-items: center; gap: 6px; }
+.drama-detail .status-dot {
   width: 6px; height: 6px; border-radius: 50%;
 }
-.dot-ready { background: var(--success); }
-.dot-pending { background: var(--text-3); }
-.status-text { font-size: 11px; color: var(--text-3); }
-.ep-duration { font-size: 11px; color: var(--text-3); font-family: var(--font-mono); margin-left: 4px; }
+.drama-detail .dot-ready { background: var(--success); }
+.drama-detail .dot-pending { background: var(--text-3); }
+.drama-detail .status-text { font-size: 11px; color: var(--text-3); }
+.drama-detail .ep-duration { font-size: 11px; color: var(--text-3); font-family: var(--font-mono); margin-left: 4px; }
 
-.ep-arrow { color: var(--text-3); flex-shrink: 0; transition: transform 0.18s; }
-.ep-card:hover .ep-arrow { transform: translateX(3px); color: var(--accent); }
+.drama-detail .ep-arrow { color: var(--text-3); flex-shrink: 0; transition: transform 0.18s; }
+.drama-detail .ep-card:hover .ep-arrow { transform: translateX(3px); color: var(--accent); }
 
 /* Empty */
-.ep-empty {
+.drama-detail .ep-empty {
   display: flex; flex-direction: column; align-items: center; gap: 10px;
   padding: 48px; text-align: center; color: var(--text-3); font-size: 13px;
   border-style: dashed;
 }
-.ep-empty-icon {
+.drama-detail .ep-empty-icon {
   width: 48px; height: 48px; border-radius: 50%;
   background: var(--bg-2); display: flex; align-items: center; justify-content: center;
 }
 
-.dialog-mask {
+.drama-detail .dialog-mask {
   position: fixed;
   inset: 0;
   background: rgba(15, 23, 38, 0.18);
@@ -122,7 +126,7 @@
   justify-content: center;
   padding: 24px;
 }
-.dialog {
+.drama-detail .dialog {
   width: min(760px, 100%);
   max-height: min(860px, calc(100vh - 48px));
   display: flex;
@@ -138,18 +142,18 @@
   border: 1px solid rgba(27, 41, 64, 0.08);
   box-shadow: 0 22px 52px rgba(32, 48, 77, 0.14), 0 8px 18px rgba(32, 48, 77, 0.08);
 }
-.dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-.dialog-head-copy { display: flex; flex-direction: column; gap: 8px; max-width: 520px; }
-.dialog-kicker {
+.drama-detail .dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.drama-detail .dialog-head-copy { display: flex; flex-direction: column; gap: 8px; max-width: 520px; }
+.drama-detail .dialog-kicker {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--text-3);
 }
-.dialog-title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.dialog-title { font-size: 28px; font-weight: 800; color: var(--text-0); letter-spacing: -0.03em; }
-.dialog-badge {
+.drama-detail .dialog-title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.drama-detail .dialog-title { font-size: 28px; font-weight: 800; color: var(--text-0); letter-spacing: -0.03em; }
+.drama-detail .dialog-badge {
   display: inline-flex;
   align-items: center;
   height: 28px;
@@ -160,13 +164,13 @@
   font-size: 12px;
   font-weight: 700;
 }
-.dialog-sub { font-size: 14px; line-height: 1.7; color: var(--text-2); }
-.dialog-summary {
+.drama-detail .dialog-sub { font-size: 14px; line-height: 1.7; color: var(--text-2); }
+.drama-detail .dialog-summary {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
 }
-.summary-chip {
+.drama-detail .summary-chip {
   display: inline-flex;
   align-items: center;
   height: 30px;
@@ -177,14 +181,14 @@
   font-size: 12px;
   color: var(--text-2);
 }
-.dialog-body {
+.drama-detail .dialog-body {
   display: flex;
   flex-direction: column;
   gap: 14px;
   overflow-y: auto;
   padding-right: 4px;
 }
-.dialog-section {
+.drama-detail .dialog-section {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -193,21 +197,21 @@
   background: rgba(255,255,255,0.72);
   border: 1px solid rgba(27, 41, 64, 0.08);
 }
-.dialog-section-head {
+.drama-detail .dialog-section-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
   flex-wrap: wrap;
 }
-.dialog-section-title { font-size: 14px; font-weight: 700; color: var(--text-0); }
-.dialog-section-copy { font-size: 12px; color: var(--text-3); }
-.config-grid {
+.drama-detail .dialog-section-title { font-size: 14px; font-weight: 700; color: var(--text-0); }
+.drama-detail .dialog-section-copy { font-size: 12px; color: var(--text-3); }
+.drama-detail .config-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
-.config-card {
+.drama-detail .config-card {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -216,47 +220,66 @@
   background: linear-gradient(180deg, rgba(244,248,255,0.96), rgba(255,255,255,0.78));
   border: 1px solid rgba(27, 41, 64, 0.08);
 }
-.config-card-kicker {
+.drama-detail .config-card-kicker {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-3);
 }
-.dialog-foot {
+.drama-detail .dialog-foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   padding-top: 2px;
 }
-.dialog-foot-copy {
+.drama-detail .dialog-foot-copy {
   flex: 1;
   font-size: 12px;
   line-height: 1.6;
   color: var(--text-3);
 }
-.field { display: flex; flex-direction: column; gap: 6px; }
-.field-label { font-size: 12px; font-weight: 600; color: var(--text-1); }
-.field-hint { font-size: 12px; color: var(--text-3); }
+.drama-detail .field { display: flex; flex-direction: column; gap: 6px; }
+.drama-detail .field-label { font-size: 12px; font-weight: 600; color: var(--text-1); }
+.drama-detail .field-hint { font-size: 12px; color: var(--text-3); }
 
 @media (max-width: 860px) {
-  .dialog {
+  .drama-detail.page {
+    padding: 20px 16px 32px;
+  }
+
+  .drama-detail .page-head {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .drama-detail .head-left {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .drama-detail .page-head > .btn {
+    align-self: flex-start;
+  }
+
+  .drama-detail .dialog {
     width: 100%;
     max-height: calc(100vh - 24px);
     padding: 18px;
     border-radius: 22px;
   }
 
-  .dialog-title {
+  .drama-detail .dialog-title {
     font-size: 24px;
   }
 
-  .config-grid {
+  .drama-detail .config-grid {
     grid-template-columns: 1fr;
   }
 
-  .dialog-foot {
+  .drama-detail .dialog-foot {
     flex-direction: column;
     align-items: stretch;
   }
