@@ -225,6 +225,24 @@ function createAuthorization(method: string, uriPath: string, config: CosConfig)
   ].join('&')
 }
 
+export function createCosRequestAuthorization(
+  method: string,
+  value: string | URL,
+  config: CosConfig | null = getCosConfig(),
+) {
+  if (!config) return null
+
+  let url: URL
+  try {
+    url = value instanceof URL ? value : new URL(String(value || '').trim())
+  } catch {
+    return null
+  }
+
+  if (url.host.toLowerCase() !== cosHost(config).toLowerCase()) return null
+  return createAuthorization(method, url.pathname || '/', config)
+}
+
 export async function uploadFileToCos(filePath: string, key: string, config: CosConfig = getCosConfig() as CosConfig) {
   if (!config) return null
 

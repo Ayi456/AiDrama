@@ -394,7 +394,6 @@ const providerSettingsTemplates = {
       providerOptions: {
         volcengine: {
           resolution: '720p',
-          service_tier: 'default',
           draft: false,
         },
       },

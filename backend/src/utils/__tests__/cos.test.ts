@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import {
   buildCosObjectUrl,
+  createCosRequestAuthorization,
   cosUrlToStaticPath,
   staticAssetToCosObjectKey,
   staticAssetToLocalPath,
@@ -93,5 +94,21 @@ runTest('staticAssetToLocalPath maps static paths and configured COS URLs to dat
       config,
     ),
     path.join('/repo/data', 'static/videos/demo.mp4'),
+  )
+})
+
+runTest('createCosRequestAuthorization signs configured COS URLs only', () => {
+  const authorization = createCosRequestAuthorization(
+    'GET',
+    'https://ai-drama-1255393412.cos.ap-shanghai.myqcloud.com/seedance/videos/demo.mp4',
+    config,
+  )
+
+  assert.ok(authorization)
+  assert.match(authorization, /q-ak=id/)
+  assert.match(authorization, /q-header-list=host/)
+  assert.equal(
+    createCosRequestAuthorization('GET', 'https://example.com/seedance/videos/demo.mp4', config),
+    null,
   )
 })

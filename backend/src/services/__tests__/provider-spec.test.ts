@@ -245,11 +245,54 @@ runTest('VolcEngineVideoAdapter maps normalized video spec into Seedance content
 
   assert.equal(req.body.generate_audio, false)
   assert.equal(req.body.return_last_frame, true)
-  assert.equal(req.body.service_tier, 'flex')
+  assert.equal('service_tier' in req.body, false)
   assert.equal(req.body.resolution, '720p')
   assert.equal(req.body.duration, 8)
   assert.deepEqual(
     req.body.content.slice(1).map((item: any) => item.role),
     ['reference_image', 'reference_image'],
+  )
+})
+
+runTest('VolcEngineVideoAdapter does not pass service_tier through to Seedance video payload', () => {
+  const adapter = new VolcEngineVideoAdapter()
+  const spec = buildVideoJobSpecFromLegacyRequest(
+    {
+      prompt: 'camera crosses an empty hall',
+      referenceMode: 'first_last',
+      firstFrameUrl: 'https://example.com/first.png',
+      lastFrameUrl: 'https://example.com/last.png',
+      duration: 10,
+      aspectRatio: '16:9',
+    },
+    {
+      control: { generateAudio: true, returnLastFrame: false, watermark: false },
+      providerOptions: {
+        volcengine: { service_tier: 'default', resolution: '720p', draft: false },
+      },
+    },
+  )
+
+  const req = adapter.buildGenerateRequest(
+    {
+      provider: 'volcengine',
+      baseUrl: 'https://ark.cn-beijing.volces.com',
+      apiKey: 'test-key',
+      model: 'doubao-seedance-2-0-260128',
+      settings: {},
+    } as any,
+    {
+      id: 3,
+      model: 'doubao-seedance-2-0-260128',
+      prompt: spec.prompt,
+      normalizedSpec: spec,
+    } as any,
+  )
+
+  assert.equal(req.body.model, 'doubao-seedance-2-0-260128')
+  assert.equal('service_tier' in req.body, false)
+  assert.deepEqual(
+    req.body.content.slice(1).map((item: any) => item.role),
+    ['first_frame', 'last_frame'],
   )
 })

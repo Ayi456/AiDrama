@@ -1,6 +1,10 @@
 import { Hono } from 'hono'
 
-import { parseAssetProxyTarget } from '../utils/asset-proxy.js'
+import {
+  parseAssetProxyTarget,
+  shouldRedirectAssetProxyTarget,
+} from '../utils/asset-proxy.js'
+import { createCosRequestAuthorization } from '../utils/cos.js'
 
 const app = new Hono()
 
@@ -33,12 +37,17 @@ app.get('/proxy', async (c) => {
   if (!target) {
     return new Response('Invalid asset proxy target', { status: 400 })
   }
+  if (shouldRedirectAssetProxyTarget(target)) {
+    return Response.redirect(target.href, 302)
+  }
 
   const headers: Record<string, string> = {
     'User-Agent': 'AiDramaAssetProxy/1.0',
   }
   const range = c.req.header('range')
   if (range) headers.Range = range
+  const authorization = createCosRequestAuthorization('GET', target)
+  if (authorization) headers.Authorization = authorization
 
   const upstream = await fetch(target.href, {
     headers,

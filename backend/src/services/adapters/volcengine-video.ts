@@ -57,7 +57,6 @@ export class VolcEngineVideoAdapter implements VideoProviderAdapter {
     if (typeof spec?.control?.returnLastFrame === 'boolean') body.return_last_frame = spec.control.returnLastFrame
     if (typeof spec?.output?.resolution === 'string') body.resolution = spec.output.resolution
     if (typeof volcOptions.resolution === 'string') body.resolution = volcOptions.resolution
-    if (typeof volcOptions.service_tier === 'string') body.service_tier = volcOptions.service_tier
     if (typeof volcOptions.execution_expires_after === 'number') body.execution_expires_after = volcOptions.execution_expires_after
     if (typeof volcOptions.draft === 'boolean') body.draft = volcOptions.draft
     if (typeof volcOptions.safety_identifier === 'string') body.safety_identifier = volcOptions.safety_identifier

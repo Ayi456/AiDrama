@@ -60,3 +60,37 @@ runTest('wasToolUsed recognizes append_storyboards from successful append result
 
   assert.equal(wasToolUsed(normalized, 'append_storyboards'), true)
 })
+
+runTest('normalizeAgentResult reads Mastra chunk payload tool names and results', () => {
+  const normalized = normalizeAgentResult({
+    toolCalls: [
+      {
+        type: 'tool-call',
+        payload: {
+          toolCallId: 'call-append',
+          toolName: 'append_storyboards',
+          args: { storyboards: [] },
+        },
+      },
+    ],
+    toolResults: [
+      {
+        type: 'tool-result',
+        payload: {
+          toolCallId: 'call-append',
+          toolName: 'append_storyboards',
+          result: {
+            message: 'Appended 7 storyboards',
+            count: 7,
+            start_number: 1,
+            total_duration: 99,
+          },
+        },
+      },
+    ],
+  })
+
+  assert.deepEqual(normalized.toolCalls.map((toolCall) => toolCall.toolName), ['append_storyboards'])
+  assert.deepEqual(normalized.toolResults.map((toolResult) => toolResult.toolName), ['append_storyboards'])
+  assert.equal(wasToolUsed(normalized, 'append_storyboards'), true)
+})

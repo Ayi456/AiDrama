@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 
-import { isAllowedAssetProxyTarget } from '../asset-proxy.js'
+import {
+  isAllowedAssetProxyTarget,
+  shouldRedirectAssetProxyTarget,
+} from '../asset-proxy.js'
 
 function runTest(name: string, fn: () => void) {
   try {
@@ -53,4 +56,29 @@ runTest('isAllowedAssetProxyTarget rejects non-asset and unconfigured hosts', ()
   assert.equal(isAllowedAssetProxyTarget('https://example.com/seedream/images/a.jpeg', config), false)
   assert.equal(isAllowedAssetProxyTarget('https://ai-drama-1255393412.cos.ap-shanghai.myqcloud.com/login', config), false)
   assert.equal(isAllowedAssetProxyTarget('http://127.0.0.1/static/images/a.jpeg', config), false)
+})
+
+runTest('shouldRedirectAssetProxyTarget proxies configured COS streamable media', () => {
+  assert.equal(
+    shouldRedirectAssetProxyTarget(
+      new URL('https://ai-drama-1255393412.cos.ap-shanghai.myqcloud.com/seedance/videos/a.mp4'),
+      config,
+    ),
+    false,
+  )
+})
+
+runTest('shouldRedirectAssetProxyTarget redirects non-COS streamable media instead of proxying response bodies', () => {
+  assert.equal(
+    shouldRedirectAssetProxyTarget(new URL('https://ark-acg-cn-beijing.tos-cn-beijing.volces.com/doubao-seedance/a.mp4')),
+    true,
+  )
+  assert.equal(
+    shouldRedirectAssetProxyTarget(new URL('https://ark-acg-cn-beijing.tos-cn-beijing.volces.com/audio/a.mp3?sign=1')),
+    true,
+  )
+  assert.equal(
+    shouldRedirectAssetProxyTarget(new URL('https://ai-drama-1255393412.cos.ap-shanghai.myqcloud.com/seedream/images/a.jpeg')),
+    false,
+  )
 })

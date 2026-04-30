@@ -39,6 +39,7 @@ export function normalizeToolName(entry: any) {
     entry?.result?.toolName,
     entry?.output?.toolName,
     entry?.data?.toolName,
+    entry?.payload?.toolName,
     entry?.name,
     entry?.type,
   ]
@@ -52,7 +53,7 @@ export function normalizeToolName(entry: any) {
 }
 
 function normalizeToolResult(entry: any) {
-  const result = entry?.result ?? entry?.output ?? entry?.data ?? null
+  const result = entry?.result ?? entry?.output ?? entry?.data ?? entry?.payload?.result ?? null
   return typeof result === 'string' ? result : JSON.stringify(result)
 }
 
@@ -63,7 +64,7 @@ export function normalizeAgentResult(result: any): NormalizedAgentResult {
     text: result.text || '',
     toolCalls: toolCalls.map((tc: any) => ({
       toolName: normalizeToolName(tc),
-      args: tc?.args ?? tc?.input ?? null,
+      args: tc?.args ?? tc?.input ?? tc?.payload?.args ?? null,
     })),
     toolResults: toolResults.map((tr: any) => ({
       toolName: normalizeToolName(tr),
@@ -98,4 +99,3 @@ export function wasToolUsed(result: NormalizedAgentResult, toolName: string) {
 
   return false
 }
-

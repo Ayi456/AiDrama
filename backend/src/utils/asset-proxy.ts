@@ -2,6 +2,7 @@ import type { CosConfig } from './cos.js'
 import { getCosConfig } from './cos.js'
 
 const ASSET_PATH_RE = /\.(?:jpe?g|png|webp|gif|mp4|mov|webm|m4a|mp3|wav|aac|vtt)$/i
+const STREAMING_MEDIA_PATH_RE = /\.(?:mp4|mov|webm|m4a|mp3|wav|aac)$/i
 const VOLCENGINE_TOS_SUFFIX = '.tos-cn-beijing.volces.com'
 
 function configuredCosHost(config: Pick<CosConfig, 'bucket' | 'region'>) {
@@ -48,4 +49,18 @@ export function parseAssetProxyTarget(value: string) {
   const raw = String(value || '').trim()
   if (!isAllowedAssetProxyTarget(raw)) return null
   return new URL(raw)
+}
+
+export function shouldRedirectAssetProxyTarget(
+  target: URL,
+  config: Pick<CosConfig, 'bucket' | 'region' | 'publicBaseUrl'> | null = getCosConfig(),
+) {
+  if (!STREAMING_MEDIA_PATH_RE.test(decodeURIComponent(target.pathname))) return false
+
+  const host = target.host.toLowerCase()
+  if (config && host === configuredCosHost(config)) return false
+  const publicBaseHost = config ? configuredPublicBaseHost(config) : ''
+  if (publicBaseHost && host === publicBaseHost) return false
+
+  return true
 }
