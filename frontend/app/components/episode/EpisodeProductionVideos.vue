@@ -234,7 +234,6 @@
           <div class="shot-studio__shot-meta">
             <span class="tag">{{ selectedShot.shot_type || selectedShot.shotType || '未设景别' }}</span>
             <span class="tag">{{ state.getVideoReferenceSummary(selectedShot) }}</span>
-            <span v-if="state.hasComposed(selectedShot)" class="tag">已合成</span>
           </div>
           <div class="shot-studio__shot-desc">{{ selectedShot.description || selectedShot.title || '当前镜头还没有补充描述。' }}</div>
           <div v-if="state.videoFailMessage(selectedShot.id)" class="prod-error">{{ state.videoFailMessage(selectedShot.id) }}</div>

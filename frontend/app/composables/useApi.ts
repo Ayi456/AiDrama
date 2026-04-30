@@ -131,7 +131,10 @@ export const composeAPI = {
   status: (epId: number) => api.get(`/compose/episodes/${epId}/compose-status`),
 }
 export const mergeAPI = {
-  merge: (epId: number) => api.post(`/merge/episodes/${epId}/merge`),
+  merge: (epId: number, storyboardIds?: number[]) => api.post(
+    `/merge/episodes/${epId}/merge`,
+    Array.isArray(storyboardIds) ? { storyboard_ids: storyboardIds } : undefined,
+  ),
   status: (epId: number) => api.get(`/merge/episodes/${epId}/merge`),
 }
 export const aiConfigAPI = {

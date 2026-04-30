@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 
 import {
   parseAssetProxyTarget,
+  redirectAssetProxyTarget,
   shouldRedirectAssetProxyTarget,
 } from '../utils/asset-proxy.js'
 import { createCosRequestAuthorization } from '../utils/cos.js'
@@ -38,7 +39,7 @@ app.get('/proxy', async (c) => {
     return new Response('Invalid asset proxy target', { status: 400 })
   }
   if (shouldRedirectAssetProxyTarget(target)) {
-    return Response.redirect(target.href, 302)
+    return redirectAssetProxyTarget(target)
   }
 
   const headers: Record<string, string> = {

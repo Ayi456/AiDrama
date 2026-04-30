@@ -149,13 +149,11 @@
       />
 
       <EpisodeProductionVideos v-else-if="state.prodTab === 'videos'" :state="state" :handlers="handlers" />
-      <EpisodeProductionCompose v-else-if="state.prodTab === 'compose'" :state="state" :handlers="handlers" />
     </template>
   </div>
 </template>
 
 <script setup>
-import EpisodeProductionCompose from '~/components/episode/EpisodeProductionCompose.vue'
 import EpisodeProductionVideos from '~/components/episode/EpisodeProductionVideos.vue'
 import ProductionCharacterGallery from '~/components/episode/ProductionCharacterGallery.vue'
 import ProductionSceneGallery from '~/components/episode/ProductionSceneGallery.vue'

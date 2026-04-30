@@ -1,7 +1,7 @@
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { toast } from 'vue-sonner'
 import {
-  characterAPI, sceneAPI, imageAPI, videoAPI, composeAPI, mergeAPI, uploadAPI,
+  characterAPI, sceneAPI, imageAPI, videoAPI, mergeAPI, uploadAPI,
 } from '~/composables/useApi'
 import { useImageGenerationMonitor } from '~/composables/useImageGenerationMonitor'
 
@@ -32,9 +32,8 @@ export function useEpisodeMediaPipeline(options: UseEpisodeMediaPipelineOptions)
   const replacingSceneImageIds = ref<number[]>([])
   const pendingShotFrameKeys = ref<string[]>([])
   const pendingVideoIds = ref<number[]>([])
-  const pendingComposeIds = ref<number[]>([])
+  const isMerging = ref(false)
   const failedVideoMessages = ref<Record<number, string>>({})
-  const failedComposeMessages = ref<Record<number, string>>({})
   const shotImageHistory = ref<Record<number, Array<{ frameType: string; src: string; createdAt: number }>>>({})
   const { sleep, watchAsyncResult, waitForImageGeneration, waitForImageAssetUpdate } = useImageGenerationMonitor(options.refresh)
 
@@ -85,14 +84,6 @@ export function useEpisodeMediaPipeline(options: UseEpisodeMediaPipelineOptions)
 
   function videoFailMessage(id: number) {
     return failedVideoMessages.value[id] || ''
-  }
-
-  function isPendingCompose(id: number) {
-    return pendingComposeIds.value.includes(id)
-  }
-
-  function composeFailMessage(id: number) {
-    return failedComposeMessages.value[id] || ''
   }
 
   function getFirstFrame(storyboard: any) {
@@ -225,9 +216,7 @@ export function useEpisodeMediaPipeline(options: UseEpisodeMediaPipelineOptions)
 
   function getStoryboardStateText(storyboard: any) {
     if (!storyboard) return '待制作'
-    if (hasComposed(storyboard)) return '已合成'
-    if (isPendingCompose(storyboard.id)) return '合成中'
-    if (hasVid(storyboard)) return '已生成视频'
+    if (hasVid(storyboard) || hasComposed(storyboard)) return '已生成视频'
     if (isPendingVideo(storyboard.id)) return '视频生成中'
     if (getFirstFrame(storyboard) || getLastFrame(storyboard)) return '已出帧'
     return '待制作'
@@ -235,8 +224,8 @@ export function useEpisodeMediaPipeline(options: UseEpisodeMediaPipelineOptions)
 
   function getStoryboardStateClass(storyboard: any) {
     const text = getStoryboardStateText(storyboard)
-    if (text === '已合成' || text === '已生成视频') return 'is-ready'
-    if (text === '合成中' || text === '视频生成中') return 'is-pending'
+    if (text === '已生成视频') return 'is-ready'
+    if (text === '视频生成中') return 'is-pending'
     if (text === '已出帧') return 'is-warm'
     return 'is-empty'
   }
@@ -269,32 +258,6 @@ export function useEpisodeMediaPipeline(options: UseEpisodeMediaPipelineOptions)
     if (first) return '首帧参考'
     if (refs.length) return `${refs.length} 张参考图`
     return '仅提示词生成'
-  }
-
-  function getComposeStateText(storyboard: any) {
-    if (isPendingCompose(storyboard.id)) return '合成中'
-    if (hasComposed(storyboard)) return '已合成'
-    if (hasVid(storyboard)) return '待合成'
-    return '无源视频'
-  }
-
-  function getComposeStateClass(storyboard: any) {
-    const text = getComposeStateText(storyboard)
-    if (text === '已合成') return 'is-ready'
-    if (text === '合成中') return 'is-pending'
-    if (text === '待合成') return 'is-warm'
-    return 'is-empty'
-  }
-
-  function getComposeActionLabel(storyboard: any) {
-    if (isPendingCompose(storyboard.id)) return '合成中'
-    return hasComposed(storyboard) ? '重新合成' : '开始合成'
-  }
-
-  function getComposeSourceSummary(storyboard: any) {
-    if (hasComposed(storyboard)) return '已输出标准化合成视频'
-    if (hasVid(storyboard)) return '将基于当前镜头视频进行标准化输出'
-    return '需要先生成镜头视频'
   }
 
   const activeVideoSb = computed(() => options.selectedSb.value || options.sbs.value[0] || null)
@@ -569,24 +532,6 @@ export function useEpisodeMediaPipeline(options: UseEpisodeMediaPipelineOptions)
     toast.error('视频生成超时')
   }
 
-  async function doCompose(storyboard: any) {
-    try {
-      delete failedComposeMessages.value[storyboard.id]
-      if (!isPendingCompose(storyboard.id)) pendingComposeIds.value.push(storyboard.id)
-      await composeAPI.shot(storyboard.id)
-      toast.success('合成完成')
-      pendingComposeIds.value = pendingComposeIds.value.filter(item => item !== storyboard.id)
-      void options.refresh()
-    } catch (error: any) {
-      pendingComposeIds.value = pendingComposeIds.value.filter(item => item !== storyboard.id)
-      failedComposeMessages.value = {
-        ...failedComposeMessages.value,
-        [storyboard.id]: error.message,
-      }
-      toast.error(error.message)
-    }
-  }
-
   function batchVideos() {
     const pendingIds = options.sbs.value.filter(s => !hasVid(s)).map(s => s.id)
     pendingIds.forEach(id => {
@@ -603,29 +548,42 @@ export function useEpisodeMediaPipeline(options: UseEpisodeMediaPipelineOptions)
     }), 80, 4000)
   }
 
-  async function batchCompose() {
-    await composeAPI.all(options.epId.value)
-    pendingComposeIds.value = [...new Set(options.sbs.value.filter(sb => !!sb.video_url || !!sb.videoUrl).map(sb => sb.id))]
-    toast.success('批量合成已开始')
-    void pollComposeStatus()
-  }
+  async function doMerge(storyboardIds?: number[]) {
+    const selectedIds = Array.isArray(storyboardIds)
+      ? Array.from(new Set(storyboardIds.map(Number).filter(Number.isFinite)))
+      : undefined
+    const clipStoryboards = options.sbs.value
+      .filter(sb => sb.composed_video_url || sb.composedVideoUrl || sb.video_url || sb.videoUrl)
+      .filter(sb => !selectedIds || selectedIds.includes(Number(sb.id)))
 
-  async function doMerge() {
-    const composedCount = options.sbs.value.filter(sb => sb.composed_video_url || sb.composedVideoUrl).length
-    if (composedCount === 0) {
-      toast.error('请先至少合成 1 个镜头')
+    if (clipStoryboards.length === 0) {
+      toast.error(selectedIds ? '请先选择至少 1 个已生成视频的镜头' : '请先至少生成 1 个镜头视频')
+      return
+    }
+    if (isMerging.value) {
+      toast.info('视频正在拼接中')
       return
     }
 
     try {
-      await mergeAPI.merge(options.epId.value)
-      toast.success('正在拼接视频…')
+      isMerging.value = true
+      const mergeResult = await mergeAPI.merge(options.epId.value, clipStoryboards.map(sb => Number(sb.id)))
+      if (options.mergeData) {
+        options.mergeData.value = {
+          ...(options.mergeData.value || {}),
+          id: mergeResult?.merge_id || mergeResult?.mergeId,
+          merge_id: mergeResult?.merge_id || mergeResult?.mergeId,
+          status: 'processing',
+        }
+      }
+      toast.success('正在拼接视频...')
       const poll = setInterval(async () => {
         try {
           const mergeData = await mergeAPI.status(options.epId.value)
           if (options.mergeData) options.mergeData.value = mergeData
           if (mergeData?.status === 'completed' || mergeData?.status === 'failed') {
             clearInterval(poll)
+            isMerging.value = false
             mergeData.status === 'completed' ? toast.success('视频拼接完成') : toast.error(mergeData?.error_msg || mergeData?.errorMsg || '拼接失败')
           }
         } catch (error: any) {
@@ -633,35 +591,8 @@ export function useEpisodeMediaPipeline(options: UseEpisodeMediaPipelineOptions)
         }
       }, 3000)
     } catch (error: any) {
+      isMerging.value = false
       toast.error(error.message || '拼接启动失败')
-    }
-  }
-
-  async function pollComposeStatus() {
-    for (let i = 0; i < 120; i++) {
-      await sleep(3000)
-      try {
-        const res = await composeAPI.status(options.epId.value)
-        await options.refresh()
-        const items = Array.isArray(res?.items) ? res.items : []
-        const processingIds = items.filter(item => item.status === 'compose_processing').map(item => item.id)
-        pendingComposeIds.value = processingIds
-
-        const failedItems = items.filter(item => item.status === 'compose_failed')
-        if (failedItems.length) {
-          const next = { ...failedComposeMessages.value }
-          failedItems.forEach((item) => {
-            next[item.id] = item.error_msg || item.errorMsg || '视频合成失败'
-          })
-          failedComposeMessages.value = next
-        }
-
-        if (!processingIds.length) {
-          if (failedItems.length) toast.error(`有 ${failedItems.length} 个镜头合成失败`)
-          else toast.success('批量合成完成')
-          return
-        }
-      } catch {}
     }
   }
 
@@ -688,9 +619,8 @@ export function useEpisodeMediaPipeline(options: UseEpisodeMediaPipelineOptions)
     replacingSceneImageIds,
     pendingShotFrameKeys,
     pendingVideoIds,
-    pendingComposeIds,
+    isMerging,
     failedVideoMessages,
-    failedComposeMessages,
     shotImageHistory,
     isPendingCharImage,
     isPendingSceneImage,
@@ -704,8 +634,6 @@ export function useEpisodeMediaPipeline(options: UseEpisodeMediaPipelineOptions)
     isPendingShotFrame,
     isPendingVideo,
     videoFailMessage,
-    isPendingCompose,
-    composeFailMessage,
     getStoryboardStateText,
     getStoryboardStateClass,
     getVideoGenerateActionLabel,
@@ -713,10 +641,6 @@ export function useEpisodeMediaPipeline(options: UseEpisodeMediaPipelineOptions)
     getVideoStateClass,
     getVideoReferenceSummary,
     buildDefaultVideoPrompt,
-    getComposeStateText,
-    getComposeStateClass,
-    getComposeActionLabel,
-    getComposeSourceSummary,
     activeVideoSb,
     activeVideoShotIndex,
     activeVideoShotIndexLabel,
@@ -743,11 +667,8 @@ export function useEpisodeMediaPipeline(options: UseEpisodeMediaPipelineOptions)
     genShotFrame,
     genVid,
     pollVideoGeneration,
-    doCompose,
     batchVideos,
-    batchCompose,
     doMerge,
-    pollComposeStatus,
     handleShotFrameGenerate,
     handleShotFrameRestore,
   }

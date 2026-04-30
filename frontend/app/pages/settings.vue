@@ -37,7 +37,7 @@
             </div>
           </div>
           <h2 class="settings-title">AI 服务配置</h2>
-          <p class="settings-desc">这里只保留文本、图片、视频三类 AI 服务配置，供剧本拆解、资产生成与纯视频合成流程使用。</p>
+          <p class="settings-desc">这里只保留文本、图片、视频三类 AI 服务配置，供剧本拆解、资产生成与视频拼接流程使用。</p>
         </div>
         <div class="sections">
           <section v-for="st in serviceTypes" :key="st.type">

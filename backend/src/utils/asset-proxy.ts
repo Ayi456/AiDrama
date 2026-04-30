@@ -56,11 +56,15 @@ export function shouldRedirectAssetProxyTarget(
   config: Pick<CosConfig, 'bucket' | 'region' | 'publicBaseUrl'> | null = getCosConfig(),
 ) {
   if (!STREAMING_MEDIA_PATH_RE.test(decodeURIComponent(target.pathname))) return false
-
-  const host = target.host.toLowerCase()
-  if (config && host === configuredCosHost(config)) return false
-  const publicBaseHost = config ? configuredPublicBaseHost(config) : ''
-  if (publicBaseHost && host === publicBaseHost) return false
-
   return true
+}
+
+export function redirectAssetProxyTarget(target: URL) {
+  return new Response(null, {
+    status: 302,
+    headers: {
+      location: target.href,
+      'referrer-policy': 'no-referrer',
+    },
+  })
 }

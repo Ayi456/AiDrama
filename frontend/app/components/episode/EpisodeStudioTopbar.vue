@@ -12,7 +12,7 @@
         <span class="studio-episode-chip">第 {{ episodeNumber }} 集</span>
         <div class="studio-meta-row">
           <span class="studio-meta-pill">{{ currentSubStageLabel }}</span>
-          <span class="studio-meta-pill is-progress">{{ pipelineProgress }}/8</span>
+          <span class="studio-meta-pill is-progress">{{ pipelineProgress }}/7</span>
           <span class="studio-meta-inline">{{ characterCount }} 角色 · {{ shotCount }} 镜头</span>
         </div>
       </div>

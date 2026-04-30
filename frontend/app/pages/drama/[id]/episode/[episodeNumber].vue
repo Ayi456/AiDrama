@@ -98,11 +98,14 @@
         v-else
         :sbs="sbs"
         :merge-url="mergeUrl"
-        :composed-count="composedCount"
+        :clip-count="mergeClipCount"
         :total-duration="totalDuration"
-        :has-composed="hasComposed"
+        :has-clip="hasMergeClip"
+        :selected-storyboard-ids="selectedMergeStoryboardIds"
+        :is-merging="mergeBusy"
         @go-script="panel = 'script'"
-        @merge="doMerge"
+        @update:selected-storyboard-ids="handleMergeSelectionUpdate"
+        @merge="handleMergeSelected"
       />
 
       <EpisodeBottomBubble
@@ -171,6 +174,8 @@ const scenes = ref([])
 const sbs = ref([])
 const mergeData = ref(null)
 const selectedSb = ref(null)
+const selectedMergeStoryboardIds = ref([])
+const mergeSelectionInitialized = ref(false)
 
 const { running: rn, runningType: rt, run: runAgent } = useAgent()
 
@@ -187,8 +192,30 @@ const scriptContent = computed(() => episode.value?.script_content || episode.va
 const epId = computed(() => episode.value?.id || 0)
 const rawLen = computed(() => localRaw.value.replace(/\s/g, '').length || 0)
 const scriptLen = computed(() => localScript.value.replace(/\s/g, '').length || 0)
-const composedCount = computed(() => sbs.value.filter(sb => sb.composed_video_url || sb.composedVideoUrl).length)
+function hasMergeClip(sb) {
+  return !!(sb?.composed_video_url || sb?.composedVideoUrl || sb?.video_url || sb?.videoUrl)
+}
+
+const mergeClipCount = computed(() => sbs.value.filter(hasMergeClip).length)
 const mergeUrl = computed(() => mergeData.value?.merged_url || mergeData.value?.mergedUrl || null)
+const mergeableStoryboardIds = computed(() => sbs.value.filter(hasMergeClip).map(sb => Number(sb.id)))
+
+watch(mergeableStoryboardIds, (ids, previousIds = []) => {
+  if (!ids.length) {
+    selectedMergeStoryboardIds.value = []
+    return
+  }
+
+  const current = selectedMergeStoryboardIds.value.map(Number)
+  const hadAllPrevious = previousIds.length > 0 && previousIds.every(id => current.includes(Number(id)))
+  if (!mergeSelectionInitialized.value || hadAllPrevious) {
+    selectedMergeStoryboardIds.value = [...ids]
+    mergeSelectionInitialized.value = true
+    return
+  }
+
+  selectedMergeStoryboardIds.value = current.filter(id => ids.includes(id))
+}, { immediate: true })
 
 const frameModeOptions = [
   { label: '仅首帧', value: 'first' },
@@ -504,15 +531,13 @@ const {
   replacingCharacterImageIds,
   replacingSceneImageIds,
   pendingVideoIds,
-  pendingComposeIds,
+  isMerging,
   shotImageHistory,
   isPendingCharImage,
   isPendingSceneImage,
   isPendingShotFrame,
   isPendingVideo,
   videoFailMessage,
-  isPendingCompose,
-  composeFailMessage,
   getStoryboardStateText,
   getStoryboardStateClass,
   getVideoGenerateActionLabel,
@@ -520,20 +545,14 @@ const {
   getVideoStateClass,
   getVideoReferenceSummary,
   buildDefaultVideoPrompt,
-  getComposeStateText,
-  getComposeStateClass,
-  getComposeActionLabel,
-  getComposeSourceSummary,
   activeVideoSb,
   activeVideoShotIndexLabel,
   getFirstFrame,
   getLastFrame,
   getStoryboardCover,
   getVideoUrl,
-  getComposedVideoUrl,
   hasImg,
   hasVid,
-  hasComposed,
   getShotReferenceImages,
   getShotManualReferenceImages,
   genCharImg,
@@ -543,9 +562,7 @@ const {
   replaceSceneImage,
   batchSceneImages,
   genVid,
-  doCompose,
   batchVideos,
-  batchCompose,
   doMerge,
   handleShotFrameGenerate,
   handleShotFrameRestore,
@@ -568,6 +585,17 @@ const {
   getStoryboardCharacterNames,
   getSceneName,
 })
+
+const mergeBusy = computed(() => isMerging.value || mergeData.value?.status === 'processing')
+
+function handleMergeSelectionUpdate(ids) {
+  selectedMergeStoryboardIds.value = Array.isArray(ids) ? ids.map(Number).filter(Number.isFinite) : []
+}
+
+function handleMergeSelected(payload) {
+  const ids = Array.isArray(payload?.storyboardIds) ? payload.storyboardIds : selectedMergeStoryboardIds.value
+  doMerge(ids)
+}
 
 const {
   gridDialog,
@@ -665,7 +693,7 @@ const {
   scenes,
   sbs,
   visualChars,
-  composedCount,
+  mergeClipCount,
   mergeUrl,
   saveRaw,
   saveScr,
@@ -780,7 +808,6 @@ const productionPanelState = computed(() => ({
   getVideoUrl,
   hasImg,
   getStoryboardCover,
-  hasComposed,
   getVideoStateClass,
   getVideoStateText,
   getVideoReferenceSummary,
@@ -788,14 +815,6 @@ const productionPanelState = computed(() => ({
   videoFailMessage,
   getVideoGenerateActionLabel,
   buildDefaultVideoPrompt,
-  composedCount: composedCount.value,
-  getComposedVideoUrl,
-  getComposeStateClass,
-  getComposeStateText,
-  getComposeSourceSummary,
-  composeFailMessage,
-  isPendingCompose,
-  getComposeActionLabel,
 }))
 
 const productionPanelHandlers = {
@@ -841,8 +860,6 @@ const productionPanelHandlers = {
   handleGridDialogFinish,
   batchVideos,
   genVid,
-  batchCompose,
-  doCompose,
   openImageByPath: (path, title) => {
     if (path) openImageViewer(assetUrl(path), title)
   },

@@ -1,6 +1,6 @@
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import {
-  Users, MapPin, Video, ImageIcon, Layers, FileText, FolderKanban, Clapperboard, Download,
+  Users, MapPin, Video, ImageIcon, FileText, FolderKanban, Clapperboard, Download,
 } from 'lucide-vue-next'
 
 interface UseEpisodeStudioNavigationOptions {
@@ -12,7 +12,7 @@ interface UseEpisodeStudioNavigationOptions {
   scenes: Ref<any[]>
   sbs: Ref<any[]>
   visualChars: ComputedRef<any[]>
-  composedCount: ComputedRef<number>
+  mergeClipCount: ComputedRef<number>
   mergeUrl: ComputedRef<string | null>
   saveRaw: () => void
   saveScr: () => void
@@ -34,7 +34,6 @@ export function useEpisodeStudioNavigation(options: UseEpisodeStudioNavigationOp
     if (id === 'scenes') return !!options.scenes.value.length && sceneImgCount.value === options.scenes.value.length
     if (id === 'shots') return !!options.sbs.value.length && shotImgCount.value === options.sbs.value.length
     if (id === 'videos') return !!options.sbs.value.length && shotVidCount.value === options.sbs.value.length
-    if (id === 'compose') return !!options.sbs.value.length && options.composedCount.value === options.sbs.value.length
     return false
   }
 
@@ -43,11 +42,10 @@ export function useEpisodeStudioNavigation(options: UseEpisodeStudioNavigationOp
     { id: 'scenes', label: '场景图片', icon: MapPin, badge: sceneImgCount.value ? `${sceneImgCount.value}/${options.scenes.value.length}` : '' },
     { id: 'shots', label: '镜头图片', icon: ImageIcon, badge: shotImgCount.value ? `${shotImgCount.value}/${options.sbs.value.length}` : '' },
     { id: 'videos', label: '视频生成', icon: Video, badge: shotVidCount.value ? `${shotVidCount.value}/${options.sbs.value.length}` : '' },
-    { id: 'compose', label: '视频合成', icon: Layers, badge: options.composedCount.value ? `${options.composedCount.value}/${options.sbs.value.length}` : '' },
   ])
 
   const prodTabIdx = computed({
-    get: () => prodTabDefs.value.findIndex(t => t.id === prodTab.value),
+    get: () => Math.max(0, prodTabDefs.value.findIndex(t => t.id === prodTab.value)),
     set: (value: number) => {
       prodTab.value = prodTabDefs.value[value]?.id || 'chars'
     },
@@ -60,7 +58,7 @@ export function useEpisodeStudioNavigation(options: UseEpisodeStudioNavigationOp
     { id: 'export', label: '导出', desc: '拼接与成片输出', icon: Download },
   ]
 
-  const canExport = computed(() => !!options.sbs.value.length && options.composedCount.value === options.sbs.value.length)
+  const canExport = computed(() => options.mergeClipCount.value > 0)
 
   const sidebarSections = computed(() => ([
     {
@@ -81,7 +79,6 @@ export function useEpisodeStudioNavigation(options: UseEpisodeStudioNavigationOp
         { key: 'prod:scenes', label: '场景图片', desc: '', icon: MapPin, done: prodStepDone('scenes') },
         { key: 'prod:shots', label: '镜头图片', desc: '', icon: ImageIcon, done: prodStepDone('shots') },
         { key: 'prod:videos', label: '视频生成', desc: '', icon: Video, done: prodStepDone('videos') },
-        { key: 'prod:compose', label: '视频合成', desc: '', icon: Layers, done: prodStepDone('compose') },
       ],
     },
     {
@@ -113,7 +110,7 @@ export function useEpisodeStudioNavigation(options: UseEpisodeStudioNavigationOp
       if (!options.sbs.value.length) return false
       return shotImgCount.value === options.sbs.value.length
         && shotVidCount.value === options.sbs.value.length
-        && options.composedCount.value === options.sbs.value.length
+        && options.mergeClipCount.value === options.sbs.value.length
     }
     if (stageId === 'export') return !!options.mergeUrl.value
     return false
@@ -140,7 +137,7 @@ export function useEpisodeStudioNavigation(options: UseEpisodeStudioNavigationOp
     }
     if (stageId === 'storyboard') {
       if (panel.value === 'production') {
-        prodTab.value = ['shots', 'videos', 'compose'].includes(prodTab.value) ? prodTab.value : 'shots'
+        prodTab.value = ['shots', 'videos'].includes(prodTab.value) ? prodTab.value : 'shots'
         return
       }
       panel.value = 'script'
@@ -169,7 +166,6 @@ export function useEpisodeStudioNavigation(options: UseEpisodeStudioNavigationOp
         { key: 'script:storyboard', label: '分镜拆解', done: !!options.sbs.value.length },
         { key: 'prod:shots', label: '镜头图片', done: !!options.sbs.value.length && shotImgCount.value === options.sbs.value.length },
         { key: 'prod:videos', label: '视频生成', done: !!options.sbs.value.length && shotVidCount.value === options.sbs.value.length },
-        { key: 'prod:compose', label: '视频合成', done: !!options.sbs.value.length && options.composedCount.value === options.sbs.value.length },
       ]
     }
     return [{ key: 'export:merge', label: '拼接导出', done: !!options.mergeUrl.value }]
@@ -232,7 +228,8 @@ export function useEpisodeStudioNavigation(options: UseEpisodeStudioNavigationOp
     }
     if (key.startsWith('prod:')) {
       panel.value = 'production'
-      prodTab.value = key.replace('prod:', '')
+      const nextTab = key.replace('prod:', '')
+      prodTab.value = prodTabDefs.value.some(tab => tab.id === nextTab) ? nextTab : 'chars'
       return
     }
     panel.value = 'export'
@@ -302,7 +299,6 @@ export function useEpisodeStudioNavigation(options: UseEpisodeStudioNavigationOp
     if (options.sbs.value.length) progress++
     if (options.sbs.value.some(s => s.composed_image || s.composedImage)) progress++
     if (options.sbs.value.some(s => s.video_url || s.videoUrl)) progress++
-    if (options.sbs.value.length && options.composedCount.value === options.sbs.value.length) progress++
     if (options.mergeUrl.value) progress++
     return progress
   })

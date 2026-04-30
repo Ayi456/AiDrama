@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 
 import {
+  redirectAssetProxyTarget,
   isAllowedAssetProxyTarget,
   shouldRedirectAssetProxyTarget,
 } from '../asset-proxy.js'
@@ -58,13 +59,13 @@ runTest('isAllowedAssetProxyTarget rejects non-asset and unconfigured hosts', ()
   assert.equal(isAllowedAssetProxyTarget('http://127.0.0.1/static/images/a.jpeg', config), false)
 })
 
-runTest('shouldRedirectAssetProxyTarget proxies configured COS streamable media', () => {
+runTest('shouldRedirectAssetProxyTarget redirects configured COS streamable media to avoid SCF body limits', () => {
   assert.equal(
     shouldRedirectAssetProxyTarget(
       new URL('https://ai-drama-1255393412.cos.ap-shanghai.myqcloud.com/seedance/videos/a.mp4'),
       config,
     ),
-    false,
+    true,
   )
 })
 
@@ -81,4 +82,13 @@ runTest('shouldRedirectAssetProxyTarget redirects non-COS streamable media inste
     shouldRedirectAssetProxyTarget(new URL('https://ai-drama-1255393412.cos.ap-shanghai.myqcloud.com/seedream/images/a.jpeg')),
     false,
   )
+})
+
+runTest('redirectAssetProxyTarget suppresses referer for COS anti-hotlink rules', () => {
+  const target = new URL('https://ai-drama-1255393412.cos.ap-shanghai.myqcloud.com/seedance/merged/a.mp4')
+  const response = redirectAssetProxyTarget(target)
+
+  assert.equal(response.status, 302)
+  assert.equal(response.headers.get('location'), target.href)
+  assert.equal(response.headers.get('referrer-policy'), 'no-referrer')
 })

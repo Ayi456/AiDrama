@@ -47,7 +47,7 @@
     <button
       v-else-if="panel === 'production'"
       class="bubble-btn primary"
-      :disabled="prodTab === 'compose' && !canExport"
+      :disabled="prodTabIdx >= prodTabDefs.length - 1 && !canExport"
       @click="emit('go-next-prod')"
     >
       {{ prodTabIdx < prodTabDefs.length - 1 ? (prodTabDefs[prodTabIdx + 1]?.label || '下一步') : '进入导出' }}
