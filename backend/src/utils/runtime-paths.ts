@@ -7,8 +7,7 @@ export function firstExistingPath(candidates: string[]) {
 
 export function resolveFrontendPublicPath(projectRoot: string) {
   return process.env.FRONTEND_PUBLIC_PATH || firstExistingPath([
-    path.join(projectRoot, 'frontend', '.output', 'public'),
-    path.join(projectRoot, 'frontend', 'dist'),
+    path.join(projectRoot, 'frontend', 'dist-vite'),
     path.join(projectRoot, 'public'),
   ])
 }

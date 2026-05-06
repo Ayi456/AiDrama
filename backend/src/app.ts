@@ -30,7 +30,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(__dirname, '../..')
 
 function applyFrontendStaticHeaders(filePath: string, c: Context) {
-  if (filePath.includes(`${path.sep}_nuxt${path.sep}`)) {
+  if (filePath.includes(`${path.sep}assets${path.sep}`)) {
     c.header('Cache-Control', 'public, immutable, max-age=31536000')
   }
 }
@@ -55,6 +55,7 @@ export function createApp() {
   const api = new Hono()
   api.route('/dramas', dramas)
   api.route('/episodes', episodes)
+  api.route('/chapters', episodes)
   api.route('/storyboards', storyboards)
   api.route('/scenes', scenes)
   api.route('/characters', characters)

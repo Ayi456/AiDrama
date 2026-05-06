@@ -43,15 +43,15 @@ runTest('resolveFrontendPublicPath uses FRONTEND_PUBLIC_PATH when provided', () 
   })
 })
 
-runTest('resolveFrontendPublicPath prefers Nuxt generated output over dist fallback', () => {
+runTest('resolveFrontendPublicPath prefers Vite build output over public fallback', () => {
   withEnv({ FRONTEND_PUBLIC_PATH: undefined }, () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aidrama-runtime-paths-'))
-    const generated = path.join(root, 'frontend', '.output', 'public')
-    const dist = path.join(root, 'frontend', 'dist')
-    fs.mkdirSync(generated, { recursive: true })
-    fs.mkdirSync(dist, { recursive: true })
+    const viteDist = path.join(root, 'frontend', 'dist-vite')
+    const publicDir = path.join(root, 'public')
+    fs.mkdirSync(viteDist, { recursive: true })
+    fs.mkdirSync(publicDir, { recursive: true })
 
-    assert.equal(resolveFrontendPublicPath(root), generated)
+    assert.equal(resolveFrontendPublicPath(root), viteDist)
   })
 })
 

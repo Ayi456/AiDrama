@@ -27,7 +27,7 @@ AiDrama 是一个基于 AI 的短剧自动化生产平台，实现从剧本生�
 ### 🛠️ 技术架构
 
 ```
-frontend/   — Nuxt 3 + Vue 3 + TypeScript (纯 CSS，无 UI 框架)
+frontend/   — Vite + Vue 3 + TypeScript (纯 CSS，无 UI 框架)
 backend/    — Hono + Drizzle ORM + Mastra AI Agents + mysql2
 configs/    — config.yaml 配置文件
 data/       — 生成资源文件（数据库使用 MySQL）
@@ -298,7 +298,7 @@ docker run -d --name aidrama -p 5679:5679 \
 
 ### ☁️ 腾讯云 SCF Web 函数部署
 
-项目可以打包为单个腾讯云 SCF Web 函数，由一个 Hono Web Server 同时承载后端 API 和 Nuxt 静态前端。
+项目可以打包为单个腾讯云 SCF Web 函数，由一个 Hono Web Server 同时承载后端 API 和 Vite 静态前端。
 
 ```bash
 # 1. 生成 SCF 部署产物
@@ -361,7 +361,7 @@ cd backend && npm start
 
 ```
 backend/                  # 后端源码 + node_modules
-frontend/.output/public/  # 前端静态构建产物
+frontend/dist-vite/       # 前端静态构建产物
 configs/config.yaml
 data/             # 数据目录（首次运行自动创建）
 skills/           # Agent 技能文件
@@ -398,7 +398,7 @@ server {
 
 ### 前端
 
-- **框架**: Nuxt 3 (SPA 模式)
+- **框架**: Vite + Vue 3 (SPA 模式)
 - **语言**: Vue 3 + TypeScript
 - **路由**: 文件路由 (Vue Router 4)
 - **样式**: 纯 CSS + CSS Variables (暗色主题)
@@ -420,7 +420,7 @@ A: 确保 FFmpeg 已安装并在 PATH 环境变量中。运行 `ffmpeg -version`
 
 ### Q: 前端无法连接后端 API？
 
-A: 检查后端是否启动，端口是否正确。开发模式下前端代理配置在 `frontend/nuxt.config.ts`。
+A: 检查后端是否启动，端口是否正确。开发模式下前端代理配置在 `frontend/vite.config.ts`。
 
 ### Q: 数据库表未创建？
 
@@ -436,7 +436,7 @@ A: 后端会在首次启动时自动创建所有表，检查日志确认初始�
 
 - 项目全面迁移至 TypeScript 技术栈
   - 后端：Hono + Drizzle ORM + mysql2
-  - 前端：Nuxt 3 + Vue 3
+  - 前端：Vite + Vue 3
   - AI Agent：Mastra 框架
 - 重做单集工作台 UI 和生产流程
   - 更紧凑的控制台布局

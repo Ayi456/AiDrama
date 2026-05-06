@@ -1,0 +1,30 @@
+import { createRouter, createWebHistory } from 'vue-router'
+import HomeView from './pages/HomeView.vue'
+import SettingsView from './pages/SettingsView.vue'
+import DramaDetailView from './pages/DramaDetailView.vue'
+import ChapterStudioView from './pages/ChapterStudioView.vue'
+
+export const router = createRouter({
+  history: createWebHistory(),
+  routes: [
+    { path: '/', name: 'home', component: HomeView },
+    { path: '/settings', name: 'settings', component: SettingsView },
+    { path: '/drama/:id', name: 'drama-detail', component: DramaDetailView },
+    {
+      path: '/drama/:id/chapter/:chapterNumber',
+      name: 'chapter-studio',
+      component: ChapterStudioView,
+      meta: { layout: 'studio' },
+    },
+    {
+      path: '/drama/:id/episode/:episodeNumber',
+      redirect: to => ({
+        name: 'chapter-studio',
+        params: {
+          id: to.params.id,
+          chapterNumber: to.params.episodeNumber,
+        },
+      }),
+    },
+  ],
+})
