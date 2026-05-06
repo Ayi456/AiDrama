@@ -347,6 +347,8 @@ const tableStatements = [
     first_frame_url TEXT,
     last_frame_url TEXT,
     reference_image_urls TEXT,
+    reference_video_urls TEXT,
+    reference_audio_urls TEXT,
     duration INT,
     fps INT,
     resolution TEXT,
@@ -465,6 +467,8 @@ async function initializeDatabase(pool: Pool, database: string) {
   await ensureColumn(pool, database, 'video_generations', 'normalized_request', 'TEXT')
   await ensureColumn(pool, database, 'video_generations', 'provider_request', 'TEXT')
   await ensureColumn(pool, database, 'video_generations', 'provider_response', 'TEXT')
+  await ensureColumn(pool, database, 'video_generations', 'reference_video_urls', 'TEXT')
+  await ensureColumn(pool, database, 'video_generations', 'reference_audio_urls', 'TEXT')
 }
 
 await ensureDatabaseExists(mysqlConfig)

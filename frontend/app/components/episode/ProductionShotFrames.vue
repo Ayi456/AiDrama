@@ -190,8 +190,6 @@
             <div class="shot-panel__desc">保留全部分镜列表，点击任意分镜，左右两侧联动到当前镜头。</div>
           </div>
           <div class="shot-panel__head-tags">
-            <span class="shot-panel__toggle-label">启用分镜模式</span>
-            <span class="shot-panel__switch is-active"><i></i></span>
             <span class="tag">{{ sbs.length }} 个分镜</span>
             <span class="tag mono">{{ selectedShotIndexLabel }}/{{ sbs.length }}</span>
           </div>

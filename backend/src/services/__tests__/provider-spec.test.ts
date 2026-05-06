@@ -254,6 +254,81 @@ runTest('VolcEngineVideoAdapter maps normalized video spec into Seedance content
   )
 })
 
+runTest('VolcEngineVideoAdapter maps Seedance multimodal image, video and audio references', () => {
+  const adapter = new VolcEngineVideoAdapter()
+  const spec = buildVideoJobSpecFromLegacyRequest(
+    {
+      prompt: 'use the video pacing and keep the product shape from the image',
+      referenceMode: 'multimodal',
+      referenceImageUrls: JSON.stringify([
+        'https://example.com/ref-image-1.png',
+        'https://example.com/ref-image-2.png',
+      ]),
+      referenceVideoUrls: JSON.stringify([
+        'https://example.com/ref-video-1.mp4',
+      ]),
+      referenceAudioUrls: JSON.stringify([
+        'https://example.com/ref-audio-1.mp3',
+      ]),
+      duration: 11,
+      aspectRatio: '16:9',
+    },
+    {
+      control: { generateAudio: true, watermark: false },
+    },
+  )
+
+  assert.equal(spec.mode, 'multi_modal_video')
+  assert.deepEqual(
+    spec.inputs.map((item: { type: string; role: string }) => [item.type, item.role]),
+    [
+      ['image', 'reference'],
+      ['image', 'reference'],
+      ['video', 'reference_video'],
+      ['audio', 'reference_audio'],
+    ],
+  )
+
+  const req = adapter.buildGenerateRequest(
+    {
+      provider: 'volcengine',
+      baseUrl: 'https://ark.cn-beijing.volces.com',
+      apiKey: 'test-key',
+      model: 'doubao-seedance-2-0-260128',
+      settings: {},
+    } as any,
+    {
+      id: 4,
+      model: 'doubao-seedance-2-0-260128',
+      prompt: spec.prompt,
+      normalizedSpec: spec,
+    } as any,
+  )
+
+  assert.deepEqual(
+    req.body.content.slice(1).map((item: any) => [item.type, item.role]),
+    [
+      ['image_url', 'reference_image'],
+      ['image_url', 'reference_image'],
+      ['video_url', 'reference_video'],
+      ['audio_url', 'reference_audio'],
+    ],
+  )
+  assert.equal(req.body.generate_audio, true)
+  assert.equal(req.body.duration, 11)
+})
+
+runTest('buildVideoJobSpecFromLegacyRequest rejects audio-only multimodal references', () => {
+  assert.throws(
+    () => buildVideoJobSpecFromLegacyRequest({
+      prompt: 'use this background music',
+      referenceMode: 'multimodal',
+      referenceAudioUrls: JSON.stringify(['https://example.com/ref-audio-1.mp3']),
+    }),
+    /at least one reference image or video/i,
+  )
+})
+
 runTest('VolcEngineVideoAdapter does not pass service_tier through to Seedance video payload', () => {
   const adapter = new VolcEngineVideoAdapter()
   const spec = buildVideoJobSpecFromLegacyRequest(

@@ -18,10 +18,27 @@ interface GenerateVideoParams {
   imageUrl?: string
   firstFrameUrl?: string
   lastFrameUrl?: string
-  referenceImageUrls?: string[]
+  referenceImageUrls?: string[] | string
+  referenceVideoUrls?: string[] | string
+  referenceAudioUrls?: string[] | string
   duration?: number
   aspectRatio?: string
   configId?: number
+}
+
+function normalizeStringList(value: string[] | string | null | undefined): string[] {
+  if (!value) return []
+  if (Array.isArray(value)) return Array.from(new Set(value.map(item => String(item || '').trim()).filter(Boolean)))
+  try {
+    const parsed = JSON.parse(value)
+    if (Array.isArray(parsed)) return Array.from(new Set(parsed.map(item => String(item || '').trim()).filter(Boolean)))
+  } catch {}
+  return Array.from(new Set(String(value).split(/\r?\n|,/).map(item => item.trim()).filter(Boolean)))
+}
+
+function stringifyStringList(value: string[] | string | null | undefined) {
+  const items = normalizeStringList(value)
+  return items.length ? JSON.stringify(items) : null
 }
 
 function toJson(value: unknown) {
@@ -49,7 +66,9 @@ export async function generateVideo(params: GenerateVideoParams): Promise<number
     imageUrl: params.imageUrl,
     firstFrameUrl: params.firstFrameUrl,
     lastFrameUrl: params.lastFrameUrl,
-    referenceImageUrls: params.referenceImageUrls ? JSON.stringify(params.referenceImageUrls) : null,
+    referenceImageUrls: stringifyStringList(params.referenceImageUrls),
+    referenceVideoUrls: stringifyStringList(params.referenceVideoUrls),
+    referenceAudioUrls: stringifyStringList(params.referenceAudioUrls),
     duration: params.duration || 5,
     aspectRatio: params.aspectRatio || '16:9',
     status: 'processing',
@@ -100,6 +119,8 @@ async function processVideoGeneration(id: number, config: AIConfig) {
     const resolvedFirstFrameUrl = await normalizeVideoReferenceUrl(record.firstFrameUrl)
     const resolvedLastFrameUrl = await normalizeVideoReferenceUrl(record.lastFrameUrl)
     const resolvedReferenceImageUrls = await normalizeVideoReferenceUrls(record.referenceImageUrls)
+    const resolvedReferenceVideoUrls = await normalizeVideoReferenceUrls(record.referenceVideoUrls, normalizeVideoOrAudioReferenceUrl)
+    const resolvedReferenceAudioUrls = await normalizeVideoReferenceUrls(record.referenceAudioUrls, normalizeVideoOrAudioReferenceUrl)
 
     const normalizedSpec = buildVideoJobSpecFromLegacyRequest({
       prompt: record.prompt,
@@ -108,6 +129,8 @@ async function processVideoGeneration(id: number, config: AIConfig) {
       firstFrameUrl: resolvedFirstFrameUrl,
       lastFrameUrl: resolvedLastFrameUrl,
       referenceImageUrls: resolvedReferenceImageUrls,
+      referenceVideoUrls: resolvedReferenceVideoUrls,
+      referenceAudioUrls: resolvedReferenceAudioUrls,
       duration: record.duration,
       aspectRatio: record.aspectRatio,
     }, config.settings as any)
@@ -125,6 +148,8 @@ async function processVideoGeneration(id: number, config: AIConfig) {
       firstFrameUrl: resolvedFirstFrameUrl,
       lastFrameUrl: resolvedLastFrameUrl,
       referenceImageUrls: resolvedReferenceImageUrls ? JSON.stringify(resolvedReferenceImageUrls) : null,
+      referenceVideoUrls: resolvedReferenceVideoUrls ? JSON.stringify(resolvedReferenceVideoUrls) : null,
+      referenceAudioUrls: resolvedReferenceAudioUrls ? JSON.stringify(resolvedReferenceAudioUrls) : null,
       duration: record.duration,
       aspectRatio: record.aspectRatio,
       normalizedSpec,
@@ -214,16 +239,37 @@ async function normalizeVideoReferenceUrl(value: string | null | undefined): Pro
   return raw
 }
 
-async function normalizeVideoReferenceUrls(raw: string | null | undefined): Promise<string[]> {
+async function normalizeVideoOrAudioReferenceUrl(value: string | null | undefined): Promise<string | null> {
+  const raw = String(value || '').trim()
+  if (!raw) return null
+  if (/^https?:\/\//i.test(raw)) return raw
+  if (raw.startsWith('data:')) return raw
+  if (raw.startsWith('static/') || raw.startsWith('/static/')) {
+    const localPath = raw.startsWith('/static/') ? raw.slice(1) : raw
+    try {
+      return await uploadStaticAssetToCos(localPath) || localPath
+    } catch (err) {
+      logTaskWarn('VideoTask', 'reference-media-upload-failed', { path: localPath, error: (err as Error).message })
+      return null
+    }
+  }
+  return raw
+}
+
+async function normalizeVideoReferenceUrls(
+  raw: string | null | undefined,
+  normalizeOne: (value: string | null | undefined) => Promise<string | null> = normalizeVideoReferenceUrl,
+): Promise<string[]> {
   if (!raw) return []
   let refs: string[] = []
   try {
-    refs = JSON.parse(raw)
+    const parsed = JSON.parse(raw)
+    refs = Array.isArray(parsed) ? parsed : typeof parsed === 'string' ? [parsed] : []
   } catch {
-    refs = []
+    refs = normalizeStringList(raw)
   }
   const normalized = await Promise.all(
-    Array.from(new Set(refs.map((item) => String(item || '').trim()).filter(Boolean))).map((item) => normalizeVideoReferenceUrl(item)),
+    Array.from(new Set(refs.map((item) => String(item || '').trim()).filter(Boolean))).map((item) => normalizeOne(item)),
   )
   return normalized.filter((item): item is string => !!item)
 }

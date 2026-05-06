@@ -22,6 +22,14 @@ function isVolcengineTosHost(host: string) {
   return host === VOLCENGINE_TOS_SUFFIX.slice(1) || host.endsWith(VOLCENGINE_TOS_SUFFIX)
 }
 
+function isConfiguredCosHost(host: string, config: Pick<CosConfig, 'bucket' | 'region' | 'publicBaseUrl'> | null) {
+  if (!config) return false
+  const normalizedHost = host.toLowerCase()
+  if (normalizedHost === configuredCosHost(config)) return true
+  const publicBaseHost = configuredPublicBaseHost(config)
+  return !!publicBaseHost && normalizedHost === publicBaseHost
+}
+
 export function isAllowedAssetProxyTarget(
   value: string,
   config: Pick<CosConfig, 'bucket' | 'region' | 'publicBaseUrl'> | null = getCosConfig(),
@@ -56,6 +64,7 @@ export function shouldRedirectAssetProxyTarget(
   config: Pick<CosConfig, 'bucket' | 'region' | 'publicBaseUrl'> | null = getCosConfig(),
 ) {
   if (!STREAMING_MEDIA_PATH_RE.test(decodeURIComponent(target.pathname))) return false
+  if (isConfiguredCosHost(target.host, config)) return false
   return true
 }
 

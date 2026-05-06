@@ -152,6 +152,14 @@ export function useEpisodeMediaPipeline(options: UseEpisodeMediaPipelineOptions)
     return getRefs(storyboard).filter(Boolean).slice(0, 6)
   }
 
+  function normalizeUrlList(value: any): string[] {
+    if (!value) return []
+    if (Array.isArray(value)) {
+      return Array.from(new Set(value.map(item => String(item || '').trim()).filter(Boolean)))
+    }
+    return Array.from(new Set(String(value).split(/\r?\n|,/).map(item => item.trim()).filter(Boolean)))
+  }
+
   function pushShotImageHistory(storyboardId: number, frameType: string, src: string | null | undefined) {
     if (!storyboardId || !frameType || !src) return
     const current = shotImageHistory.value[storyboardId] || []
@@ -462,7 +470,7 @@ export function useEpisodeMediaPipeline(options: UseEpisodeMediaPipelineOptions)
     }
   }
 
-  async function genVid(storyboard: any) {
+  async function genVid(storyboard: any, optionsOverride: Record<string, any> = {}) {
     const params: Record<string, any> = {
       storyboard_id: storyboard.id,
       drama_id: options.dramaId,
@@ -473,7 +481,16 @@ export function useEpisodeMediaPipeline(options: UseEpisodeMediaPipelineOptions)
     const first = getFirstFrame(storyboard)
     const last = getLastFrame(storyboard)
     const refs = getRefs(storyboard)
-    if (first && last) Object.assign(params, { reference_mode: 'first_last', first_frame_url: first, last_frame_url: last })
+    const overrideMode = String(optionsOverride.reference_mode || '').trim()
+
+    if (overrideMode === 'multimodal') {
+      Object.assign(params, {
+        reference_mode: 'multimodal',
+        reference_image_urls: normalizeUrlList(optionsOverride.reference_image_urls),
+        reference_video_urls: normalizeUrlList(optionsOverride.reference_video_urls),
+        reference_audio_urls: normalizeUrlList(optionsOverride.reference_audio_urls),
+      })
+    } else if (first && last) Object.assign(params, { reference_mode: 'first_last', first_frame_url: first, last_frame_url: last })
     else if (refs.length) Object.assign(params, { reference_mode: 'multiple', reference_image_urls: [first, ...refs].filter(Boolean) })
     else if (first) Object.assign(params, { reference_mode: 'single', image_url: first })
 

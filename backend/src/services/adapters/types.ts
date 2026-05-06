@@ -98,6 +98,8 @@ export interface VideoGenerationRecord {
   firstFrameUrl?: string | null
   lastFrameUrl?: string | null
   referenceImageUrls?: string | null
+  referenceVideoUrls?: string | null
+  referenceAudioUrls?: string | null
   duration?: number | null
   aspectRatio?: string | null
   normalizedSpec?: VideoJobSpec | null

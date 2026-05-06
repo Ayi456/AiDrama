@@ -69,6 +69,8 @@ interface LegacyVideoRequest {
   firstFrameUrl?: string | null
   lastFrameUrl?: string | null
   referenceImageUrls?: string[] | string | null
+  referenceVideoUrls?: string[] | string | null
+  referenceAudioUrls?: string[] | string | null
   duration?: number | null
   aspectRatio?: string | null
 }
@@ -134,6 +136,10 @@ function parseSize(size?: string | null) {
 
 function toImageInputs(urls: string[]): MediaInput[] {
   return urls.map((url) => ({ type: 'image', role: 'reference', url }))
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values.map(item => String(item || '').trim()).filter(Boolean)))
 }
 
 export function buildImageJobSpecFromLegacyRequest(
@@ -210,20 +216,38 @@ export function buildVideoJobSpecFromLegacyRequest(
   const volcengineOptions = asRecord<Record<string, unknown>>(providerOptions.volcengine) || {}
 
   const referenceMode = String(legacy.referenceMode || '').trim()
-  const multipleRefs = parseStringArray(legacy.referenceImageUrls)
+  const multipleRefs = uniqueStrings(parseStringArray(legacy.referenceImageUrls)).slice(0, 9)
+  const videoRefs = uniqueStrings(parseStringArray(legacy.referenceVideoUrls)).slice(0, 3)
+  const audioRefs = uniqueStrings(parseStringArray(legacy.referenceAudioUrls)).slice(0, 3)
+  const wantsMultimodal = referenceMode === 'multimodal'
+    || referenceMode === 'multiple'
+    || multipleRefs.length > 0
+    || videoRefs.length > 0
+    || audioRefs.length > 0
   const inputs: MediaInput[] = []
   let mode: VideoJobSpec['mode'] = 'text_to_video'
 
-  if (referenceMode === 'first_last' || (legacy.firstFrameUrl && legacy.lastFrameUrl)) {
+  if (wantsMultimodal) {
+    const imageRefs = uniqueStrings([
+      ...(referenceMode === 'multimodal' ? [legacy.imageUrl, legacy.firstFrameUrl, legacy.lastFrameUrl] : []),
+      ...multipleRefs,
+    ].filter((item): item is string => !!item))
+
+    if (audioRefs.length > 0 && imageRefs.length === 0 && videoRefs.length === 0) {
+      throw new Error('Seedance multimodal generation with audio requires at least one reference image or video')
+    }
+
+    inputs.push(...imageRefs.slice(0, 9).map((url) => ({ type: 'image' as const, role: 'reference' as const, url })))
+    inputs.push(...videoRefs.map((url) => ({ type: 'video' as const, role: 'reference_video' as const, url })))
+    inputs.push(...audioRefs.map((url) => ({ type: 'audio' as const, role: 'reference_audio' as const, url })))
+    mode = inputs.length ? 'multi_modal_video' : 'text_to_video'
+  } else if (referenceMode === 'first_last' || (legacy.firstFrameUrl && legacy.lastFrameUrl)) {
     if (legacy.firstFrameUrl) inputs.push({ type: 'image', role: 'first_frame', url: legacy.firstFrameUrl })
     if (legacy.lastFrameUrl) inputs.push({ type: 'image', role: 'last_frame', url: legacy.lastFrameUrl })
     mode = 'first_last_video'
   } else if (referenceMode === 'single' || legacy.imageUrl) {
     if (legacy.imageUrl) inputs.push({ type: 'image', role: 'first_frame', url: legacy.imageUrl })
     mode = 'image_to_video'
-  } else if (referenceMode === 'multiple' || multipleRefs.length) {
-    inputs.push(...multipleRefs.map((url) => ({ type: 'image' as const, role: 'reference' as const, url })))
-    mode = 'multi_modal_video'
   }
 
   return {

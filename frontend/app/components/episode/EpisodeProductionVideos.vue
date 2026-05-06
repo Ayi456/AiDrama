@@ -82,19 +82,145 @@
               <span class="shot-studio__label">参考画面</span>
               <span class="shot-studio__counter">{{ referenceCountLabel }}</span>
             </div>
-            <div class="video-workbench__refs">
-              <button class="video-workbench__ref" type="button" @click="openReference(firstFrame, `镜头 #${selectedShotIndexLabel} 首帧`)">
-                <img v-if="firstFrame" :src="assetUrl(firstFrame)" class="previewable-image" />
-                <div v-else class="prod-cover-empty">暂无首帧</div>
-                <b>首帧</b>
+
+            <div class="video-workbench__modebar">
+              <button
+                type="button"
+                :class="['video-workbench__mode', { active: referenceMode === 'auto' }]"
+                @click="setReferenceMode('auto')"
+              >
+                <ImageIcon :size="13" />
+                首尾帧
               </button>
-              <button class="video-workbench__ref" type="button" @click="openReference(lastFrame, `镜头 #${selectedShotIndexLabel} 尾帧`)">
-                <img v-if="lastFrame" :src="assetUrl(lastFrame)" class="previewable-image" />
-                <div v-else class="prod-cover-empty">暂无尾帧</div>
-                <b>尾帧</b>
+              <button
+                type="button"
+                :class="['video-workbench__mode', { active: referenceMode === 'multimodal' }]"
+                @click="setReferenceMode('multimodal')"
+              >
+                <Film :size="13" />
+                多模态
               </button>
             </div>
-            <div class="shot-studio__helper">{{ state.getVideoReferenceSummary(selectedShot) }}</div>
+
+            <template v-if="referenceMode === 'auto'">
+              <div class="video-workbench__refs">
+                <button class="video-workbench__ref" type="button" @click="openReference(firstFrame, `镜头 #${selectedShotIndexLabel} 首帧`)">
+                  <img v-if="firstFrame" :src="assetUrl(firstFrame)" class="previewable-image" />
+                  <div v-else class="prod-cover-empty">暂无首帧</div>
+                  <b>首帧</b>
+                </button>
+                <button class="video-workbench__ref" type="button" @click="openReference(lastFrame, `镜头 #${selectedShotIndexLabel} 尾帧`)">
+                  <img v-if="lastFrame" :src="assetUrl(lastFrame)" class="previewable-image" />
+                  <div v-else class="prod-cover-empty">暂无尾帧</div>
+                  <b>尾帧</b>
+                </button>
+              </div>
+              <div class="shot-studio__helper">{{ state.getVideoReferenceSummary(selectedShot) }}</div>
+            </template>
+
+            <template v-else>
+              <div class="video-workbench__multi-summary">
+                <span class="tag"><ImageIcon :size="11" /> 图片 {{ multimodalImageUrls.length }}/9</span>
+                <span class="tag"><Film :size="11" /> 视频 {{ multimodalVideoUrls.length }}/3</span>
+                <span class="tag"><Music :size="11" /> 音频 {{ multimodalAudioUrls.length }}/3</span>
+              </div>
+
+              <div class="video-workbench__multi-block">
+                <div class="video-workbench__multi-head">
+                  <div class="shot-studio__field-label">参考图</div>
+                  <button class="btn btn-sm" type="button" :disabled="isUploadingMedia('image')" @click="imageUploadInput?.click()">
+                    <Loader2 v-if="isUploadingMedia('image')" :size="12" class="animate-spin" />
+                    上传图片
+                  </button>
+                </div>
+                <input ref="imageUploadInput" class="sr-only" type="file" accept="image/*" multiple @change="uploadReferenceFiles('image', $event)" />
+                <div v-if="selectedReferenceImages.length" class="video-workbench__refs video-workbench__refs--compact">
+                  <button
+                    v-for="item in selectedReferenceImages"
+                    :key="item.url"
+                    class="video-workbench__ref"
+                    type="button"
+                    @click="openReference(item.url, item.label)"
+                  >
+                    <img :src="assetUrl(item.url)" class="previewable-image" />
+                    <b>{{ item.label }}</b>
+                    <span class="video-workbench__remove" @click.stop="removeReference('image', item.url)">×</span>
+                  </button>
+                </div>
+                <div v-else class="shot-empty-block">请上传参考图，或从已生成的角色/场景图片中选择</div>
+
+                <div v-if="characterReferenceOptions.length || sceneReferenceOptions.length" class="video-workbench__source-groups">
+                  <div v-if="characterReferenceOptions.length" class="video-workbench__source-group">
+                    <div class="video-workbench__source-title">角色图片</div>
+                    <div class="video-workbench__source-grid">
+                      <button
+                        v-for="item in characterReferenceOptions"
+                        :key="item.url"
+                        type="button"
+                        :class="['video-workbench__source', { selected: isReferenceSelected('image', item.url) }]"
+                        @click="toggleReferenceImage(item)"
+                      >
+                        <img :src="assetUrl(item.url)" />
+                        <span>{{ item.label }}</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div v-if="sceneReferenceOptions.length" class="video-workbench__source-group">
+                    <div class="video-workbench__source-title">场景图片</div>
+                    <div class="video-workbench__source-grid">
+                      <button
+                        v-for="item in sceneReferenceOptions"
+                        :key="item.url"
+                        type="button"
+                        :class="['video-workbench__source', { selected: isReferenceSelected('image', item.url) }]"
+                        @click="toggleReferenceImage(item)"
+                      >
+                        <img :src="assetUrl(item.url)" />
+                        <span>{{ item.label }}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="video-workbench__multi-block">
+                <div class="video-workbench__multi-head">
+                  <div class="shot-studio__field-label">参考视频</div>
+                  <button class="btn btn-sm" type="button" :disabled="isUploadingMedia('video')" @click="videoUploadInput?.click()">
+                    <Loader2 v-if="isUploadingMedia('video')" :size="12" class="animate-spin" />
+                    上传视频
+                  </button>
+                </div>
+                <input ref="videoUploadInput" class="sr-only" type="file" accept="video/*" multiple @change="uploadReferenceFiles('video', $event)" />
+                <div v-if="selectedReferenceVideos.length" class="video-workbench__clip-grid">
+                  <div v-for="item in selectedReferenceVideos" :key="item.url" class="video-workbench__clip selected">
+                    <video :src="assetUrl(item.url)" muted playsinline preload="metadata" />
+                    <span>{{ item.label }}</span>
+                    <button class="video-workbench__remove video-workbench__remove--button" type="button" @click="removeReference('video', item.url)">×</button>
+                  </div>
+                </div>
+                <div v-else class="shot-empty-block">请上传参考视频，最多 3 个</div>
+              </div>
+
+              <div class="video-workbench__multi-block">
+                <div class="video-workbench__multi-head">
+                  <div class="shot-studio__field-label">参考音频</div>
+                  <button class="btn btn-sm" type="button" :disabled="isUploadingMedia('audio')" @click="audioUploadInput?.click()">
+                    <Loader2 v-if="isUploadingMedia('audio')" :size="12" class="animate-spin" />
+                    上传音频
+                  </button>
+                </div>
+                <input ref="audioUploadInput" class="sr-only" type="file" accept="audio/*" multiple @change="uploadReferenceFiles('audio', $event)" />
+                <div v-if="selectedReferenceAudios.length" class="video-workbench__audio-list">
+                  <div v-for="item in selectedReferenceAudios" :key="item.url" class="video-workbench__audio-item">
+                    <Music :size="13" />
+                    <span>{{ item.label }}</span>
+                    <button type="button" @click="removeReference('audio', item.url)">移除</button>
+                  </div>
+                </div>
+                <div v-else class="shot-empty-block">请上传参考音频，最多 3 个</div>
+              </div>
+            </template>
           </div>
 
           <div v-if="state.videoFailMessage(selectedShot.id)" class="shot-studio__group shot-studio__group--optional">
@@ -256,7 +382,9 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { Loader2 } from 'lucide-vue-next'
+import { toast } from 'vue-sonner'
+import { Film, Image as ImageIcon, Loader2, Music } from 'lucide-vue-next'
+import { uploadAPI } from '~/composables/useApi'
 
 const props = defineProps({
   state: {
@@ -280,6 +408,14 @@ const selectedShotIndex = computed(() => (
 const selectedShotIndexLabel = computed(() => String(selectedShotIndex.value + 1).padStart(2, '0'))
 
 const promptDraft = ref('')
+const referenceMode = ref('auto')
+const selectedReferenceImagesByShot = ref({})
+const selectedReferenceVideosByShot = ref({})
+const selectedReferenceAudiosByShot = ref({})
+const uploadingMediaTypes = ref([])
+const imageUploadInput = ref(null)
+const videoUploadInput = ref(null)
+const audioUploadInput = ref(null)
 
 watch(
   () => [
@@ -305,7 +441,56 @@ const lastFrame = computed(() => (
   selectedShot.value ? props.state.getLastFrame(selectedShot.value) : ''
 ))
 
+const selectedShotKey = computed(() => String(selectedShot.value?.id || selectedShotIndex.value || 'current'))
+
+const selectedReferenceImages = computed(() => (
+  selectedReferenceImagesByShot.value[selectedShotKey.value] || []
+))
+
+const selectedReferenceVideos = computed(() => (
+  selectedReferenceVideosByShot.value[selectedShotKey.value] || []
+))
+
+const selectedReferenceAudios = computed(() => (
+  selectedReferenceAudiosByShot.value[selectedShotKey.value] || []
+))
+
+const characterReferenceOptions = computed(() => (
+  (props.state.visualChars || props.state.chars || [])
+    .map(item => ({
+      label: item.name || item.title || `角色 ${item.id || ''}`.trim(),
+      url: item.image_url || item.imageUrl || '',
+      source: 'character',
+    }))
+    .filter(item => !!item.url)
+))
+
+const sceneReferenceOptions = computed(() => (
+  (props.state.scenes || [])
+    .map(item => ({
+      label: item.location || item.title || `场景 ${item.id || ''}`.trim(),
+      url: item.image_url || item.imageUrl || '',
+      source: 'scene',
+    }))
+    .filter(item => !!item.url)
+))
+
+const multimodalImageUrls = computed(() => (
+  uniqueStrings(selectedReferenceImages.value.map(item => item.url)).slice(0, 9)
+))
+
+const multimodalVideoUrls = computed(() => (
+  uniqueStrings(selectedReferenceVideos.value.map(item => item.url)).slice(0, 3)
+))
+
+const multimodalAudioUrls = computed(() => (
+  uniqueStrings(selectedReferenceAudios.value.map(item => item.url)).slice(0, 3)
+))
+
 const referenceCountLabel = computed(() => {
+  if (referenceMode.value === 'multimodal') {
+    return `${multimodalImageUrls.value.length} 图 / ${multimodalVideoUrls.value.length} 视频 / ${multimodalAudioUrls.value.length} 音频`
+  }
   let count = 0
   if (firstFrame.value) count += 1
   if (lastFrame.value) count += 1
@@ -346,7 +531,22 @@ function selectShot(sb) {
 function generateSelectedVideo() {
   if (!selectedShot.value) return
   savePromptDraft()
-  props.handlers.genVid(selectedShot.value)
+  if (referenceMode.value !== 'multimodal') {
+    props.handlers.genVid(selectedShot.value)
+    return
+  }
+
+  if (!multimodalImageUrls.value.length && !multimodalVideoUrls.value.length && multimodalAudioUrls.value.length) {
+    toast.error('音频参考需要至少配合一张图或一个视频')
+    return
+  }
+
+  props.handlers.genVid(selectedShot.value, {
+    reference_mode: 'multimodal',
+    reference_image_urls: multimodalImageUrls.value,
+    reference_video_urls: multimodalVideoUrls.value,
+    reference_audio_urls: multimodalAudioUrls.value,
+  })
 }
 
 function openReference(path, title) {
@@ -356,6 +556,120 @@ function openReference(path, title) {
 
 function formatShotIndex(index) {
   return String(index + 1).padStart(2, '0')
+}
+
+function setReferenceMode(mode) {
+  referenceMode.value = mode
+}
+
+function mediaRefFor(type) {
+  if (type === 'video') return selectedReferenceVideosByShot
+  if (type === 'audio') return selectedReferenceAudiosByShot
+  return selectedReferenceImagesByShot
+}
+
+function mediaItemsFor(type) {
+  if (type === 'video') return selectedReferenceVideos.value
+  if (type === 'audio') return selectedReferenceAudios.value
+  return selectedReferenceImages.value
+}
+
+function mediaLimit(type) {
+  if (type === 'image') return 9
+  return 3
+}
+
+function setReferenceItems(type, items) {
+  const targetRef = mediaRefFor(type)
+  targetRef.value = {
+    ...targetRef.value,
+    [selectedShotKey.value]: uniqueByUrl(items).slice(0, mediaLimit(type)),
+  }
+}
+
+function addReference(type, item) {
+  if (!item?.url) return
+  const current = mediaItemsFor(type)
+  if (current.some(ref => ref.url === item.url)) return
+  if (current.length >= mediaLimit(type)) {
+    toast.error(`参考${type === 'image' ? '图' : type === 'video' ? '视频' : '音频'}最多 ${mediaLimit(type)} 个`)
+    return
+  }
+  setReferenceItems(type, [...current, item])
+}
+
+function removeReference(type, url) {
+  setReferenceItems(type, mediaItemsFor(type).filter(item => item.url !== url))
+}
+
+function toggleReferenceImage(item) {
+  if (isReferenceSelected('image', item.url)) {
+    removeReference('image', item.url)
+    return
+  }
+  addReference('image', item)
+}
+
+function isReferenceSelected(type, url) {
+  return mediaItemsFor(type).some(item => item.url === url)
+}
+
+function isUploadingMedia(type) {
+  return uploadingMediaTypes.value.includes(type)
+}
+
+async function uploadReferenceFiles(type, event) {
+  const input = event?.target
+  const files = Array.from(input?.files || [])
+  if (input) input.value = ''
+  if (!files.length) return
+
+  const remaining = mediaLimit(type) - mediaItemsFor(type).length
+  if (remaining <= 0) {
+    toast.error(`参考${type === 'image' ? '图' : type === 'video' ? '视频' : '音频'}已达到上限`)
+    return
+  }
+
+  const selectedFiles = files.slice(0, remaining)
+  if (files.length > remaining) toast.info(`只添加前 ${remaining} 个文件`)
+
+  uploadingMediaTypes.value = uniqueStrings([...uploadingMediaTypes.value, type])
+  try {
+    for (const file of selectedFiles) {
+      if (type === 'image' && !file.type.startsWith('image/')) throw new Error('请选择图片文件')
+      if (type === 'video' && !file.type.startsWith('video/')) throw new Error('请选择视频文件')
+      if (type === 'audio' && !file.type.startsWith('audio/')) throw new Error('请选择音频文件')
+
+      const uploaded = type === 'image'
+        ? await uploadAPI.image(file)
+        : type === 'video'
+          ? await uploadAPI.video(file)
+          : await uploadAPI.audio(file)
+      addReference(type, {
+        label: file.name,
+        url: uploaded.url || `/${uploaded.path}`,
+        source: 'upload',
+      })
+    }
+    toast.success('参考素材已添加')
+  } catch (error) {
+    toast.error(error?.message || '上传参考素材失败')
+  } finally {
+    uploadingMediaTypes.value = uploadingMediaTypes.value.filter(item => item !== type)
+  }
+}
+
+function uniqueStrings(values) {
+  return Array.from(new Set(values.map(item => String(item || '').trim()).filter(Boolean)))
+}
+
+function uniqueByUrl(items) {
+  const seen = new Set()
+  return items.filter((item) => {
+    if (!item.url || seen.has(item.url)) return false
+    seen.add(item.url)
+    return true
+  })
 }
 </script>
 

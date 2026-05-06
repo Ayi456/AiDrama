@@ -231,6 +231,8 @@ export const videoGenerations = mysqlTable('video_generations', {
   firstFrameUrl: text('first_frame_url'),
   lastFrameUrl: text('last_frame_url'),
   referenceImageUrls: text('reference_image_urls'),
+  referenceVideoUrls: text('reference_video_urls'),
+  referenceAudioUrls: text('reference_audio_urls'),
   duration: int('duration'),
   fps: int('fps'),
   resolution: text('resolution'),

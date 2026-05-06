@@ -33,6 +33,7 @@
 
       <ProductionCharacterGallery
         v-if="state.prodTab === 'chars'"
+        class="prod-content"
         :characters="state.visualChars"
         :locked-image-config-label="state.lockedImageConfigLabel"
         :pending-character-image-ids="state.pendingCharImageIds"
@@ -47,6 +48,7 @@
 
       <ProductionSceneGallery
         v-else-if="state.prodTab === 'scenes'"
+        class="prod-content"
         :scenes="state.scenes"
         :locked-image-config-label="state.lockedImageConfigLabel"
         :pending-scene-image-ids="state.pendingSceneImageIds"

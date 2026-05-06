@@ -40,6 +40,8 @@ app.post('/', async (c) => {
       firstFrameUrl: body.first_frame_url,
       lastFrameUrl: body.last_frame_url,
       referenceImageUrls: body.reference_image_urls,
+      referenceVideoUrls: body.reference_video_urls,
+      referenceAudioUrls: body.reference_audio_urls,
       duration: body.duration,
       aspectRatio: body.aspect_ratio,
       configId,

@@ -69,6 +69,16 @@ export const uploadAPI = {
     formData.append('file', file)
     return uploadReq<{ url: string; path: string }>('/upload/image', formData)
   },
+  video: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return uploadReq<{ url: string; path: string }>('/upload/video', formData)
+  },
+  audio: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return uploadReq<{ url: string; path: string }>('/upload/audio', formData)
+  },
 }
 
 export const dramaAPI = {
