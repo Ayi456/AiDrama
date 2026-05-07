@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
-import { createAgent, validAgentTypes } from '../agents/index.js'
+import { createAgent, isValidAgentType } from '../agents/index.js'
 import { splitScriptIntoStoryboardChunks } from '../agents/storyboard-chunks.js'
 import { db, schema } from '../db/index.js'
 import { success, badRequest } from '../utils/response.js'
@@ -13,6 +13,14 @@ import {
 } from '../agents/result-normalizer.js'
 
 const app = new Hono()
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function getErrorStack(error: unknown) {
+  return error instanceof Error ? error.stack : undefined
+}
 
 async function runChunkedStoryboardBreaker(
   message: string,
@@ -114,7 +122,7 @@ async function runChunkedStoryboardBreaker(
 
 app.post('/:type/chat', async (c) => {
   const agentType = c.req.param('type')
-  if (!validAgentTypes.includes(agentType)) {
+  if (!isValidAgentType(agentType)) {
     return badRequest(c, `Invalid agent type: ${agentType}`)
   }
 
@@ -188,17 +196,18 @@ app.post('/:type/chat', async (c) => {
       toolCalls: normalized.toolCalls,
       toolResults: normalized.toolResults,
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     const elapsed = ((performance.now() - startTime) / 1000).toFixed(1)
-    logTaskError('Agent', agentType, { elapsedSeconds: elapsed, error: err.message })
-    console.error(err.stack || err)
-    return badRequest(c, err.message || 'Agent execution failed')
+    const errorMessage = getErrorMessage(err)
+    logTaskError('Agent', agentType, { elapsedSeconds: elapsed, error: errorMessage })
+    console.error(getErrorStack(err) || err)
+    return badRequest(c, errorMessage || 'Agent execution failed')
   }
 })
 
 app.get('/:type/debug', async (c) => {
   const agentType = c.req.param('type')
-  if (!validAgentTypes.includes(agentType)) return badRequest(c, 'Invalid agent type')
+  if (!isValidAgentType(agentType)) return badRequest(c, 'Invalid agent type')
   return success(c, { agent_type: agentType, valid: true })
 })
 

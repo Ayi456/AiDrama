@@ -1,4 +1,4 @@
-type AssetRecord = Record<string, any>
+type AssetRecord = Record<string, unknown>
 
 function readFirst(row: AssetRecord, keys: string[]) {
   for (const key of keys) {

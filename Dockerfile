@@ -38,11 +38,11 @@ COPY backend/package.json backend/package-lock.json ./backend/
 COPY backend/src ./backend/src
 COPY backend/tsconfig.json ./backend/
 
-# Frontend static output
-COPY --from=frontend-build /app/frontend/.output/public ./frontend/dist
+# Frontend static output. The backend serves frontend/dist-vite by default.
+COPY --from=frontend-build /app/frontend/dist-vite ./frontend/dist-vite
 
-# Skills
-COPY skills/ ./backend/skills/
+# Skills are resolved from the project root at runtime.
+COPY skills/ ./skills/
 
 # Config
 COPY configs/config.example.yaml ./configs/config.yaml

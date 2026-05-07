@@ -1,6 +1,6 @@
 /**
- * 剧本改写 Agent 工具
- * 工厂函数模式 — 注入 episodeId，工具不再需要 LLM 传递 ID
+ * AiDrama script rewrite tools.
+ * The factory closes over episodeId so the model only describes the creative work.
  */
 import { createTool } from '@mastra/core/tools'
 import { z } from 'zod'
@@ -38,13 +38,18 @@ export function createScriptTools(episodeId: number) {
 
       return {
         source_content: source,
-        instruction: `请将以下内容改写为格式化剧本。
+        instruction: `请将以下内容改写为 AiDrama 可继续生产的格式化短剧剧本。
 
 格式规范：
-- 场景头：## S编号 | 内景/外景 · 地点 | 时间段
-- 动作描写：自然段落，不包含镜头语言
-- 对白：角色名：（状态/表情）台词内容
-- 每个场景 30-60 秒内容
+- 场景标题：## S编号 | 内景/外景 · 地点 | 时间段
+- 动作描写：使用自然段，不写镜头调度术语
+- 对白格式：角色名：（状态/表情）台词内容
+- 单场景容量：建议承载 30-60 秒剧情
+
+改写要求：
+- 保留核心剧情因果、关键反转和人物动机
+- 删除不服务画面生产的冗余描写
+- 稳定角色名、地点名和时间段，方便后续提取与分镜
 
 ${instructions || ''}
 

@@ -3,7 +3,13 @@ node_modules/
 
 # Build output
 dist/
+backend/dist/
+frontend/dist/
+frontend/dist-vite/
+
+# Deployment artifacts
 deploy/scf/
+deploy/*.zip
 
 # IDE
 .idea/
@@ -14,7 +20,8 @@ deploy/scf/
 
 # Environment
 .env
-.env.local
+.env.*
+!.env.example
 
 # Logs
 *.log
@@ -23,35 +30,16 @@ deploy/scf/
 .DS_Store
 Thumbs.db
 
-# Data (database and uploaded files)
-data/drama_generator.db
-data/drama_generator.db-wal
-data/drama_generator.db-shm
-data/huobao_drama.db
-data/huobao_drama.db-wal
-data/huobao_drama.db-shm
-data/aidrama.db
-data/aidrama.db-wal
-data/aidrama.db-shm
+# Local runtime data
+data/*
+!data/.gitkeep
 
-data/public.sql
-data/*.bak*
-data/static/
-data/storage/
-
-# Config
+# Local config
 configs/config.yaml
 
 # Misc
+docs/
 tmp/
 temp/
 .superpowers/
-/CLAUDE.md
-/AGENTS.md
-docs/
-data/*.db*
-data/aidrama.db-wal
-data/aidrama.db-shm
 .tocodex
-deploy/
-scripts/

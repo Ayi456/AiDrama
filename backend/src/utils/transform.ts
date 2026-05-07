@@ -1,16 +1,23 @@
+type PlainRecord = Record<string, unknown>
+
 /**
- * 将 Drizzle 返回的 camelCase 对象转换为 snake_case
- * 保持前端 API 兼容（和旧 Go 后端一致）
+ * Convert shallow camelCase or acronym-heavy keys into snake_case for API responses.
  */
-export function toSnakeCase(obj: Record<string, any>): Record<string, any> {
-  const result: Record<string, any> = {}
+function toSnakeCaseKey(key: string) {
+  return key
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .toLowerCase()
+}
+
+export function toSnakeCase(obj: PlainRecord): PlainRecord {
+  const result: PlainRecord = {}
   for (const [key, value] of Object.entries(obj)) {
-    const snakeKey = key.replace(/[A-Z]/g, m => '_' + m.toLowerCase())
-    result[snakeKey] = value
+    result[toSnakeCaseKey(key)] = value
   }
   return result
 }
 
-export function toSnakeCaseArray(arr: Record<string, any>[]): Record<string, any>[] {
+export function toSnakeCaseArray(arr: PlainRecord[]): PlainRecord[] {
   return arr.map(toSnakeCase)
 }

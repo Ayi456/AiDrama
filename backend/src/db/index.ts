@@ -6,6 +6,7 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { backfillPersistedAssetUrls } from './asset-url-backfill.js'
+import { installQueryExecutionHelpers } from './query-helpers.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PROJECT_ROOT = path.resolve(__dirname, '../../..')
@@ -487,53 +488,10 @@ try {
 
 const mysqlDb = drizzle(mysqlPool, { schema, mode: 'default' })
 
-type CompatRunResult = Record<string, unknown> & {
-  lastInsertRowid: number
-}
-
-declare module 'drizzle-orm/query-promise' {
-  interface QueryPromise<T> {
-    all(): Promise<T>
-    run(): Promise<CompatRunResult>
-  }
-}
-
-function normalizeRunResult(result: any) {
-  const packet = Array.isArray(result) ? result[0] : result
-  const insertId = packet && typeof packet === 'object' && 'insertId' in packet
-    ? Number(packet.insertId)
-    : 0
-  return {
-    ...(packet && typeof packet === 'object' ? packet : {}),
-    lastInsertRowid: insertId,
-  }
-}
-
-function installSqliteCompatMethods(query: any) {
-  let proto = Object.getPrototypeOf(query)
-  while (proto && proto !== Object.prototype) {
-    if (!Object.prototype.hasOwnProperty.call(proto, 'all')) {
-      Object.defineProperty(proto, 'all', {
-        value: function all() {
-          return this.execute()
-        },
-      })
-    }
-    if (!Object.prototype.hasOwnProperty.call(proto, 'run')) {
-      Object.defineProperty(proto, 'run', {
-        value: async function run() {
-          return normalizeRunResult(await this.execute())
-        },
-      })
-    }
-    proto = Object.getPrototypeOf(proto)
-  }
-}
-
-installSqliteCompatMethods(mysqlDb.select().from(schema.dramas))
-installSqliteCompatMethods(mysqlDb.insert(schema.dramas).values({ title: '', createdAt: '', updatedAt: '' }))
-installSqliteCompatMethods(mysqlDb.update(schema.dramas).set({ updatedAt: '' }).where(eq(schema.dramas.id, 0)))
-installSqliteCompatMethods(mysqlDb.delete(schema.dramas).where(eq(schema.dramas.id, 0)))
+installQueryExecutionHelpers(mysqlDb.select().from(schema.dramas))
+installQueryExecutionHelpers(mysqlDb.insert(schema.dramas).values({ title: '', createdAt: '', updatedAt: '' }))
+installQueryExecutionHelpers(mysqlDb.update(schema.dramas).set({ updatedAt: '' }).where(eq(schema.dramas.id, 0)))
+installQueryExecutionHelpers(mysqlDb.delete(schema.dramas).where(eq(schema.dramas.id, 0)))
 
 export const db = mysqlDb
 export { schema }

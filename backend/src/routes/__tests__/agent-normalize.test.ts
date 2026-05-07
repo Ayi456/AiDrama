@@ -94,3 +94,31 @@ runTest('normalizeAgentResult reads Mastra chunk payload tool names and results'
   assert.deepEqual(normalized.toolResults.map((toolResult) => toolResult.toolName), ['append_storyboards'])
   assert.equal(wasToolUsed(normalized, 'append_storyboards'), true)
 })
+
+runTest('normalizeAgentResult ignores malformed non-array tool collections', () => {
+  const normalized = normalizeAgentResult({
+    text: null,
+    toolCalls: { toolName: 'append_storyboards' },
+    toolResults: { toolName: 'append_storyboards' },
+  })
+
+  assert.equal(normalized.text, '')
+  assert.deepEqual(normalized.toolCalls, [])
+  assert.deepEqual(normalized.toolResults, [])
+})
+
+runTest('normalizeAgentResult serializes missing tool result payloads as null', () => {
+  const normalized = normalizeAgentResult({
+    toolResults: [
+      {
+        type: 'tool-result',
+        payload: {
+          toolName: 'append_storyboards',
+        },
+      },
+    ],
+  })
+
+  assert.equal(normalized.toolResults[0]?.toolName, 'append_storyboards')
+  assert.equal(normalized.toolResults[0]?.result, 'null')
+})

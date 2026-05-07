@@ -1,11 +1,15 @@
 import type { Context } from 'hono'
 
-export function success(c: Context, data: any = null) {
-  return c.json({ code: 200, data, message: 'success' })
+function normalizeData<T>(data: T | null | undefined): T | null {
+  return data ?? null
 }
 
-export function created(c: Context, data: any = null) {
-  return c.json({ code: 201, data, message: 'created' }, 201)
+export function success<T>(c: Context, data?: T | null) {
+  return c.json({ code: 200, data: normalizeData(data), message: 'success' })
+}
+
+export function created<T>(c: Context, data?: T | null) {
+  return c.json({ code: 201, data: normalizeData(data), message: 'created' }, 201)
 }
 
 export function badRequest(c: Context, message = 'bad request') {

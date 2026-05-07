@@ -14,12 +14,18 @@ export type NormalizedAgentResult = {
   toolResults: NormalizedToolResult[]
 }
 
+type UnknownRecord = Record<string, unknown>
+
 const GENERIC_TOOL_EVENT_TYPES = new Set([
   'tool-call',
   'tool-result',
   'tool-call-delta',
   'tool-call-streaming-start',
 ])
+
+function asRecord(value: unknown): UnknownRecord | null {
+  return value && typeof value === 'object' ? value as UnknownRecord : null
+}
 
 function meaningfulToolName(value: unknown) {
   if (typeof value !== 'string') return null
@@ -28,20 +34,50 @@ function meaningfulToolName(value: unknown) {
   return trimmed
 }
 
-export function normalizeToolName(entry: any) {
+function readNestedRecord(record: UnknownRecord | null, key: string) {
+  return asRecord(record?.[key])
+}
+
+function readToolResultPayload(entry: UnknownRecord | null) {
+  return entry?.result
+    ?? entry?.output
+    ?? entry?.data
+    ?? readNestedRecord(entry, 'payload')?.result
+    ?? null
+}
+
+function stringifyToolResult(value: unknown) {
+  if (typeof value === 'string') return value
+  try {
+    return JSON.stringify(value ?? null)
+  } catch {
+    return JSON.stringify(String(value))
+  }
+}
+
+export function normalizeToolName(entry: unknown) {
+  const record = asRecord(entry)
+  const tool = readNestedRecord(record, 'tool')
+  const toolCall = readNestedRecord(record, 'toolCall')
+  const toolResult = readNestedRecord(record, 'toolResult')
+  const result = readNestedRecord(record, 'result')
+  const output = readNestedRecord(record, 'output')
+  const data = readNestedRecord(record, 'data')
+  const payload = readNestedRecord(record, 'payload')
+
   const candidates = [
-    entry?.toolName,
-    entry?.tool?.toolName,
-    entry?.tool?.id,
-    entry?.toolCall?.toolName,
-    entry?.toolCall?.name,
-    entry?.toolResult?.toolName,
-    entry?.result?.toolName,
-    entry?.output?.toolName,
-    entry?.data?.toolName,
-    entry?.payload?.toolName,
-    entry?.name,
-    entry?.type,
+    record?.toolName,
+    tool?.toolName,
+    tool?.id,
+    toolCall?.toolName,
+    toolCall?.name,
+    toolResult?.toolName,
+    result?.toolName,
+    output?.toolName,
+    data?.toolName,
+    payload?.toolName,
+    record?.name,
+    record?.type,
   ]
 
   for (const candidate of candidates) {
@@ -52,23 +88,27 @@ export function normalizeToolName(entry: any) {
   return null
 }
 
-function normalizeToolResult(entry: any) {
-  const result = entry?.result ?? entry?.output ?? entry?.data ?? entry?.payload?.result ?? null
-  return typeof result === 'string' ? result : JSON.stringify(result)
+function normalizeToolResult(entry: unknown) {
+  return stringifyToolResult(readToolResultPayload(asRecord(entry)))
 }
 
-export function normalizeAgentResult(result: any): NormalizedAgentResult {
-  const toolCalls = result.toolCalls || []
-  const toolResults = result.toolResults || []
+export function normalizeAgentResult(result: unknown): NormalizedAgentResult {
+  const record = asRecord(result)
+  const toolCalls = Array.isArray(record?.toolCalls) ? record.toolCalls : []
+  const toolResults = Array.isArray(record?.toolResults) ? record.toolResults : []
+
   return {
-    text: result.text || '',
-    toolCalls: toolCalls.map((tc: any) => ({
-      toolName: normalizeToolName(tc),
-      args: tc?.args ?? tc?.input ?? tc?.payload?.args ?? null,
+    text: typeof record?.text === 'string' ? record.text : '',
+    toolCalls: toolCalls.map((toolCall) => ({
+      toolName: normalizeToolName(toolCall),
+      args: readNestedRecord(asRecord(toolCall), 'payload')?.args
+        ?? asRecord(toolCall)?.args
+        ?? asRecord(toolCall)?.input
+        ?? null,
     })),
-    toolResults: toolResults.map((tr: any) => ({
-      toolName: normalizeToolName(tr),
-      result: normalizeToolResult(tr),
+    toolResults: toolResults.map((toolResult) => ({
+      toolName: normalizeToolName(toolResult),
+      result: normalizeToolResult(toolResult),
     })),
   }
 }
@@ -81,12 +121,12 @@ function parseToolResult(result: string) {
   }
 }
 
-function isSuccessfulAppendResult(value: any) {
-  return value
-    && typeof value === 'object'
-    && typeof value.message === 'string'
-    && /^Appended \d+ storyboards\b/.test(value.message)
-    && Number.isFinite(Number(value.count))
+function isSuccessfulAppendResult(value: unknown) {
+  const record = asRecord(value)
+  return record
+    && typeof record.message === 'string'
+    && /^Appended \d+ storyboards\b/.test(record.message)
+    && Number.isFinite(Number(record.count))
 }
 
 export function wasToolUsed(result: NormalizedAgentResult, toolName: string) {

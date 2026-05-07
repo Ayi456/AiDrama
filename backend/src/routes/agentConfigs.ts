@@ -6,6 +6,20 @@ import { toSnakeCaseArray, toSnakeCase } from '../utils/transform.js'
 
 const app = new Hono()
 
+type AgentConfigRequestBody = {
+  agent_type?: string
+  name?: string
+  description?: string
+  model?: string | null
+  system_prompt?: string | null
+  temperature?: number | null
+  max_tokens?: number | null
+  max_iterations?: number | null
+  is_active?: boolean | null
+}
+
+type AgentConfigUpdateValues = Partial<typeof schema.agentConfigs.$inferInsert>
+
 // GET /agent-configs
 app.get('/', async (c) => {
   const rows = (await db.select().from(schema.agentConfigs)
@@ -24,16 +38,14 @@ app.get('/:id', async (c) => {
 
 // POST /agent-configs (upsert by agent_type)
 app.post('/', async (c) => {
-  const body = await c.req.json()
+  const body = await c.req.json<AgentConfigRequestBody>()
   if (!body.agent_type) return badRequest(c, 'agent_type required')
   const ts = now()
 
-  // Check if exists (including soft-deleted)
   const [existing] = (await db.select().from(schema.agentConfigs)
     .where(eq(schema.agentConfigs.agentType, body.agent_type)).all())
 
   if (existing) {
-    // Update existing
     await db.update(schema.agentConfigs).set({
       name: body.name || existing.name,
       model: body.model ?? existing.model,
@@ -70,8 +82,8 @@ app.post('/', async (c) => {
 // PUT /agent-configs/:id
 app.put('/:id', async (c) => {
   const id = Number(c.req.param('id'))
-  const body = await c.req.json()
-  const updates: Record<string, any> = { updatedAt: now() }
+  const body = await c.req.json<AgentConfigRequestBody>()
+  const updates: AgentConfigUpdateValues = { updatedAt: now() }
 
   if ('model' in body) updates.model = body.model
   if ('temperature' in body) updates.temperature = body.temperature

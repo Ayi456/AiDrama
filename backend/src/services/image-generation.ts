@@ -6,8 +6,19 @@ import { downloadFile, readImageAsCompressedDataUrl, saveBase64Image } from '../
 import { uploadStaticAssetToCos } from '../utils/cos.js'
 import { getImageAdapter } from './adapters/registry.js'
 import type { AIConfig } from './adapters/types.js'
-import { buildImageJobSpecFromLegacyRequest } from './provider-spec.js'
 import { resolveRequestedImageSize } from './image-size.js'
+import { buildImageCompletionPatch, publishGeneratedAsset } from './media-completion.js'
+import { buildCharacterImagePatch, buildSceneImagePatch, buildStoryboardImagePatch } from './media-publication.js'
+import { resolveImageReferenceArray } from './media-reference-resolver.js'
+import { assembleImageGenerateRequest } from './media-request-assembly.js'
+import { runMediaPollingLoop } from './media-polling-loop.js'
+import {
+  buildJobFailurePatch,
+  buildJobProcessingPatch,
+  buildJobSnapshotPatch,
+  normalizeJobErrorMessage,
+} from './media-job-state.js'
+import { isProviderApiError, sendProviderJsonRequest } from './media-provider-transport.js'
 import { logTaskError, logTaskPayload, logTaskProgress, logTaskStart, logTaskSuccess, logTaskWarn, redactUrl } from '../utils/task-logger.js'
 
 interface GenerateImageParams {
@@ -21,14 +32,6 @@ interface GenerateImageParams {
   referenceImages?: string[]
   frameType?: string
   configId?: number
-}
-
-function toJson(value: unknown) {
-  try {
-    return JSON.stringify(value)
-  } catch {
-    return null
-  }
 }
 
 export async function generateImage(params: GenerateImageParams): Promise<number> {
@@ -73,9 +76,10 @@ export async function generateImage(params: GenerateImageParams): Promise<number
     },
     params,
   })
-  processImageGeneration(lastId, config).catch(err => {
-    logTaskError('ImageTask', 'process', { id: lastId, error: err.message })
-    console.error(`Image generation ${lastId} failed:`, err)
+  processImageGeneration(lastId, config).catch((error: unknown) => {
+    const message = normalizeJobErrorMessage(error)
+    logTaskError('ImageTask', 'process', { id: lastId, error: message })
+    console.error(`Image generation ${lastId} failed:`, error)
   })
   return lastId
 }
@@ -96,29 +100,24 @@ async function processImageGeneration(id: number, config: AIConfig) {
       frameType: record.frameType,
     })
 
-    const resolvedReferenceImages = await normalizeReferenceImages(record.referenceImages)
-    const normalizedSpec = buildImageJobSpecFromLegacyRequest({
-      prompt: record.prompt,
-      size: record.size,
-      frameType: record.frameType,
-      referenceImages: resolvedReferenceImages,
-    }, config.settings as any)
+    const resolvedReferenceImages = await resolveImageReferenceArray(record.referenceImages, {
+      readImageAsCompressedDataUrl,
+      warn: (event, payload) => logTaskWarn('ImageTask', event, payload),
+    })
+    const { normalizedSpec, providerRequest } = assembleImageGenerateRequest({
+      adapter,
+      config,
+      record,
+      resolvedReferenceImages,
+    })
     await db.update(schema.imageGenerations)
-      .set({ normalizedRequest: toJson(normalizedSpec), updatedAt: now() })
+      .set(buildJobSnapshotPatch('normalizedRequest', normalizedSpec, now()))
       .where(eq(schema.imageGenerations.id, id))
       .run()
 
-    const { url, method, headers, body } = adapter.buildGenerateRequest(config, {
-      id: record.id,
-      model: record.model,
-      prompt: record.prompt,
-      size: record.size,
-      frameType: record.frameType,
-      referenceImages: resolvedReferenceImages ? JSON.stringify(resolvedReferenceImages) : null,
-      normalizedSpec,
-    })
+    const { url, method, headers, body } = providerRequest
     await db.update(schema.imageGenerations)
-      .set({ providerRequest: toJson(body), updatedAt: now() })
+      .set(buildJobSnapshotPatch('providerRequest', body, now()))
       .where(eq(schema.imageGenerations.id, id))
       .run()
     logTaskProgress('ImageTask', 'request', {
@@ -136,17 +135,15 @@ async function processImageGeneration(id: number, config: AIConfig) {
       body,
     })
 
-    const resp = await fetch(url, {
+    const result = await sendProviderJsonRequest({
+      url,
       method,
       headers,
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(600_000),
+      body,
+      timeoutMs: 600_000,
     })
-
-    if (!resp.ok) throw new Error(`API error ${resp.status}: ${await resp.text()}`)
-    const result = await resp.json() as any
     await db.update(schema.imageGenerations)
-      .set({ providerResponse: toJson(result), updatedAt: now() })
+      .set(buildJobSnapshotPatch('providerResponse', result, now()))
       .where(eq(schema.imageGenerations.id, id))
       .run()
     logTaskPayload('ImageTask', 'response payload', {
@@ -159,13 +156,11 @@ async function processImageGeneration(id: number, config: AIConfig) {
 
     if (!isAsync && imageUrl) {
       logTaskProgress('ImageTask', 'sync-complete', { id, imageUrl })
-      // 同步模式：直接下载图片
       await handleImageComplete(id, config.provider, imageUrl)
       return
     }
 
     if (!isAsync && !imageUrl) {
-      // 同步模式但无 URL（Gemini 等返回 base64）
       const b64 = adapter.extractImageBase64(result)
       if (b64) {
         logTaskProgress('ImageTask', 'sync-base64-complete', { id, mimeType: b64.mimeType })
@@ -175,84 +170,35 @@ async function processImageGeneration(id: number, config: AIConfig) {
       throw new Error('No image URL or base64 data in response')
     }
 
-    // 异步模式：更新 taskId，开始轮询
     await db.update(schema.imageGenerations)
-      .set({ taskId, status: 'processing', updatedAt: now() })
+      .set(buildJobProcessingPatch(taskId, now()))
       .where(eq(schema.imageGenerations.id, id))
       .run()
     logTaskProgress('ImageTask', 'poll-start', { id, taskId, provider: config.provider })
     pollImageTask(id, config, taskId!)
-  } catch (err: any) {
-    logTaskError('ImageTask', 'process', { id, provider: config.provider, error: err.message })
+  } catch (error: unknown) {
+    const message = normalizeJobErrorMessage(error)
+    logTaskError('ImageTask', 'process', { id, provider: config.provider, error: message })
     await db.update(schema.imageGenerations)
-      .set({ status: 'failed', errorMsg: err.message, updatedAt: now() })
+      .set(buildJobFailurePatch(error, now()))
       .where(eq(schema.imageGenerations.id, id))
       .run()
   }
 }
 
-async function normalizeReferenceImages(raw: string | null | undefined): Promise<string[]> {
-  if (!raw) return []
-  let refs: string[] = []
-  try {
-    refs = JSON.parse(raw)
-  } catch {
-    refs = []
-  }
-
-  const deduped = Array.from(
-    new Set(
-      refs
-        .map((item) => String(item || '').trim())
-        .filter(Boolean),
-    ),
-  )
-
-  const normalized = await Promise.all(deduped.map(async (value) => {
-    if (value.startsWith('data:image/')) return value
-    if (value.startsWith('static/') || value.startsWith('/static/')) {
-      const localPath = value.startsWith('/static/') ? value.slice(1) : value
-      try {
-        return await readImageAsCompressedDataUrl(localPath, {
-          maxWidth: 768,
-          maxHeight: 768,
-          quality: 68,
-        })
-      } catch (err) {
-        logTaskWarn('ImageTask', 'reference-read-failed', { path: localPath, error: (err as Error).message })
-        return null
-      }
-    }
-    return value
-  }))
-
-  return normalized.filter((item): item is string => !!item).slice(0, 6)
-}
-
 async function pollImageTask(id: number, config: AIConfig, taskId: string) {
   const adapter = getImageAdapter(config.provider)
-  const startedAt = Date.now()
   const maxDurationMs = 600_000
 
-  for (let i = 0; i < 120; i++) {
-    if (Date.now() - startedAt >= maxDurationMs) {
-      logTaskError('ImageTask', 'poll-timeout', { id, taskId, error: 'Polling exceeded 10 minutes' })
-      await db.update(schema.imageGenerations)
-        .set({ status: 'failed', errorMsg: 'Timeout: Polling exceeded 10 minutes', updatedAt: now() })
-        .where(eq(schema.imageGenerations.id, id))
-        .run()
-      return
-    }
-    await new Promise(r => setTimeout(r, 5000))
-    if (Date.now() - startedAt >= maxDurationMs) {
-      logTaskError('ImageTask', 'poll-timeout', { id, taskId, error: 'Polling exceeded 10 minutes' })
-      await db.update(schema.imageGenerations)
-        .set({ status: 'failed', errorMsg: 'Timeout: Polling exceeded 10 minutes', updatedAt: now() })
-        .where(eq(schema.imageGenerations.id, id))
-        .run()
-      return
-    }
-    try {
+  const pollResult = await runMediaPollingLoop<void>({
+    maxAttempts: 120,
+    delayMs: 5000,
+    maxDurationMs,
+    timeoutMessage: 'Polling exceeded 10 minutes',
+    onRetry: ({ attemptNumber, error }) => {
+      logTaskWarn('ImageTask', 'poll-retry', { id, taskId, attempt: attemptNumber, error: error.message })
+    },
+    attempt: async ({ attemptNumber, remainingMs }) => {
       const { url, method, headers } = adapter.buildPollRequest(config, taskId)
       logTaskProgress('ImageTask', 'poll-request', {
         id,
@@ -260,18 +206,24 @@ async function pollImageTask(id: number, config: AIConfig, taskId: string) {
         provider: config.provider,
         method,
         url: redactUrl(url),
-        attempt: i + 1,
+        attempt: attemptNumber,
       })
-      const remainingMs = Math.max(1_000, maxDurationMs - (Date.now() - startedAt))
-      const resp = await fetch(url, {
-        method,
-        headers,
-        signal: AbortSignal.timeout(remainingMs),
-      })
-      if (!resp.ok) continue
-      const result = await resp.json() as any
+
+      let result: unknown
+      try {
+        result = await sendProviderJsonRequest({
+          url,
+          method,
+          headers,
+          timeoutMs: Math.max(1_000, remainingMs ?? maxDurationMs),
+        })
+      } catch (error) {
+        if (isProviderApiError(error)) return { type: 'continue' }
+        throw error
+      }
+
       await db.update(schema.imageGenerations)
-        .set({ providerResponse: toJson(result), updatedAt: now() })
+        .set(buildJobSnapshotPatch('providerResponse', result, now()))
         .where(eq(schema.imageGenerations.id, id))
         .run()
 
@@ -280,87 +232,101 @@ async function pollImageTask(id: number, config: AIConfig, taskId: string) {
       if (pollResp.status === 'completed' && pollResp.imageUrl) {
         logTaskSuccess('ImageTask', 'poll-complete', { id, taskId, imageUrl: pollResp.imageUrl })
         await handleImageComplete(id, config.provider, pollResp.imageUrl)
-        return
+        return { type: 'done', value: undefined }
       }
+
       if (pollResp.status === 'completed' && adapter.provider === 'gemini') {
-        // Gemini 可能返回 base64
         const b64 = adapter.extractImageBase64(result)
         if (b64) {
           logTaskSuccess('ImageTask', 'poll-base64-complete', { id, taskId, mimeType: b64.mimeType })
           await handleImageCompleteBase64(id, config.provider, b64.data, b64.mimeType)
-          return
+          return { type: 'done', value: undefined }
         }
       }
+
       if (pollResp.status === 'failed') {
         logTaskError('ImageTask', 'poll-failed', { id, taskId, error: pollResp.error || 'Generation failed' })
         throw new Error(pollResp.error || 'Generation failed')
       }
-    } catch (err: any) {
-      if (i === 119 || Date.now() - startedAt >= maxDurationMs) {
-        logTaskError('ImageTask', 'poll-timeout', { id, taskId, error: err.message })
-        await db.update(schema.imageGenerations)
-          .set({ status: 'failed', errorMsg: `Timeout: ${err.message}`, updatedAt: now() })
-          .where(eq(schema.imageGenerations.id, id))
-          .run()
-        return
-      }
-      logTaskWarn('ImageTask', 'poll-retry', { id, taskId, attempt: i + 1, error: err.message })
-    }
-  }
+
+      return { type: 'continue' }
+    },
+  })
+
+  if (pollResult.status === 'done') return
+
+  const errorMessage = pollResult.status === 'exhausted'
+    ? 'Polling attempts exhausted'
+    : pollResult.error.message
+  logTaskError('ImageTask', 'poll-timeout', { id, taskId, error: errorMessage })
+  await db.update(schema.imageGenerations)
+    .set(buildJobFailurePatch(new Error(`Timeout: ${errorMessage}`), now()))
+    .where(eq(schema.imageGenerations.id, id))
+    .run()
 }
 
 async function handleImageComplete(id: number, provider: string, imageUrl: string) {
   const localPath = await downloadFile(imageUrl, 'images')
-  const publicUrl = await uploadStaticAssetToCos(localPath) || localPath
+  const publicUrl = await publishGeneratedAsset(localPath, uploadStaticAssetToCos)
   const rows = (await db.select().from(schema.imageGenerations).where(eq(schema.imageGenerations.id, id)).all())
   const record = rows[0]
 
   await db.update(schema.imageGenerations)
-    .set({ imageUrl: publicUrl, localPath, minioUrl: publicUrl, status: 'completed', updatedAt: now() })
+    .set(buildImageCompletionPatch({ publicUrl, localPath, updatedAt: now() }))
     .where(eq(schema.imageGenerations.id, id))
     .run()
   logTaskSuccess('ImageTask', 'downloaded', { id, provider, localPath, publicUrl })
 
-  // 更新关联表
+  // Publish the generated image onto the storyboard, character, or scene that owns it.
   if (record?.storyboardId) {
-    const sbUpdate: Record<string, any> = { updatedAt: now() }
-    if (record.frameType === 'first_frame') sbUpdate.firstFrameImage = publicUrl
-    else if (record.frameType === 'last_frame') sbUpdate.lastFrameImage = publicUrl
-    else sbUpdate.composedImage = publicUrl
-    await db.update(schema.storyboards).set(sbUpdate).where(eq(schema.storyboards.id, record.storyboardId)).run()
+    await db.update(schema.storyboards)
+      .set(buildStoryboardImagePatch(record.frameType, publicUrl, now()))
+      .where(eq(schema.storyboards.id, record.storyboardId))
+      .run()
   }
   if (record?.characterId) {
-    await db.update(schema.characters).set({ imageUrl: publicUrl, localPath, updatedAt: now() }).where(eq(schema.characters.id, record.characterId)).run()
+    await db.update(schema.characters)
+      .set(buildCharacterImagePatch(publicUrl, localPath, now()))
+      .where(eq(schema.characters.id, record.characterId))
+      .run()
   }
   if (record?.sceneId) {
-    await db.update(schema.scenes).set({ imageUrl: publicUrl, localPath, status: 'completed', updatedAt: now() }).where(eq(schema.scenes.id, record.sceneId)).run()
+    await db.update(schema.scenes)
+      .set(buildSceneImagePatch(publicUrl, localPath, now()))
+      .where(eq(schema.scenes.id, record.sceneId))
+      .run()
   }
 }
 
 async function handleImageCompleteBase64(id: number, provider: string, base64Data: string, mimeType: string) {
   const localPath = await saveBase64Image(base64Data, mimeType, 'images')
-  const publicUrl = await uploadStaticAssetToCos(localPath) || localPath
+  const publicUrl = await publishGeneratedAsset(localPath, uploadStaticAssetToCos)
   const rows = (await db.select().from(schema.imageGenerations).where(eq(schema.imageGenerations.id, id)).all())
   const record = rows[0]
 
   await db.update(schema.imageGenerations)
-    .set({ imageUrl: publicUrl, localPath, minioUrl: publicUrl, status: 'completed', updatedAt: now() })
+    .set(buildImageCompletionPatch({ publicUrl, localPath, updatedAt: now() }))
     .where(eq(schema.imageGenerations.id, id))
     .run()
   logTaskSuccess('ImageTask', 'saved-base64', { id, provider, mimeType, localPath, publicUrl })
 
-  // 更新关联表
+  // Publish the generated image onto the storyboard, character, or scene that owns it.
   if (record?.storyboardId) {
-    const sbUpdate: Record<string, any> = { updatedAt: now() }
-    if (record.frameType === 'first_frame') sbUpdate.firstFrameImage = publicUrl
-    else if (record.frameType === 'last_frame') sbUpdate.lastFrameImage = publicUrl
-    else sbUpdate.composedImage = publicUrl
-    await db.update(schema.storyboards).set(sbUpdate).where(eq(schema.storyboards.id, record.storyboardId)).run()
+    await db.update(schema.storyboards)
+      .set(buildStoryboardImagePatch(record.frameType, publicUrl, now()))
+      .where(eq(schema.storyboards.id, record.storyboardId))
+      .run()
   }
   if (record?.characterId) {
-    await db.update(schema.characters).set({ imageUrl: publicUrl, localPath, updatedAt: now() }).where(eq(schema.characters.id, record.characterId)).run()
+    await db.update(schema.characters)
+      .set(buildCharacterImagePatch(publicUrl, localPath, now()))
+      .where(eq(schema.characters.id, record.characterId))
+      .run()
   }
   if (record?.sceneId) {
-    await db.update(schema.scenes).set({ imageUrl: publicUrl, localPath, status: 'completed', updatedAt: now() }).where(eq(schema.scenes.id, record.sceneId)).run()
+    await db.update(schema.scenes)
+      .set(buildSceneImagePatch(publicUrl, localPath, now()))
+      .where(eq(schema.scenes.id, record.sceneId))
+      .run()
   }
 }

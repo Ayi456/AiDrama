@@ -1,6 +1,5 @@
 ﻿/**
- * Drizzle schema 鈥?绮剧‘鍖归厤鐜版湁 SQLite 鏁版嵁搴撳垪鍚?
- * 浠?PRAGMA table_info() 閫嗗悜鐢熸垚
+ * Drizzle schema for the current MySQL database.
  */
 import { mysqlTable, text, int, double, boolean, primaryKey, varchar } from 'drizzle-orm/mysql-core'
 
@@ -40,7 +39,6 @@ export const episodes = mysqlTable('episodes', {
   updatedAt: text('updated_at').notNull(),
   deletedAt: text('deleted_at'),
 })
-
 export const characters = mysqlTable('characters', {
   id: int('id').autoincrement().primaryKey(),
   dramaId: int('drama_id').notNull(),

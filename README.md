@@ -1,239 +1,56 @@
-# 🎬 AiDrama - AI 短剧生成平台
+# AiDrama
 
-<div align="center">
+AiDrama is a TypeScript full-stack tool for AI-assisted short drama production. It covers script rewriting, character and scene extraction, storyboard generation, image generation, video generation, and clip merging.
 
-**基于 TypeScript 全栈的 AI 短剧自动化生产平台**
+The current codebase is a Vue 3 SPA plus a Hono backend. Runtime data is stored in MySQL, while generated media files are stored under `data/static` by default or can be moved to COS for production.
 
-[![Node Version](https://img.shields.io/badge/Node.js-20+-339933?style=flat&logo=node.js)](https://nodejs.org)
-[![Vue Version](https://img.shields.io/badge/Vue-3.x-4FC08D?style=flat&logo=vue.js)](https://vuejs.org)
-[![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+## Current Stack
 
-[功能特性](#功能特性) • [快速开始](#快速开始) • [部署指南](#部署指南)
+| Area | Stack |
+|---|---|
+| Frontend | Vue 3, Vue Router, Vite, TypeScript, plain CSS, Lucide icons |
+| Backend | Node.js 20+, Hono, Drizzle ORM, mysql2, Mastra, AI SDK |
+| Media | FFmpeg, fluent-ffmpeg, Sharp |
+| Storage | Local filesystem by default, Tencent COS helpers for production assets |
+| Deployment | Single Hono server, Docker, Tencent SCF Web Function packaging |
 
-</div>
+## Repository Layout
 
----
-
-## 📖 项目简介
-
-AiDrama 是一个基于 AI 的短剧自动化生产平台，实现从剧本生成、角色设计、分镜制作到视频合成的全流程自动化。
-### 🎯 核心价值
-
-- **🤖 AI 驱动**：使用大语言模型解析剧本，提取角色、场景和分镜信息
-- **🎨 智能创作**：AI 绘图生成角色形象和场景背景
-- **📹 视频生成**：基于文生视频和图生视频模型自动生成分镜视频
-- **🔄 工作流**：完整的短剧制作工作流，从创意到成片一站式完成
-
-### 🛠️ 技术架构
-
-```
-frontend/   — Vite + Vue 3 + TypeScript (纯 CSS，无 UI 框架)
-backend/    — Hono + Drizzle ORM + Mastra AI Agents + mysql2
-configs/    — config.yaml 配置文件
-data/       — 生成资源文件（数据库使用 MySQL）
-skills/     — Agent 技能定义 (SKILL.md)
+```text
+backend/    Hono API, database schema, AI agents, media services
+frontend/   Vue 3 SPA, Vite build output in frontend/dist-vite
+configs/    Local config templates; runtime database config comes from env vars
+data/       Local generated files and development data
+skills/     Agent skill definitions loaded by the backend
+scripts/    Build and deployment helper scripts
+docs/       Specs, implementation plans, and cleanup notes
+deploy/     Deployment templates and generated deployment artifacts
 ```
 
-### 🎥 作品展示 / Demo Videos
+## Prerequisites
 
-体验 AI 短剧生成效果：
-
-<div align="center">
-
-**示例作品 1**
-
-<video src="https://ffile.chatfire.site/cf/public/20260114094337396.mp4" controls width="640"></video>
-
-**示例作品 2**
-
-<video src="https://ffile.chatfire.site/cf/public/fcede75e8aeafe22031dbf78f86285b8.mp4" controls width="640"></video>
-
-[点击观看视频 1](https://ffile.chatfire.site/cf/public/20260114094337396.mp4) | [点击观看视频 2](https://ffile.chatfire.site/cf/public/fcede75e8aeafe22031dbf78f86285b8.mp4)
-
-</div>
-
----
-
-## ✨ 功能特性
-
-### 🎭 角色管理
-
-- ✅ AI 生成角色形象
-- ✅ 批量角色生成
-- ✅ 角色图片上传和管理
-- ✅ AI 生成角色形象
-
-### 🎬 分镜制作
-
-- ✅ AI 自动拆解分镜脚本
-- ✅ 场景描述和镜头设计
-- ✅ 分镜图片生成（文生图）
-- ✅ 宫格图生成、切分与分配
-- ✅ 帧类型选择（首帧/尾帧/分镜板）
-
-### 🎥 视频生成
-
-- ✅ 图生视频自动生成
-- ✅ FFmpeg 单镜头纯视频合成
-- ✅ 整集拼接导出
-
-### 📦 资源管理
-
-- ✅ 素材库统一管理
-- ✅ 本地存储支持
-- ✅ 任务进度追踪
-
-### 🤖 AI Agents
-
-内置 4 个 Mastra Agent，支持数据库配置和 Skill 扩展：
-
-| Agent | 职责 |
-|---|---|
-| `script_rewriter` | 小说 → 格式化剧本改写 |
-| `extractor` | 角色 + 场景智能提取与去重 |
-| `storyboard_breaker` | 剧本 → 分镜序列拆解 |
-| `grid_prompt_generator` | 角色/场景/宫格图提示词生成 |
-
-### 🔌 多厂商适配
-
-| 类型 | 支持厂商 |
-|---|---|
-| **图片** | OpenAI、Gemini、MiniMax、火山引擎、阿里、Chatfire |
-| **视频** | MiniMax、火山引擎/Seedance、Vidu、阿里 |
-
----
-
-## 🚀 快速开始
-
-### 📋 环境要求
-
-| 软件 | 版本要求 | 说明 |
+| Tool | Version | Notes |
 |---|---|---|
-| **Node.js** | 20+ | 前后端运行环境 |
-| **npm** | 9+ | 包管理工具 |
-| **FFmpeg** | 4.0+ | 视频处理（**必需**） |
+| Node.js | 20+ | Required by both frontend and backend |
+| npm | 9+ | Lockfiles are committed for both apps |
+| MySQL | 8.x or compatible | The backend creates missing tables on startup |
+| FFmpeg | 4+ | Required for video compose and merge workflows |
 
-#### 安装 FFmpeg
+## Environment
 
-**macOS:**
-
-```bash
-brew install ffmpeg
-```
-
-**Ubuntu/Debian:**
+Create a local `.env` from `.env.example` and fill in real values:
 
 ```bash
-sudo apt update && sudo apt install ffmpeg
+cp .env.example .env
 ```
 
-**Windows:**
-从 [FFmpeg 官网](https://ffmpeg.org/download.html) 下载并配置环境变量
-
-验证安装：
+The backend reads database settings from the project root `.env` file or from process environment variables. Use either a connection string or separate MySQL fields.
 
 ```bash
-ffmpeg -version
-```
+# Option A
+DATABASE_URL=mysql://user:password@127.0.0.1:3306/AiDrama
 
-### ⚙️ 配置文件
-
-复制并编辑配置文件：
-
-```bash
-cp configs/config.example.yaml configs/config.yaml
-```
-
-配置文件格式（`configs/config.yaml`）：
-
-```yaml
-app:
-  name: "AiDrama API"
-  version: "1.0.0"
-  debug: true
-
-server:
-  port: 5679
-  host: "0.0.0.0"
-  cors_origins:
-    - "http://localhost:3013"
-
-database:
-  type: "mysql"
-  name: "AiDrama"
-
-storage:
-  type: "local"
-  local_path: "./data/storage"
-  base_url: "http://localhost:5679/static"
-
-ai:
-  default_text_provider: "openai"
-  default_image_provider: "openai"
-  default_video_provider: "doubao"
-```
-
-> **说明**：AI 服务的具体 API Key 和模型参数在 Web 界面的「设置」页面中配置。
-
-### 📥 安装依赖
-
-```bash
-# 克隆项目
-git clone <your-aidrama-repo-url> AiDrama
-cd AiDrama
-
-# 安装后端依赖
-cd backend && npm install
-
-# 安装前端依赖
-cd ../frontend && npm install
-```
-
-### 🎯 启动项目
-
-#### 方式一：开发模式（推荐）
-
-前后端分离，支持热重载：
-
-```bash
-# 终端1：启动后端
-cd backend
-npm run dev
-
-# 终端2：启动前端
-cd frontend
-npm run dev
-```
-
-- 前端地址: `http://localhost:3013`
-- 后端 API: `http://localhost:5679/api/v1`
-- 前端自动代理 `/api` 和 `/static` 到后端
-
-#### 方式二：单服务模式
-
-后端同时提供 API 和前端静态文件：
-
-```bash
-# 1. 构建前端
-cd frontend && npm run generate
-
-# 2. 启动后端
-cd ../backend && npm start
-```
-
-访问: `http://localhost:5679`
-
-### 🗄️ 数据库
-
-项目后端使用 MySQL，默认数据库名为 `AiDrama`。数据库连接信息从项目根目录 `.env` 或系统环境变量读取，首次启动时会自动创建数据库和表结构。
-
-支持以下两种配置方式：
-
-```bash
-# 方式一：连接串
-DATABASE_URL=mysql://user:password@host:3306/AiDrama
-
-# 方式二：独立字段
+# Option B
 DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_USER=root
@@ -241,253 +58,143 @@ DB_PASSWORD=your_password
 DB_NAME=AiDrama
 ```
 
----
+Useful runtime variables:
 
-## 📦 部署指南
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | `5679` | Backend HTTP port |
+| `HOST` | `0.0.0.0` | Backend bind address |
+| `DATA_ROOT` | `./data` | Root for local runtime files |
+| `STORAGE_PATH` | `./data/static` | Root for uploaded and generated media |
+| `FRONTEND_PUBLIC_PATH` | `frontend/dist-vite` or `public` | Static frontend directory served by backend |
+| `TENCENT_SECRET_ID` | empty | COS credential, optional |
+| `TENCENT_SECRET_KEY` | empty | COS credential, optional |
+| `TENCENT_COS_BUCKET` | empty | COS bucket, optional |
+| `TENCENT_COS_REGION` | empty | COS region, optional |
 
-### 🐳 Docker 部署（推荐）
+AI provider API keys and model parameters are configured in the web UI under Settings and stored in the database.
 
-#### 方式一：Docker Compose（推荐）
+## Local Development
+
+Install dependencies:
 
 ```bash
-# 启动服务
-docker compose up -d
+cd backend
+npm install
 
-# 查看日志
-docker compose logs -f
-
-# 停止服务
-docker compose down
+cd ../frontend
+npm install
 ```
 
-#### 方式二：本地构建镜像
+Start the backend:
+
+```bash
+cd backend
+npm run dev
+```
+
+Start the frontend:
+
+```bash
+cd frontend
+npm run dev
+```
+
+Development URLs:
+
+| Service | URL |
+|---|---|
+| Frontend | `http://localhost:3013` |
+| Backend API | `http://localhost:5679/api/v1` |
+| Health check | `http://localhost:5679/api/v1/health` |
+
+The Vite dev server proxies `/api` and `/static` to `http://localhost:5679`.
+
+## Build And Verification
+
+Backend:
+
+```bash
+cd backend
+npm run typecheck
+npm test
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm run test:layout
+npm run build
+```
+
+`npm run build` in `frontend/` writes the SPA to `frontend/dist-vite`. The backend serves that directory in single-service production mode.
+
+## Production Run
+
+Build the frontend first:
+
+```bash
+cd frontend
+npm run generate
+```
+
+Start the backend:
+
+```bash
+cd ../backend
+npm start
+```
+
+Then open `http://localhost:5679`.
+
+## Docker
+
+The Docker image builds the Vite frontend and runs one Hono server on port `5679`.
+
+```bash
+docker compose up -d
+docker compose logs -f
+```
+
+`docker-compose.yml` reads the root `.env` file through `env_file`, so database variables must be filled before starting the container.
+
+For a manual image run:
 
 ```bash
 docker build -t aidrama:latest .
 docker run -d --name aidrama -p 5679:5679 \
-  -v $(pwd)/data:/app/data \
-  -v $(pwd)/configs/config.yaml:/app/configs/config.yaml \
+  --env-file .env \
+  -v "$(pwd)/data:/app/data" \
   aidrama:latest
 ```
 
-**Docker 部署优势：**
+## Tencent SCF Deployment
 
-- ✅ 开箱即用，内置 FFmpeg 和默认配置
-- ✅ 前后端合并为单镜像、单端口
-- ✅ 环境一致性，避免依赖问题
-- ✅ `data/` 目录 volume 挂载，数据持久化
-
-#### 🔗 访问宿主机服务（Ollama / 本地模型）
-
-容器内可通过 `http://host.docker.internal:端口号` 访问宿主机服务。
-
-**配置步骤：**
-
-1. 宿主机启动服务（监听所有接口）：
-
-   ```bash
-   export OLLAMA_HOST=0.0.0.0:11434 && ollama serve
-   ```
-
-2. 在 Web 界面「设置 → AI 服务配置」中填写：
-   - Base URL: `http://host.docker.internal:11434/v1`
-   - Provider: `openai`
-   - Model: `qwen2.5:latest`
-
----
-
-### ☁️ 腾讯云 SCF Web 函数部署
-
-项目可以打包为单个腾讯云 SCF Web 函数，由一个 Hono Web Server 同时承载后端 API 和 Vite 静态前端。
+Create the SCF bundle:
 
 ```bash
-# 1. 生成 SCF 部署产物
 node scripts/build-scf.mjs
+```
 
-# 2. 部署到腾讯云
+Deploy with the Serverless Cloud Framework:
+
+```bash
 scf deploy
 ```
 
-部署产物位于 `deploy/scf/`：
+SCF notes:
 
-```text
-deploy/scf/
-  scf_bootstrap
-  serverless.yml
-  public/
-  backend/
-  skills/
-```
+- The generated bundle is written to `deploy/scf/`.
+- `serverless.yml` uses Node.js 20.19 and port `9000`.
+- Configure `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, and `DB_NAME` in cloud environment variables.
+- Use `/tmp` paths for `DATA_ROOT` and `STORAGE_PATH` on SCF.
+- Do not commit cloud credentials, database passwords, or generated media files.
 
-SCF 运行要求：
+## Maintenance Notes
 
-- `scf_bootstrap` 会启动 `backend/dist/server.js`
-- 运行环境选择 `Node.js 20.19`，当前依赖链中的 `lru-cache@11` 不兼容 `Node.js 18.15`
-- Web Server 监听 `9000` 端口和 `0.0.0.0`
-- 前端静态文件路径由 `FRONTEND_PUBLIC_PATH` 指定
-- 临时文件路径使用 `DATA_ROOT=/tmp/aidrama` 和 `STORAGE_PATH=/tmp/aidrama/static`
-- MySQL 连接信息必须在 SCF 环境变量中配置，不要提交真实密码
-
-必须配置的数据库环境变量：
-
-```text
-DB_HOST
-DB_PORT
-DB_USER
-DB_PASSWORD
-DB_NAME=AiDrama
-```
-
-生产注意事项：
-
-- SCF 标准运行时只有 `/tmp` 可写，且不保证持久化；生成的图片、视频文件生产环境应迁移到 COS。
-- FFmpeg 合成/拼接能力需要通过 Layer、自定义运行时或镜像部署提供。
-- 当前部分图片/视频任务会在请求返回后继续轮询处理，云函数生命周期可能中断这类后台工作；生产环境应拆到队列、回调或定时任务。
-- 如果 MySQL 在私有网络内，需要配置 SCF VPC、数据库安全组和访问白名单。
-
----
-
-### 🏭 传统部署方式
-
-```bash
-# 1. 构建前端
-cd frontend && npm run generate && cd ..
-
-# 2. 启动后端
-cd backend && npm start
-```
-
-需要上传到服务器的文件：
-
-```
-backend/                  # 后端源码 + node_modules
-frontend/dist-vite/       # 前端静态构建产物
-configs/config.yaml
-data/             # 数据目录（首次运行自动创建）
-skills/           # Agent 技能文件
-```
-
-#### Nginx 反向代理
-
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-
-    location / {
-        proxy_pass http://localhost:5679;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-}
-```
-
----
-
-## 🎨 技术栈
-
-### 后端
-
-- **运行时**: Node.js 20+
-- **Web 框架**: Hono
-- **ORM**: Drizzle ORM + mysql2
-- **AI Agent**: Mastra + AI SDK (OpenAI compatible)
-- **视频处理**: FFmpeg (fluent-ffmpeg)
-- **图片处理**: Sharp
-
-### 前端
-
-- **框架**: Vite + Vue 3 (SPA 模式)
-- **语言**: Vue 3 + TypeScript
-- **路由**: 文件路由 (Vue Router 4)
-- **样式**: 纯 CSS + CSS Variables (暗色主题)
-- **图标**: Lucide Vue
-
----
-
-## 📝 常见问题
-
-### Q: Docker 容器如何访问宿主机的 Ollama？
-
-A: 使用 `http://host.docker.internal:11434/v1` 作为 Base URL。注意：
-1. 宿主机 Ollama 需监听 `0.0.0.0`：`export OLLAMA_HOST=0.0.0.0:11434 && ollama serve`
-2. Linux 用户使用 `docker run` 需添加：`--add-host=host.docker.internal:host-gateway`
-
-### Q: FFmpeg 未安装或找不到？
-
-A: 确保 FFmpeg 已安装并在 PATH 环境变量中。运行 `ffmpeg -version` 验证。Docker 部署已内置 FFmpeg。
-
-### Q: 前端无法连接后端 API？
-
-A: 检查后端是否启动，端口是否正确。开发模式下前端代理配置在 `frontend/vite.config.ts`。
-
-### Q: 数据库表未创建？
-
-A: 后端会在首次启动时自动创建所有表，检查日志确认初始化是否成功。
-
----
-
-## 📋 更新日志
-
-### v2.0.0 (2026-04)
-
-#### 🚀 重大更新
-
-- 项目全面迁移至 TypeScript 技术栈
-  - 后端：Hono + Drizzle ORM + mysql2
-  - 前端：Vite + Vue 3
-  - AI Agent：Mastra 框架
-- 重做单集工作台 UI 和生产流程
-  - 更紧凑的控制台布局
-  - 重做分镜编辑区
-  - 重做镜头图、视频、合成、导出界面
-- 新增 Docker 部署支持，前后端合并为单镜像
-- 增加运行时 Skill 加载机制
-- 数据库从 SQLite 迁移到 MySQL，默认数据库名为 `AiDrama`
-- 扩展多厂商媒体 Adapter
-  - 图片：OpenAI、Gemini、MiniMax、火山引擎、阿里
-  - 视频：MiniMax、火山引擎/Seedance、Vidu、阿里
-- 增加宫格图生成、切分和重新分配流程
-- 优化本地文件处理与参考图按需转码
-
-## 🤝 贡献指南
-
-欢迎提交 Issue 和 Pull Request！
-
-1. Fork 本项目
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交改动 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
-
-常用检查命令：
-
-```bash
-cd backend && npm run typecheck
-cd ../frontend && npm run build
-```
-
-## 👨‍💻 关于我们
-
-
-## 🔗 友情链接
-
-本项目已获得 [LINUX DO](https://linux.do/) 社区链接认可。
-
-- [LINUX DO](https://linux.do/) — 真正的开源精神，共建共享的技术社区
-
-## 项目交流群
-
-- 提交 [Issue](../../issues)
-- 发送邮件至项目维护者
-
----
-
-<div align="center">
-
-**⭐ 如果这个项目对你有帮助，请给一个 Star！**
-
-Made with ❤️ by AiDrama Team
-
-</div>
+- This repository was imported from another upstream source. Confirm the upstream license before public redistribution or commercial use.
+- See `docs/repository-handoff.md` before changing remotes, publishing the fork, or deploying with production credentials.
+- Keep `.env`, `configs/config.yaml`, generated media, and deployment bundles out of Git.
+- Track source documents, source scripts, and deployment templates. Ignore generated artifacts under `deploy/scf/` and `deploy/*.zip`.
+- Prefer small cleanup batches with verification after each batch. Current baseline checks are `backend/npm test`, `frontend/npm run build`, and `frontend/npm run test:layout`.
