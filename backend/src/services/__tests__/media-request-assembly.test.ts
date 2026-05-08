@@ -29,6 +29,21 @@ function unsupported(name: string): never {
   throw new Error(`${name} is not used in request assembly tests`)
 }
 
+type AssembledImageRequestBody = {
+  referenceImages: string[]
+  outputFormat: string
+  watermark: boolean
+}
+
+type AssembledVideoRequestBody = {
+  referenceImages: string[]
+  referenceVideos: string[]
+  referenceAudios: string[]
+  inputs: string[][]
+  resolution: string
+  generateAudio: boolean
+}
+
 const config: AIConfig = {
   provider: 'test-provider',
   baseUrl: 'https://provider.example.com',
@@ -88,12 +103,13 @@ runTest('assembleImageGenerateRequest builds normalized image specs from resolve
 
   assert.equal(assembled.normalizedSpec.mode, 'multi_ref_image')
   assert.equal(assembled.normalizedSpec.context.frameType, 'first_frame')
-  assert.deepEqual(assembled.providerRequest.body.referenceImages, [
+  const body = assembled.providerRequest.body as AssembledImageRequestBody
+  assert.deepEqual(body.referenceImages, [
     'https://cdn.example.com/ref-a.png',
     'https://cdn.example.com/ref-b.png',
   ])
-  assert.equal(assembled.providerRequest.body.outputFormat, 'png')
-  assert.equal(assembled.providerRequest.body.watermark, false)
+  assert.equal(body.outputFormat, 'png')
+  assert.equal(body.watermark, false)
 })
 
 runTest('assembleVideoGenerateRequest builds provider requests from resolved multimodal references', () => {
@@ -141,16 +157,17 @@ runTest('assembleVideoGenerateRequest builds provider requests from resolved mul
   })
 
   assert.equal(assembled.normalizedSpec.mode, 'multi_modal_video')
-  assert.deepEqual(assembled.providerRequest.body.referenceImages, ['https://cdn.example.com/style.png'])
-  assert.deepEqual(assembled.providerRequest.body.referenceVideos, ['https://cdn.example.com/motion.mp4'])
-  assert.deepEqual(assembled.providerRequest.body.referenceAudios, ['https://cdn.example.com/music.mp3'])
-  assert.deepEqual(assembled.providerRequest.body.inputs, [
+  const body = assembled.providerRequest.body as AssembledVideoRequestBody
+  assert.deepEqual(body.referenceImages, ['https://cdn.example.com/style.png'])
+  assert.deepEqual(body.referenceVideos, ['https://cdn.example.com/motion.mp4'])
+  assert.deepEqual(body.referenceAudios, ['https://cdn.example.com/music.mp3'])
+  assert.deepEqual(body.inputs, [
     ['image', 'reference', 'https://cdn.example.com/hero.png'],
     ['image', 'reference', 'https://cdn.example.com/first.png'],
     ['image', 'reference', 'https://cdn.example.com/style.png'],
     ['video', 'reference_video', 'https://cdn.example.com/motion.mp4'],
     ['audio', 'reference_audio', 'https://cdn.example.com/music.mp3'],
   ])
-  assert.equal(assembled.providerRequest.body.resolution, '720p')
-  assert.equal(assembled.providerRequest.body.generateAudio, false)
+  assert.equal(body.resolution, '720p')
+  assert.equal(body.generateAudio, false)
 })

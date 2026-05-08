@@ -4,6 +4,14 @@ import { db, schema } from '../db/index.js'
 import { success, created, now, badRequest } from '../utils/response.js'
 import { toSnakeCase } from '../utils/transform.js'
 import { logTaskPayload, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
+import {
+  buildStoryboardCreateLogContext,
+  buildStoryboardCreateValues,
+  buildStoryboardUpdatePatch,
+  resolveStoryboardBindingInput,
+  type StoryboardCreateBody,
+  type StoryboardUpdateBody,
+} from './storyboard-route-policy.js'
 
 const app = new Hono()
 
@@ -56,30 +64,16 @@ async function validateStoryboardBindings(episodeId: number, sceneId: number | n
 
 // POST /storyboards
 app.post('/', async (c) => {
-  const body = await c.req.json()
+  const body = await c.req.json() as StoryboardCreateBody
   const ts = now()
 
-  logTaskStart('StoryboardAPI', 'create', {
-    episodeId: body.episode_id,
-    shotNumber: body.storyboard_number || 1,
-    sceneId: body.scene_id,
-    characterIds: body.character_ids,
-  })
+  logTaskStart('StoryboardAPI', 'create', buildStoryboardCreateLogContext(body))
   logTaskPayload('StoryboardAPI', 'create body', body)
 
-  await validateStoryboardBindings(body.episode_id, body.scene_id, body.character_ids)
-  const res = (await db.insert(schema.storyboards).values({
-    episodeId: body.episode_id,
-    storyboardNumber: body.storyboard_number || 1,
-    title: body.title,
-    description: body.description,
-    action: body.action,
-    dialogue: body.dialogue,
-    sceneId: body.scene_id,
-    duration: body.duration || 10,
-    createdAt: ts,
-    updatedAt: ts,
-  }).run())
+  await validateStoryboardBindings(body.episode_id, body.scene_id, body.character_ids ?? undefined)
+  const res = (await db.insert(schema.storyboards)
+    .values(buildStoryboardCreateValues(body, ts))
+    .run())
 
   await syncStoryboardCharacters(Number(res.lastInsertRowid), body.character_ids || [])
   const [result] = (await db.select().from(schema.storyboards)
@@ -101,7 +95,7 @@ app.post('/', async (c) => {
 // PUT /storyboards/:id
 app.put('/:id', async (c) => {
   const id = Number(c.req.param('id'))
-  const body = await c.req.json()
+  const body = await c.req.json() as StoryboardUpdateBody
   const [storyboard] = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.id, id)).all())
   if (!storyboard) return badRequest(c, 'Storyboard not found')
 
@@ -112,35 +106,17 @@ app.put('/:id', async (c) => {
   })
   logTaskPayload('StoryboardAPI', 'update body', body)
 
-  const fieldMap: Record<string, string> = {
-    title: 'title',
-    description: 'description',
-    shot_type: 'shotType',
-    angle: 'angle',
-    movement: 'movement',
-    action: 'action',
-    dialogue: 'dialogue',
-    duration: 'duration',
-    video_prompt: 'videoPrompt',
-    image_prompt: 'imagePrompt',
-    scene_id: 'sceneId',
-    location: 'location',
-    time: 'time',
-    atmosphere: 'atmosphere',
-    result: 'result',
-    bgm_prompt: 'bgmPrompt',
-    sound_effect: 'soundEffect',
-  }
-
-  const updates: Record<string, any> = { updatedAt: now() }
-  for (const [snakeKey, camelKey] of Object.entries(fieldMap)) {
-    if (snakeKey in body) updates[camelKey] = body[snakeKey]
-  }
+  const updates = buildStoryboardUpdatePatch(body, now())
+  const bindingInput = resolveStoryboardBindingInput(
+    body,
+    storyboard,
+    'character_ids' in body ? [] : await getStoryboardCharacterIds(id),
+  )
 
   await validateStoryboardBindings(
     storyboard.episodeId,
-    'scene_id' in body ? body.scene_id : storyboard.sceneId,
-    'character_ids' in body ? body.character_ids : getStoryboardCharacterIds(id),
+    bindingInput.sceneId,
+    bindingInput.characterIds,
   )
 
   await db.update(schema.storyboards).set(updates).where(eq(schema.storyboards.id, id)).run()
@@ -159,7 +135,7 @@ app.delete('/:id', async (c) => {
   const id = Number(c.req.param('id'))
   logTaskStart('StoryboardAPI', 'delete', { storyboardId: id })
   await db.delete(schema.storyboardCharacters).where(eq(schema.storyboardCharacters.storyboardId, id)).run()
-await db.delete(schema.storyboards).where(eq(schema.storyboards.id, id)).run()
+  await db.delete(schema.storyboards).where(eq(schema.storyboards.id, id)).run()
   logTaskSuccess('StoryboardAPI', 'delete', { storyboardId: id })
   return success(c)
 })

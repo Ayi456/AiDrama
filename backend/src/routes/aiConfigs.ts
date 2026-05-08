@@ -5,9 +5,27 @@ import { success, notFound, created, badRequest, now } from '../utils/response.j
 import { toSnakeCase } from '../utils/transform.js'
 import { joinProviderUrl } from '../services/adapters/url.js'
 import { redactUrl, logTaskError, logTaskProgress, logTaskSuccess } from '../utils/task-logger.js'
+import {
+  buildAiConfigCreateValues,
+  buildAiConfigProbePayload,
+  buildAiConfigUpdatePatch,
+  errorMessageFromUnknown,
+  validateAiConfigCreateBody,
+  validateAiConfigProbeBody,
+  VALID_AI_SERVICE_TYPES,
+  type AiConfigCreateBody,
+  type AiConfigProbeBody,
+  type AiConfigUpdateBody,
+} from './ai-config-route-policy.js'
 
 const app = new Hono()
-const VALID_SERVICE_TYPES = new Set(['text', 'image', 'video'])
+
+type ProbeRequest = {
+  method: string
+  url: string
+  headers: Record<string, string>
+  body?: unknown
+}
 
 function parseSettings(raw: string | null | undefined) {
   if (!raw) return {}
@@ -43,7 +61,13 @@ function viduHeaders(apiKey?: string, withJson = false) {
   return headers
 }
 
-function buildProbe(serviceType: string, provider: string, baseUrl: string, model?: string, apiKey?: string) {
+function buildProbe(
+  serviceType: string,
+  provider: string,
+  baseUrl: string,
+  model?: string,
+  apiKey?: string,
+): ProbeRequest {
   const p = provider.toLowerCase()
   const m = model || ''
 
@@ -117,12 +141,12 @@ function buildProbe(serviceType: string, provider: string, baseUrl: string, mode
 // GET /ai-configs?service_type=text
 app.get('/', async (c) => {
   const serviceType = c.req.query('service_type')
-  if (serviceType && !VALID_SERVICE_TYPES.has(serviceType)) {
+  if (serviceType && !VALID_AI_SERVICE_TYPES.has(serviceType)) {
     return success(c, [])
   }
 
   let rows = (await db.select().from(schema.aiServiceConfigs).all())
-    .filter((row) => VALID_SERVICE_TYPES.has(row.serviceType))
+    .filter((row) => VALID_AI_SERVICE_TYPES.has(row.serviceType))
   if (serviceType) rows = rows.filter((row) => row.serviceType === serviceType)
 
   const parsed = rows.map(r => ({
@@ -135,30 +159,13 @@ app.get('/', async (c) => {
 
 // POST /ai-configs
 app.post('/', async (c) => {
-  const body = await c.req.json()
-  const ts = now()
+  const body = await c.req.json() as AiConfigCreateBody
+  const validationError = validateAiConfigCreateBody(body)
+  if (validationError) return badRequest(c, validationError)
 
-  // 验证必填字段
-  if (!body.service_type || !body.provider) {
-    return badRequest(c, 'service_type and provider are required')
-  }
-  if (!VALID_SERVICE_TYPES.has(body.service_type)) {
-    return badRequest(c, 'service_type must be one of text, image or video')
-  }
-
-  const res = (await db.insert(schema.aiServiceConfigs).values({
-    serviceType: body.service_type,
-    provider: body.provider,
-    name: body.name || `${body.provider}-${body.service_type}`,
-    baseUrl: body.base_url || '',
-    apiKey: body.api_key || '',
-    model: JSON.stringify(body.model || []),
-    settings: body.settings == null ? null : JSON.stringify(body.settings),
-    priority: body.priority || 0,
-    isActive: true,
-    createdAt: ts,
-    updatedAt: ts,
-  }).run())
+  const res = (await db.insert(schema.aiServiceConfigs)
+    .values(buildAiConfigCreateValues(body, now()))
+    .run())
 
   const [row] = (await db.select().from(schema.aiServiceConfigs)
     .where(eq(schema.aiServiceConfigs.id, Number(res.lastInsertRowid))).all())
@@ -172,16 +179,18 @@ app.post('/', async (c) => {
 
 // POST /ai-configs/test
 app.post('/test', async (c) => {
-  const body = await c.req.json()
-  if (!body.service_type || !body.provider || !body.base_url) {
-    return badRequest(c, 'service_type, provider and base_url are required')
-  }
-  if (!VALID_SERVICE_TYPES.has(body.service_type)) {
-    return badRequest(c, 'service_type must be one of text, image or video')
-  }
+  const body = await c.req.json() as AiConfigProbeBody
+  const validationError = validateAiConfigProbeBody(body)
+  if (validationError) return badRequest(c, validationError)
 
   const model = Array.isArray(body.model) ? body.model[0] : body.model
-  const probe = buildProbe(body.service_type, body.provider, body.base_url, model, body.api_key)
+  const probe = buildProbe(
+    body.service_type || '',
+    body.provider || '',
+    body.base_url || '',
+    typeof model === 'string' ? model : undefined,
+    body.api_key,
+  )
   const probeUrl = redactUrl(probe.url)
 
   logTaskProgress('AIConfig', 'probe-start', {
@@ -198,20 +207,16 @@ app.post('/test', async (c) => {
       body: probe.body ? JSON.stringify(probe.body) : undefined,
     })
     const text = await resp.text()
-    const reachable = [200, 204, 400, 401, 403].includes(resp.status)
-    const payload = {
+    const payload = buildAiConfigProbePayload({
       ok: resp.ok,
-      reachable,
       status: resp.status,
-      status_text: resp.statusText,
+      statusText: resp.statusText,
       method: probe.method,
       url: probeUrl,
-      message: reachable
-        ? (resp.ok ? '端点可访问，认证与路径基本正常' : '端点已响应，请根据状态码判断认证或路径是否正确')
-        : '端点未按预期响应，请检查 Base URL 和代理前缀',
-      response_preview: text.slice(0, 240),
-    }
-    if (reachable) {
+      responseText: text,
+    })
+
+    if (payload.reachable) {
       logTaskSuccess('AIConfig', 'probe-done', {
         provider: body.provider,
         status: resp.status,
@@ -225,18 +230,19 @@ app.post('/test', async (c) => {
       })
     }
     return success(c, payload)
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = errorMessageFromUnknown(error)
     logTaskError('AIConfig', 'probe-failed', {
       provider: body.provider,
       url: probeUrl,
-      error: error.message,
+      error: message,
     })
     return success(c, {
       ok: false,
       reachable: false,
       method: probe.method,
       url: probeUrl,
-      message: error.message || '请求失败',
+      message,
       response_preview: '',
     })
   }
@@ -246,7 +252,7 @@ app.post('/test', async (c) => {
 app.get('/:id', async (c) => {
   const id = Number(c.req.param('id'))
   const [row] = (await db.select().from(schema.aiServiceConfigs).where(eq(schema.aiServiceConfigs.id, id)).all())
-  if (!row || !VALID_SERVICE_TYPES.has(row.serviceType)) return notFound(c)
+  if (!row || !VALID_AI_SERVICE_TYPES.has(row.serviceType)) return notFound(c)
   return success(c, {
     ...toSnakeCase(row),
     model: row.model ? JSON.parse(row.model) : [],
@@ -257,17 +263,8 @@ app.get('/:id', async (c) => {
 // PUT /ai-configs/:id
 app.put('/:id', async (c) => {
   const id = Number(c.req.param('id'))
-  const body = await c.req.json()
-  const updates: Record<string, any> = { updatedAt: now() }
-
-  if ('provider' in body) updates.provider = body.provider
-  if ('name' in body) updates.name = body.name
-  if ('base_url' in body) updates.baseUrl = body.base_url
-  if ('api_key' in body) updates.apiKey = body.api_key
-  if ('model' in body) updates.model = JSON.stringify(body.model)
-  if ('settings' in body) updates.settings = body.settings == null ? null : JSON.stringify(body.settings)
-  if ('priority' in body) updates.priority = body.priority
-  if ('is_active' in body) updates.isActive = body.is_active
+  const body = await c.req.json() as AiConfigUpdateBody
+  const updates = buildAiConfigUpdatePatch(body, now())
 
   await db.update(schema.aiServiceConfigs).set(updates).where(eq(schema.aiServiceConfigs.id, id)).run()
   return success(c)

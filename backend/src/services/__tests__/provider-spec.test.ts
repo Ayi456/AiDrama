@@ -19,6 +19,28 @@ function runTest(name: string, fn: () => void) {
   }
 }
 
+type VolcImageRequestBody = {
+  image: string[]
+  output_format: string
+  watermark: boolean
+  sequential_image_generation: string
+}
+
+type VolcVideoContentItem = {
+  type: string
+  role: string
+}
+
+type VolcVideoRequestBody = {
+  model: string
+  generate_audio: boolean
+  return_last_frame: boolean
+  resolution: string
+  duration: number
+  content: VolcVideoContentItem[]
+  service_tier?: unknown
+}
+
 runTest('mergeProviderDefaults deep merges defaults and overrides', () => {
   const merged = mergeProviderDefaults(
     {
@@ -197,13 +219,14 @@ runTest('VolcEngineImageAdapter maps normalized image spec into Seedream image p
     } as any,
   )
 
-  assert.deepEqual(req.body.image, [
+  const body = req.body as VolcImageRequestBody
+  assert.deepEqual(body.image, [
     'https://example.com/look-1.png',
     'https://example.com/look-2.png',
   ])
-  assert.equal(req.body.output_format, 'png')
-  assert.equal(req.body.watermark, false)
-  assert.equal(req.body.sequential_image_generation, 'disabled')
+  assert.equal(body.output_format, 'png')
+  assert.equal(body.watermark, false)
+  assert.equal(body.sequential_image_generation, 'disabled')
 })
 
 runTest('VolcEngineVideoAdapter maps normalized video spec into Seedance content payload', () => {
@@ -243,13 +266,14 @@ runTest('VolcEngineVideoAdapter maps normalized video spec into Seedance content
     } as any,
   )
 
-  assert.equal(req.body.generate_audio, false)
-  assert.equal(req.body.return_last_frame, true)
-  assert.equal('service_tier' in req.body, false)
-  assert.equal(req.body.resolution, '720p')
-  assert.equal(req.body.duration, 8)
+  const body = req.body as VolcVideoRequestBody
+  assert.equal(body.generate_audio, false)
+  assert.equal(body.return_last_frame, true)
+  assert.equal('service_tier' in body, false)
+  assert.equal(body.resolution, '720p')
+  assert.equal(body.duration, 8)
   assert.deepEqual(
-    req.body.content.slice(1).map((item: any) => item.role),
+    body.content.slice(1).map(item => item.role),
     ['reference_image', 'reference_image'],
   )
 })
@@ -305,8 +329,9 @@ runTest('VolcEngineVideoAdapter maps Seedance multimodal image, video and audio 
     } as any,
   )
 
+  const body = req.body as VolcVideoRequestBody
   assert.deepEqual(
-    req.body.content.slice(1).map((item: any) => [item.type, item.role]),
+    body.content.slice(1).map(item => [item.type, item.role]),
     [
       ['image_url', 'reference_image'],
       ['image_url', 'reference_image'],
@@ -314,8 +339,8 @@ runTest('VolcEngineVideoAdapter maps Seedance multimodal image, video and audio 
       ['audio_url', 'reference_audio'],
     ],
   )
-  assert.equal(req.body.generate_audio, true)
-  assert.equal(req.body.duration, 11)
+  assert.equal(body.generate_audio, true)
+  assert.equal(body.duration, 11)
 })
 
 runTest('buildVideoJobSpecFromLegacyRequest rejects audio-only multimodal references', () => {
@@ -364,10 +389,11 @@ runTest('VolcEngineVideoAdapter does not pass service_tier through to Seedance v
     } as any,
   )
 
-  assert.equal(req.body.model, 'doubao-seedance-2-0-260128')
-  assert.equal('service_tier' in req.body, false)
+  const body = req.body as VolcVideoRequestBody
+  assert.equal(body.model, 'doubao-seedance-2-0-260128')
+  assert.equal('service_tier' in body, false)
   assert.deepEqual(
-    req.body.content.slice(1).map((item: any) => item.role),
+    body.content.slice(1).map(item => item.role),
     ['first_frame', 'last_frame'],
   )
 })

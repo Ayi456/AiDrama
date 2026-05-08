@@ -6,41 +6,43 @@ import { downloadFile, readImageAsCompressedDataUrl } from '../utils/storage.js'
 import { uploadStaticAssetToCos } from '../utils/cos.js'
 import { getVideoAdapter } from './adapters/registry.js'
 import type { AIConfig } from './adapters/types.js'
-import { buildVideoCompletionPatch, publishGeneratedAsset } from './media-completion.js'
-import { buildStoryboardVideoPatch } from './media-publication.js'
 import {
-  resolveImageReference,
-  resolveStoredImageReferences,
-  resolveStoredVideoOrAudioReferences,
-  stringifyStringList,
+  completeGeneratedVideoJob,
+  type GeneratedVideoSource,
+} from './media-completion.js'
+import {
+  resolveVideoGenerationReferences,
 } from './media-reference-resolver.js'
+import {
+  buildMediaGenerationEnqueuePayload,
+  buildVideoGenerationEnqueueRecord,
+  buildVideoGenerationEnqueueStartContext,
+  type VideoGenerationEnqueueParams,
+} from './media-generation-enqueue.js'
 import { assembleVideoGenerateRequest } from './media-request-assembly.js'
+import {
+  buildVideoGenerationRequestContext,
+  loadMediaGenerationRecord,
+} from './media-generation-records.js'
+import { interpretVideoGenerateResult, interpretVideoPollResult } from './media-result-interpretation.js'
+import {
+  prepareProviderGenerationAttempt,
+  prepareProviderPollAttempt,
+  submitProviderGenerationRequest,
+  submitProviderPollAttempt,
+} from './media-provider-execution.js'
 import { runMediaPollingLoop } from './media-polling-loop.js'
 import {
-  buildJobFailurePatch,
-  buildJobProcessingPatch,
-  buildJobSnapshotPatch,
-  normalizeJobErrorMessage,
+  logDetachedMediaJobError,
+  recordMediaJobFailure,
+  recordMediaJobProcessingHandoff,
+  recordMediaJobTimeout,
 } from './media-job-state.js'
+import { createVideoGenerationDbPersistence } from './media-generation-persistence.js'
 import { isProviderApiError, sendProviderJsonRequest } from './media-provider-transport.js'
 import { logTaskError, logTaskPayload, logTaskProgress, logTaskStart, logTaskSuccess, logTaskWarn, redactUrl } from '../utils/task-logger.js'
 
-interface GenerateVideoParams {
-  storyboardId?: number
-  dramaId?: number
-  prompt: string
-  model?: string
-  referenceMode?: string
-  imageUrl?: string
-  firstFrameUrl?: string
-  lastFrameUrl?: string
-  referenceImageUrls?: string[] | string
-  referenceVideoUrls?: string[] | string
-  referenceAudioUrls?: string[] | string
-  duration?: number
-  aspectRatio?: string
-  configId?: number
-}
+type GenerateVideoParams = VideoGenerationEnqueueParams
 
 export async function generateVideo(params: GenerateVideoParams): Promise<number> {
   const ts = now()
@@ -49,47 +51,30 @@ export async function generateVideo(params: GenerateVideoParams): Promise<number
     : await getActiveConfig('video')
   if (!config) throw new Error('No active video AI config')
 
-  const res = (await db.insert(schema.videoGenerations).values({
-    storyboardId: params.storyboardId,
-    dramaId: params.dramaId,
-    prompt: params.prompt,
-    model: params.model || config.model,
-    provider: config.provider,
-    referenceMode: params.referenceMode || 'none',
-    imageUrl: params.imageUrl,
-    firstFrameUrl: params.firstFrameUrl,
-    lastFrameUrl: params.lastFrameUrl,
-    referenceImageUrls: stringifyStringList(params.referenceImageUrls),
-    referenceVideoUrls: stringifyStringList(params.referenceVideoUrls),
-    referenceAudioUrls: stringifyStringList(params.referenceAudioUrls),
-    duration: params.duration || 5,
-    aspectRatio: params.aspectRatio || '16:9',
-    status: 'processing',
-    createdAt: ts,
-    updatedAt: ts,
-  }).run())
+  const res = (await db.insert(schema.videoGenerations)
+    .values(buildVideoGenerationEnqueueRecord({ params, config, enqueuedAt: ts }))
+    .run())
 
   const lastId = Number(res.lastInsertRowid)
-  logTaskStart('VideoTask', 'enqueue', {
+  logTaskStart('VideoTask', 'enqueue', buildVideoGenerationEnqueueStartContext({
     id: lastId,
-    provider: config.provider,
-    storyboardId: params.storyboardId,
-    dramaId: params.dramaId,
-    referenceMode: params.referenceMode || 'none',
-    duration: params.duration || 5,
-  })
-  logTaskPayload('VideoTask', 'enqueue params', {
-    id: lastId,
-    config: {
-      provider: config.provider,
-      model: config.model,
-      baseUrl: config.baseUrl,
-    },
     params,
-  })
+    config,
+  }))
+  logTaskPayload('VideoTask', 'enqueue params', buildMediaGenerationEnqueuePayload({
+    id: lastId,
+    config,
+    params,
+  }))
   processVideoGeneration(lastId, config).catch((error: unknown) => {
-    const message = normalizeJobErrorMessage(error)
-    logTaskError('VideoTask', 'process', { id: lastId, error: message })
+    logDetachedMediaJobError({
+      taskName: 'VideoTask',
+      event: 'process',
+      id: lastId,
+      error,
+    }, {
+      logError: logTaskError,
+    })
     console.error(`Video generation ${lastId} failed:`, error)
   })
   return lastId
@@ -97,112 +82,106 @@ export async function generateVideo(params: GenerateVideoParams): Promise<number
 
 async function processVideoGeneration(id: number, config: AIConfig) {
   const adapter = getVideoAdapter(config.provider)
+  const persistence = createVideoGenerationDbPersistence(id)
 
   try {
-    const rows = (await db.select().from(schema.videoGenerations).where(eq(schema.videoGenerations.id, id)).all())
-    const record = rows[0]
-    if (!record) return
-    logTaskProgress('VideoTask', 'build-request', {
+    const loadedRecord = await loadMediaGenerationRecord(id, async (jobId) => {
+      return await db.select().from(schema.videoGenerations).where(eq(schema.videoGenerations.id, jobId)).all()
+    })
+    if (loadedRecord.type === 'missing') return
+
+    const record = loadedRecord.record
+    logTaskProgress('VideoTask', 'build-request', buildVideoGenerationRequestContext({
       id,
       provider: config.provider,
-      storyboardId: record.storyboardId,
-      referenceMode: record.referenceMode,
-    })
+      record,
+    }))
 
     const referenceResolverDeps = {
       readImageAsCompressedDataUrl,
       uploadStaticAssetToCos,
       warn: (event: string, payload: { path: string; error: string }) => logTaskWarn('VideoTask', event, payload),
     }
-    const resolvedImageUrl = await resolveImageReference(record.imageUrl, referenceResolverDeps)
-    const resolvedFirstFrameUrl = await resolveImageReference(record.firstFrameUrl, referenceResolverDeps)
-    const resolvedLastFrameUrl = await resolveImageReference(record.lastFrameUrl, referenceResolverDeps)
-    const resolvedReferenceImageUrls = await resolveStoredImageReferences(record.referenceImageUrls, referenceResolverDeps)
-    const resolvedReferenceVideoUrls = await resolveStoredVideoOrAudioReferences(record.referenceVideoUrls, referenceResolverDeps)
-    const resolvedReferenceAudioUrls = await resolveStoredVideoOrAudioReferences(record.referenceAudioUrls, referenceResolverDeps)
+    const resolvedReferences = await resolveVideoGenerationReferences(record, referenceResolverDeps)
 
     const { normalizedSpec, providerRequest } = assembleVideoGenerateRequest({
       adapter,
       config,
       record,
-      resolvedReferences: {
-        imageUrl: resolvedImageUrl,
-        firstFrameUrl: resolvedFirstFrameUrl,
-        lastFrameUrl: resolvedLastFrameUrl,
-        referenceImageUrls: resolvedReferenceImageUrls,
-        referenceVideoUrls: resolvedReferenceVideoUrls,
-        referenceAudioUrls: resolvedReferenceAudioUrls,
+      resolvedReferences,
+    })
+
+    const preparedGeneration = prepareProviderGenerationAttempt({
+      id,
+      config,
+      providerRequest,
+      extraLogContext: {
+        model: record.model,
+        referenceMode: record.referenceMode,
       },
+      redactUrl,
     })
-    await db.update(schema.videoGenerations)
-      .set(buildJobSnapshotPatch('normalizedRequest', normalizedSpec, now()))
-      .where(eq(schema.videoGenerations.id, id))
-      .run()
+    logTaskProgress('VideoTask', 'request', preparedGeneration.requestLogContext)
+    logTaskPayload('VideoTask', 'request payload', preparedGeneration.requestPayload)
 
-    const { url, method, headers, body } = providerRequest
-    await db.update(schema.videoGenerations)
-      .set(buildJobSnapshotPatch('providerRequest', body, now()))
-      .where(eq(schema.videoGenerations.id, id))
-      .run()
-    logTaskProgress('VideoTask', 'request', {
-      id,
-      provider: config.provider,
-      method,
-      url: redactUrl(url),
-      model: record.model,
-      referenceMode: record.referenceMode,
-    })
-    logTaskPayload('VideoTask', 'request payload', {
-      id,
-      method,
-      url,
-      headers,
-      body,
+    const result = await submitProviderGenerationRequest({
+      normalizedSpec,
+      providerRequest,
+    }, {
+      now,
+      sendJsonRequest: sendProviderJsonRequest,
+      persistSnapshot: persistence.persistSnapshot,
     })
 
-    const result = await sendProviderJsonRequest({
-      url,
-      method,
-      headers,
-      body,
-    })
-    await db.update(schema.videoGenerations)
-      .set(buildJobSnapshotPatch('providerResponse', result, now()))
-      .where(eq(schema.videoGenerations.id, id))
-      .run()
+    const generationResult = interpretVideoGenerateResult(adapter, result)
 
-    const { isAsync, taskId, videoUrl } = adapter.parseGenerateResponse(result)
-
-    if (!isAsync && videoUrl) {
-      logTaskProgress('VideoTask', 'sync-complete', { id, videoUrl })
-      await handleVideoComplete(id, videoUrl, record.duration, record.storyboardId)
+    if (generationResult.type === 'completed-url') {
+      logTaskProgress('VideoTask', 'sync-complete', { id, videoUrl: generationResult.videoUrl })
+      await completeGeneratedVideo(id, { type: 'url', videoUrl: generationResult.videoUrl }, record.duration, record.storyboardId)
       return
     }
 
-    await db.update(schema.videoGenerations)
-      .set(buildJobProcessingPatch(taskId, now()))
-      .where(eq(schema.videoGenerations.id, id))
-      .run()
-    logTaskProgress('VideoTask', 'poll-start', { id, taskId, provider: config.provider })
+    if (generationResult.type === 'missing-output') {
+      throw new Error(generationResult.message)
+    }
+
+    const taskId = generationResult.taskId
+    await recordMediaJobProcessingHandoff({
+      taskName: 'VideoTask',
+      event: 'poll-start',
+      id,
+      taskId,
+      provider: config.provider,
+      updatedAt: now(),
+    }, {
+      logProgress: logTaskProgress,
+      persistProcessing: persistence.persistProcessing,
+    })
 
     if (adapter.provider === 'vidu') {
       logTaskProgress('VideoTask', 'webhook-wait', { id, taskId, provider: adapter.provider })
       return
     }
 
-    pollVideoTask(id, config, taskId!, record.storyboardId)
+    pollVideoTask(id, config, taskId, record.storyboardId)
   } catch (error: unknown) {
-    const message = normalizeJobErrorMessage(error)
-    logTaskError('VideoTask', 'process', { id, provider: config.provider, error: message })
-    await db.update(schema.videoGenerations)
-      .set(buildJobFailurePatch(error, now()))
-      .where(eq(schema.videoGenerations.id, id))
-      .run()
+    await recordMediaJobFailure({
+      taskName: 'VideoTask',
+      event: 'process',
+      id,
+      provider: config.provider,
+      error,
+      failedAt: now(),
+    }, {
+      logError: logTaskError,
+      persistFailure: persistence.persistFailure,
+    })
   }
 }
 
 async function pollVideoTask(id: number, config: AIConfig, taskId: string, storyboardId?: number | null) {
   const adapter = getVideoAdapter(config.provider)
+  const persistence = createVideoGenerationDbPersistence(id)
 
   const pollResult = await runMediaPollingLoop<void>({
     maxAttempts: 300,
@@ -211,44 +190,38 @@ async function pollVideoTask(id: number, config: AIConfig, taskId: string, story
       logTaskWarn('VideoTask', 'poll-retry', { id, taskId, attempt: attemptNumber, error: error.message })
     },
     attempt: async ({ attemptNumber }) => {
-      const { url, method, headers } = adapter.buildPollRequest(config, taskId)
-      logTaskProgress('VideoTask', 'poll-request', {
+      const preparedPoll = prepareProviderPollAttempt({
         id,
         taskId,
-        provider: config.provider,
-        method,
-        url: redactUrl(url),
-        attempt: attemptNumber,
+        attemptNumber,
+        config,
+        adapter,
+        redactUrl,
       })
+      logTaskProgress('VideoTask', 'poll-request', preparedPoll.logContext)
 
-      let result: unknown
-      try {
-        result = await sendProviderJsonRequest({
-          url,
-          method,
-          headers,
-        })
-      } catch (error) {
-        if (isProviderApiError(error)) return { type: 'continue' }
-        throw error
-      }
+      const providerPoll = await submitProviderPollAttempt({
+        providerRequest: preparedPoll.providerRequest,
+      }, {
+        now,
+        isProviderApiError,
+        sendJsonRequest: sendProviderJsonRequest,
+        persistSnapshot: persistence.persistSnapshot,
+      })
+      if (providerPoll.type === 'continue') return { type: 'continue' }
 
-      await db.update(schema.videoGenerations)
-        .set(buildJobSnapshotPatch('providerResponse', result, now()))
-        .where(eq(schema.videoGenerations.id, id))
-        .run()
+      const result = providerPoll.result
+      const pollDecision = interpretVideoPollResult(adapter, result)
 
-      const pollResp = adapter.parsePollResponse(result)
-
-      if (pollResp.status === 'completed' && pollResp.videoUrl) {
-        logTaskSuccess('VideoTask', 'poll-complete', { id, taskId, videoUrl: pollResp.videoUrl })
-        await handleVideoComplete(id, pollResp.videoUrl, null, storyboardId)
+      if (pollDecision.type === 'completed-url') {
+        logTaskSuccess('VideoTask', 'poll-complete', { id, taskId, videoUrl: pollDecision.videoUrl })
+        await completeGeneratedVideo(id, { type: 'url', videoUrl: pollDecision.videoUrl }, null, storyboardId)
         return { type: 'done', value: undefined }
       }
 
-      if (pollResp.status === 'failed') {
-        logTaskError('VideoTask', 'poll-failed', { id, taskId, error: pollResp.error || 'Video generation failed' })
-        throw new Error(pollResp.error || 'Video generation failed')
+      if (pollDecision.type === 'failed') {
+        logTaskError('VideoTask', 'poll-failed', { id, taskId, error: pollDecision.error })
+        throw new Error(pollDecision.error)
       }
 
       return { type: 'continue' }
@@ -260,26 +233,38 @@ async function pollVideoTask(id: number, config: AIConfig, taskId: string, story
   const errorMessage = pollResult.status === 'exhausted'
     ? 'Polling attempts exhausted'
     : pollResult.error.message
-  logTaskError('VideoTask', 'poll-timeout', { id, taskId, error: errorMessage })
-  await db.update(schema.videoGenerations)
-    .set(buildJobFailurePatch(new Error(`Timeout: ${errorMessage}`), now()))
-    .where(eq(schema.videoGenerations.id, id))
-    .run()
+  await recordMediaJobTimeout({
+    taskName: 'VideoTask',
+    event: 'poll-timeout',
+    id,
+    taskId,
+    errorMessage,
+    failedAt: now(),
+  }, {
+    logError: logTaskError,
+    persistFailure: persistence.persistFailure,
+  })
 }
 
-async function handleVideoComplete(id: number, videoUrl: string, duration: number | null | undefined, storyboardId?: number | null) {
-  const localPath = await downloadFile(videoUrl, 'videos')
-  const publicUrl = await publishGeneratedAsset(localPath, uploadStaticAssetToCos)
-  await db.update(schema.videoGenerations)
-    .set(buildVideoCompletionPatch({ publicUrl, localPath, completedAt: now() }))
-    .where(eq(schema.videoGenerations.id, id))
-    .run()
-  logTaskSuccess('VideoTask', 'downloaded', { id, localPath, publicUrl, storyboardId, duration })
+async function completeGeneratedVideo(
+  id: number,
+  source: GeneratedVideoSource,
+  duration: number | null | undefined,
+  storyboardId?: number | null,
+) {
+  const persistence = createVideoGenerationDbPersistence(id)
 
-  if (storyboardId) {
-    await db.update(schema.storyboards)
-      .set(buildStoryboardVideoPatch(publicUrl, duration, now()))
-      .where(eq(schema.storyboards.id, storyboardId))
-      .run()
-  }
+  await completeGeneratedVideoJob({
+    id,
+    source,
+    duration,
+    storyboardId,
+  }, {
+    now,
+    downloadFile,
+    uploadGeneratedAsset: uploadStaticAssetToCos,
+    persistVideoCompletion: persistence.persistVideoCompletion,
+    publishStoryboardVideo: persistence.publishStoryboardVideo,
+    logSuccess: logTaskSuccess,
+  })
 }

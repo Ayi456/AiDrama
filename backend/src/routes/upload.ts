@@ -1,10 +1,10 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { success, badRequest } from '../utils/response.js'
 import { saveUploadedFile } from '../utils/storage.js'
 
 const app = new Hono()
 
-async function saveMediaUpload(c: any, options: {
+async function saveMediaUpload(c: Context, options: {
   kind: 'image' | 'video' | 'audio'
   subDir: string
   mimePrefix: string

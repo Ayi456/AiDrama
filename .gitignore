@@ -38,7 +38,7 @@ data/*
 configs/config.yaml
 
 # Misc
-docs/
+docs/superpowers/
 tmp/
 temp/
 .superpowers/

@@ -7,6 +7,7 @@ import {
   resolveImageReferenceArray,
   resolveStoredImageReferences,
   resolveVideoOrAudioReference,
+  resolveVideoGenerationReferences,
   stringifyStringList,
 } from '../media-reference-resolver.js'
 
@@ -95,4 +96,46 @@ runTest('resolveVideoOrAudioReference publishes local static media and keeps rem
   assert.deepEqual(calls, ['static/audio/a.mp3'])
   assert.equal(await resolveVideoOrAudioReference('https://cdn.example.com/a.mp4', {}), 'https://cdn.example.com/a.mp4')
   assert.equal(await resolveVideoOrAudioReference('data:audio/mp3;base64,raw', {}), 'data:audio/mp3;base64,raw')
+})
+
+runTest('resolveVideoGenerationReferences resolves all video provider reference channels', async () => {
+  const imageReads: string[] = []
+  const mediaUploads: string[] = []
+
+  const result = await resolveVideoGenerationReferences({
+    imageUrl: '/static/images/cover.png',
+    firstFrameUrl: 'https://cdn.example.com/first.png',
+    lastFrameUrl: 'data:image/png;base64,last',
+    referenceImageUrls: '["/static/images/ref-a.png","https://cdn.example.com/ref-b.png"]',
+    referenceVideoUrls: 'static/videos/ref.mp4,https://cdn.example.com/ref.mp4',
+    referenceAudioUrls: 'static/audio/ref.mp3',
+  }, {
+    readImageAsCompressedDataUrl: async (localPath: string) => {
+      imageReads.push(localPath)
+      return `data:image/jpeg;base64,${localPath}`
+    },
+    uploadStaticAssetToCos: async (localPath: string) => {
+      mediaUploads.push(localPath)
+      return `https://cos.example.com/${localPath}`
+    },
+  })
+
+  assert.deepEqual(imageReads, ['static/images/cover.png', 'static/images/ref-a.png'])
+  assert.deepEqual(mediaUploads, ['static/videos/ref.mp4', 'static/audio/ref.mp3'])
+  assert.deepEqual(result, {
+    imageUrl: 'data:image/jpeg;base64,static/images/cover.png',
+    firstFrameUrl: 'https://cdn.example.com/first.png',
+    lastFrameUrl: 'data:image/png;base64,last',
+    referenceImageUrls: [
+      'data:image/jpeg;base64,static/images/ref-a.png',
+      'https://cdn.example.com/ref-b.png',
+    ],
+    referenceVideoUrls: [
+      'https://cos.example.com/static/videos/ref.mp4',
+      'https://cdn.example.com/ref.mp4',
+    ],
+    referenceAudioUrls: [
+      'https://cos.example.com/static/audio/ref.mp3',
+    ],
+  })
 })

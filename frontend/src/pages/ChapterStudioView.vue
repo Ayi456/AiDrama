@@ -157,7 +157,7 @@ import { toast } from 'vue-sonner'
 import { Loader2 } from 'lucide-vue-next'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { chapterAPI, dramaAPI, storyboardAPI, characterAPI, sceneAPI, mergeAPI, aiConfigAPI } from '@/composables/useApi'
+import { chapterAPI, dramaAPI, storyboardAPI, characterAPI, sceneAPI, mergeAPI } from '@/composables/useApi'
 import { useAgent } from '@/composables/useAgent'
 import ChapterBottomBubble from '@/components/chapter/ChapterBottomBubble.vue'
 import ChapterExportPanel from '@/components/chapter/ChapterExportPanel.vue'
@@ -168,9 +168,11 @@ import ChapterStudioSidebar from '@/components/chapter/ChapterStudioSidebar.vue'
 import ChapterStudioSubnav from '@/components/chapter/ChapterStudioSubnav.vue'
 import ChapterStudioTopbar from '@/components/chapter/ChapterStudioTopbar.vue'
 import ChapterStoryboardEditor from '@/components/chapter/ChapterStoryboardEditor.vue'
+import { useChapterExportDesk } from '@/composables/chapter/useChapterExportDesk'
 import { useChapterGridTool } from '@/composables/chapter/useChapterGridTool'
 import { useChapterImageViewer } from '@/composables/chapter/useChapterImageViewer'
 import { useChapterMediaPipeline } from '@/composables/chapter/useChapterMediaPipeline'
+import { useChapterStudioConfig } from '@/composables/chapter/useChapterStudioConfig'
 import { useChapterStudioNavigation } from '@/composables/chapter/useChapterStudioNavigation'
 import { assetUrl } from '@/utils/asset-url'
 import {
@@ -195,8 +197,6 @@ const scenes = ref([])
 const sbs = ref([])
 const mergeData = ref(null)
 const selectedSb = ref(null)
-const selectedMergeStoryboardIds = ref([])
-const mergeSelectionInitialized = ref(false)
 
 const { running: rn, runningType: rt, run: runAgent } = useAgent()
 
@@ -205,38 +205,29 @@ const localScript = ref('')
 const frameMode = ref('first')
 const shotImageAspectRatio = ref('16:9')
 const shotImageSizePreset = ref('2K')
-const imageConfigs = ref([])
-const videoConfigs = ref([])
+
+const {
+  imageConfigs,
+  videoConfigs,
+  lockedImageConfigId,
+  lockedVideoConfigId,
+  lockedImageProvider,
+  lockedVideoProvider,
+  lockedImageConfigLabel,
+  lockedImageModelName,
+  lockedVideoConfigLabel,
+  lockedVideoModelName,
+  loadConfigs,
+} = useChapterStudioConfig({
+  drama,
+  episode,
+})
 
 const rawContent = computed(() => episode.value?.content || '')
 const scriptContent = computed(() => episode.value?.script_content || episode.value?.scriptContent || '')
 const epId = computed(() => episode.value?.id || 0)
 const rawLen = computed(() => localRaw.value.replace(/\s/g, '').length || 0)
 const scriptLen = computed(() => localScript.value.replace(/\s/g, '').length || 0)
-function hasMergeClip(sb) {
-  return !!(sb?.composed_video_url || sb?.composedVideoUrl || sb?.video_url || sb?.videoUrl)
-}
-
-const mergeClipCount = computed(() => sbs.value.filter(hasMergeClip).length)
-const mergeUrl = computed(() => mergeData.value?.merged_url || mergeData.value?.mergedUrl || null)
-const mergeableStoryboardIds = computed(() => sbs.value.filter(hasMergeClip).map(sb => Number(sb.id)))
-
-watch(mergeableStoryboardIds, (ids, previousIds = []) => {
-  if (!ids.length) {
-    selectedMergeStoryboardIds.value = []
-    return
-  }
-
-  const current = selectedMergeStoryboardIds.value.map(Number)
-  const hadAllPrevious = previousIds.length > 0 && previousIds.every(id => current.includes(Number(id)))
-  if (!mergeSelectionInitialized.value || hadAllPrevious) {
-    selectedMergeStoryboardIds.value = [...ids]
-    mergeSelectionInitialized.value = true
-    return
-  }
-
-  selectedMergeStoryboardIds.value = current.filter(id => ids.includes(id))
-}, { immediate: true })
 
 const frameModeOptions = [
   { label: '仅首帧', value: 'first' },
@@ -251,37 +242,6 @@ const gridLayoutOptions = [
   { label: '5x5', value: '5x5' },
 ]
 
-function configModelName(config) {
-  if (!config) return ''
-  if (Array.isArray(config.model)) return config.model[0] || config.name || ''
-  try {
-    const model = JSON.parse(config.model || '[]')
-    return Array.isArray(model) ? (model[0] || config.name || '') : (model || config.name || '')
-  } catch {
-    return config.model || config.name || ''
-  }
-}
-
-function configLabel(config) {
-  if (!config) return '未配置'
-  const modelName = configModelName(config)
-  return modelName ? `${config.name} · ${modelName} (${config.provider})` : `${config.name} (${config.provider})`
-}
-
-const dramaImageConfigId = computed(() => drama.value?.image_config_id || drama.value?.imageConfigId || null)
-const dramaVideoConfigId = computed(() => drama.value?.video_config_id || drama.value?.videoConfigId || null)
-const episodeImageConfigId = computed(() => episode.value?.image_config_id || episode.value?.imageConfigId || null)
-const episodeVideoConfigId = computed(() => episode.value?.video_config_id || episode.value?.videoConfigId || null)
-const lockedImageConfigId = computed(() => episodeImageConfigId.value || dramaImageConfigId.value || imageConfigs.value[0]?.id || null)
-const lockedVideoConfigId = computed(() => episodeVideoConfigId.value || dramaVideoConfigId.value || videoConfigs.value[0]?.id || null)
-const lockedImageProvider = computed(() => imageConfigs.value.find(config => config.id === lockedImageConfigId.value)?.provider || '')
-const lockedVideoProvider = computed(() => videoConfigs.value.find(config => config.id === lockedVideoConfigId.value)?.provider || '')
-const lockedImageConfigLabel = computed(() => configLabel(imageConfigs.value.find(config => config.id === lockedImageConfigId.value)))
-const lockedImageModelName = computed(() => configModelName(imageConfigs.value.find(config => config.id === lockedImageConfigId.value)))
-const lockedVideoConfigLabel = computed(() => configLabel(videoConfigs.value.find(config => config.id === lockedVideoConfigId.value)))
-const lockedVideoModelName = computed(() => configModelName(videoConfigs.value.find(config => config.id === lockedVideoConfigId.value)))
-const syncingEpisodeConfigIds = ref(false)
-const syncedEpisodeConfigKeys = ref(new Set())
 const shotImageResolvedSize = computed(() => resolveShotImageSize(shotImageAspectRatio.value, shotImageSizePreset.value))
 const shotImagePrefsKey = computed(() => `aidrama:shot-image-prefs:${dramaId}:${epId.value || chapterNumber}`)
 
@@ -337,40 +297,6 @@ watch([shotImageAspectRatio, shotImageSizePreset, shotImagePrefsKey], () => {
 
 watch(rawContent, value => { localRaw.value = value }, { immediate: true })
 watch(scriptContent, value => { localScript.value = value }, { immediate: true })
-watch(
-  [() => episode.value?.id, episodeImageConfigId, episodeVideoConfigId, lockedImageConfigId, lockedVideoConfigId],
-  async ([episodeId, imageConfigId, videoConfigId, fallbackImageConfigId, fallbackVideoConfigId]) => {
-    if (!episodeId || syncingEpisodeConfigIds.value) return
-
-    const nextImageConfigId = imageConfigId || fallbackImageConfigId || null
-    const nextVideoConfigId = videoConfigId || fallbackVideoConfigId || null
-    const shouldSyncImage = !imageConfigId && !!nextImageConfigId
-    const shouldSyncVideo = !videoConfigId && !!nextVideoConfigId
-    if (!shouldSyncImage && !shouldSyncVideo) return
-
-    const syncKey = `${episodeId}:${nextImageConfigId || 0}:${nextVideoConfigId || 0}`
-    if (syncedEpisodeConfigKeys.value.has(syncKey)) return
-
-    syncingEpisodeConfigIds.value = true
-    try {
-      const payload = {}
-      if (shouldSyncImage) payload.image_config_id = nextImageConfigId
-      if (shouldSyncVideo) payload.video_config_id = nextVideoConfigId
-      await chapterAPI.update(episodeId, payload)
-      episode.value = {
-        ...episode.value,
-        ...(shouldSyncImage ? { image_config_id: nextImageConfigId } : {}),
-        ...(shouldSyncVideo ? { video_config_id: nextVideoConfigId } : {}),
-      }
-      syncedEpisodeConfigKeys.value.add(syncKey)
-    } catch (error) {
-      console.error('Failed to sync episode config ids', error)
-    } finally {
-      syncingEpisodeConfigIds.value = false
-    }
-  },
-  { immediate: true },
-)
 
 function toCamel(field) {
   return field.replace(/_([a-z])/g, (_, char) => char.toUpperCase())
@@ -546,19 +472,6 @@ async function refresh() {
   } catch {}
 }
 
-async function loadConfigs() {
-  try {
-    const [imageRows, videoRows] = await Promise.all([
-      aiConfigAPI.list('image'),
-      aiConfigAPI.list('video'),
-    ])
-    imageConfigs.value = imageRows || []
-    videoConfigs.value = videoRows || []
-  } catch (error) {
-    console.error('Failed to load AI configs', error)
-  }
-}
-
 const { imageViewer, openImageViewer, closeImageViewer, handleGalleryViewerOpen } = useChapterImageViewer()
 
 const {
@@ -624,16 +537,20 @@ const {
   getSceneName,
 })
 
-const mergeBusy = computed(() => isMerging.value || mergeData.value?.status === 'processing')
-
-function handleMergeSelectionUpdate(ids) {
-  selectedMergeStoryboardIds.value = Array.isArray(ids) ? ids.map(Number).filter(Number.isFinite) : []
-}
-
-function handleMergeSelected(payload) {
-  const ids = Array.isArray(payload?.storyboardIds) ? payload.storyboardIds : selectedMergeStoryboardIds.value
-  doMerge(ids)
-}
+const {
+  selectedMergeStoryboardIds,
+  hasMergeClip,
+  mergeClipCount,
+  mergeUrl,
+  mergeBusy,
+  handleMergeSelectionUpdate,
+  handleMergeSelected,
+} = useChapterExportDesk({
+  sbs,
+  mergeData,
+  isMerging,
+  doMerge,
+})
 
 function goDramaDetail() {
   stopMergePolling()

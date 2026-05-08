@@ -1,34 +1,63 @@
-/**
- * 阿里云百炼（万相）图片生成 Adapter
- * API 文档: https://help.aliyun.com/zh/model-studio/text-to-image-v2-api-reference
- */
-import type { ImageProviderAdapter, ImageGenerationRecord } from './types.js'
+import type {
+  AIConfig,
+  ImageGenerationRecord,
+  ImageGenResponse,
+  ImagePollResponse,
+  ImageProviderAdapter,
+  ProviderRequest,
+} from './types.js'
 import { joinProviderUrl } from './url.js'
+
+type AliImageRequestBody = {
+  model: string
+  input: {
+    messages: Array<{
+      role: 'user'
+      content: Array<{ text?: string | null }>
+    }>
+  }
+  parameters: {
+    size: string
+    n: number
+    negative_prompt: string
+    prompt_extend: boolean
+    watermark: boolean
+    seed?: number
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+function stringField(value: unknown, field: string): string | undefined {
+  if (!isRecord(value)) return undefined
+  const raw = value[field]
+  return typeof raw === 'string' && raw ? raw : undefined
+}
+
+function outputRecord(result: unknown) {
+  return isRecord(result) && isRecord(result.output) ? result.output : {}
+}
+
+function aliImageUrl(result: unknown): string | undefined {
+  const output = outputRecord(result)
+  const choices = Array.isArray(output.choices) ? output.choices : []
+  const firstChoice = choices[0]
+  if (!isRecord(firstChoice) || !isRecord(firstChoice.message)) return undefined
+  const content = Array.isArray(firstChoice.message.content) ? firstChoice.message.content : []
+  const firstContent = content[0]
+  return stringField(firstContent, 'image')
+}
 
 export class AliImageAdapter implements ImageProviderAdapter {
   readonly provider = 'ali'
 
-  buildGenerateRequest(config: any, record: ImageGenerationRecord): {
-    url: string
-    method: string
-    headers: Record<string, string>
-    body: any
-  } {
+  buildGenerateRequest(config: AIConfig, record: ImageGenerationRecord): ProviderRequest {
     const baseUrl = config.baseUrl || 'https://dashscope.aliyuncs.com'
-
-    // wan2.6 使用新版异步接口
     const url = joinProviderUrl(baseUrl, '/api/v1', '/services/aigc/image-generation/generation')
-
-    const headers: Record<string, string> = {
-      'Authorization': `Bearer ${config.apiKey}`,
-      'Content-Type': 'application/json',
-      'X-DashScope-Async': 'enable',
-    }
-
-    // 解析 size 参数（如 "1920x1080" -> "1696*960"）
     const size = this.normalizeSize(record.size || '1280*1280')
-
-    const body: any = {
+    const body: AliImageRequestBody = {
       model: record.model || 'wan2.6-t2i',
       input: {
         messages: [
@@ -48,37 +77,31 @@ export class AliImageAdapter implements ImageProviderAdapter {
       },
     }
 
-    return { url, method: 'POST', headers, body }
+    return {
+      url,
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${config.apiKey}`,
+        'Content-Type': 'application/json',
+        'X-DashScope-Async': 'enable',
+      },
+      body,
+    }
   }
 
-  parseGenerateResponse(result: any): {
-    isAsync: boolean
-    taskId?: string
-    imageUrl?: string
-  } {
-    // PENDING 表示异步任务已创建
-    if (result.output?.task_status === 'PENDING' && result.output?.task_id) {
-      return { isAsync: true, taskId: result.output.task_id }
-    }
+  parseGenerateResponse(result: unknown): ImageGenResponse {
+    const output = outputRecord(result)
+    const status = stringField(output, 'task_status')
+    const taskId = stringField(output, 'task_id')
+    if (status === 'PENDING' && taskId) return { isAsync: true, taskId }
 
-    // 同步模式：直接返回图片 URL
-    if (result.output?.choices?.[0]?.message?.content?.[0]?.image) {
-      return {
-        isAsync: false,
-        imageUrl: result.output.choices[0].message.content[0].image,
-      }
-    }
+    const imageUrl = aliImageUrl(result)
+    if (imageUrl) return { isAsync: false, imageUrl }
 
-    // 未知响应格式
     throw new Error(`Unexpected Ali image response: ${JSON.stringify(result).slice(0, 200)}`)
   }
 
-  buildPollRequest(config: any, taskId: string): {
-    url: string
-    method: string
-    headers: Record<string, string>
-    body: any
-  } {
+  buildPollRequest(config: AIConfig, taskId: string): ProviderRequest {
     const baseUrl = config.baseUrl || 'https://dashscope.aliyuncs.com'
     return {
       url: joinProviderUrl(baseUrl, '/api/v1', `/tasks/${taskId}`),
@@ -91,50 +114,37 @@ export class AliImageAdapter implements ImageProviderAdapter {
     }
   }
 
-  parsePollResponse(result: any): {
-    status: 'pending' | 'processing' | 'completed' | 'failed'
-    imageUrl?: string
-    error?: string
-  } {
-    const status = result.output?.task_status
+  parsePollResponse(result: unknown): ImagePollResponse {
+    const output = outputRecord(result)
+    const status = stringField(output, 'task_status')
 
     if (status === 'SUCCEEDED') {
-      const imageUrl = result.output?.choices?.[0]?.message?.content?.[0]?.image
-      return { status: 'completed', imageUrl }
+      return { status: 'completed', imageUrl: aliImageUrl(result) }
     }
-
     if (status === 'FAILED') {
-      return { status: 'failed', error: result.message || 'Generation failed' }
+      return { status: 'failed', error: stringField(result, 'message') || 'Generation failed' }
     }
-
     if (status === 'PENDING' || status === 'RUNNING') {
       return { status: 'processing' }
     }
-
     return { status: 'pending' }
   }
 
-  extractImageBase64(result: any): { data: string; mimeType: string } | null {
-    // Ali 目前不支持直接返回 base64
+  extractImageBase64(_result: unknown): { data: string; mimeType: string } | null {
     return null
   }
 
-  extractImageUrl(result: any): string | null {
-    return result.output?.choices?.[0]?.message?.content?.[0]?.image || null
+  extractImageUrl(result: unknown): string | null {
+    return aliImageUrl(result) || null
   }
 
-  /**
-   * 将 "1920x1080" 转换为阿里需要的 "1696*960" 格式
-   */
   private normalizeSize(size: string): string {
-    // 默认比例 16:9
-    const [w, h] = size.split('x').map(Number)
-    if (w && h) {
-      // 映射到 Ali 支持的比例
-      const aspect = w / h
-      if (aspect > 1.7) return '1696*960' // 16:9
-      if (aspect < 0.8) return '960*1696' // 9:16
-      return '1280*1280' // 1:1
+    const [width, height] = size.split('x').map(Number)
+    if (width && height) {
+      const aspect = width / height
+      if (aspect > 1.7) return '1696*960'
+      if (aspect < 0.8) return '960*1696'
+      return '1280*1280'
     }
     return '1280*1280'
   }

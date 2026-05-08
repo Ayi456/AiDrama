@@ -1,0 +1,201 @@
+import type {
+  ChapterStoryboard,
+  VideoGeneratePayload,
+  VideoReferenceOverride,
+} from './chapterMediaTypes'
+
+export function getFirstFrame(storyboard: ChapterStoryboard | null | undefined) {
+  return storyboard?.first_frame_image || storyboard?.firstFrameImage || null
+}
+
+export function getLastFrame(storyboard: ChapterStoryboard | null | undefined) {
+  return storyboard?.last_frame_image || storyboard?.lastFrameImage || null
+}
+
+export function getStoryboardCover(storyboard: ChapterStoryboard | null | undefined) {
+  return storyboard?.composed_image || storyboard?.composedImage || getFirstFrame(storyboard) || getLastFrame(storyboard) || null
+}
+
+export function getVideoUrl(storyboard: ChapterStoryboard | null | undefined) {
+  return storyboard?.video_url || storyboard?.videoUrl || null
+}
+
+export function getComposedVideoUrl(storyboard: ChapterStoryboard | null | undefined) {
+  return storyboard?.composed_video_url || storyboard?.composedVideoUrl || null
+}
+
+export function hasStoryboardImage(storyboard: ChapterStoryboard | null | undefined) {
+  return !!getStoryboardCover(storyboard)
+}
+
+export function hasStoryboardVideo(storyboard: ChapterStoryboard | null | undefined) {
+  return !!getVideoUrl(storyboard)
+}
+
+export function hasComposedVideo(storyboard: ChapterStoryboard | null | undefined) {
+  return !!getComposedVideoUrl(storyboard)
+}
+
+export function parseStoryboardReferenceImages(storyboard: ChapterStoryboard | null | undefined) {
+  const raw = storyboard?.reference_images || storyboard?.referenceImages
+  if (!raw) return []
+  if (Array.isArray(raw)) return normalizeUrlList(raw)
+  try {
+    const parsed = JSON.parse(raw)
+    return normalizeUrlList(parsed)
+  } catch {
+    return []
+  }
+}
+
+export function normalizeUrlList(value: unknown): string[] {
+  if (!value) return []
+  if (Array.isArray(value)) {
+    return Array.from(new Set(value.map(item => String(item || '').trim()).filter(Boolean)))
+  }
+  return Array.from(new Set(String(value).split(/\r?\n|,/).map(item => item.trim()).filter(Boolean)))
+}
+
+export function buildShotImagePrompt(input: {
+  storyboard: ChapterStoryboard
+  frameType: string
+  aspectRatio?: string
+  characterNames: string[]
+  sceneName: string
+}) {
+  const { storyboard, frameType, aspectRatio, characterNames, sceneName } = input
+  const title = storyboard.title || ''
+  const description = storyboard.image_prompt || storyboard.imagePrompt || storyboard.description || ''
+  const shotType = storyboard.shot_type || storyboard.shotType || ''
+  const angle = storyboard.angle || ''
+  const movement = storyboard.movement || ''
+  const location = storyboard.location || sceneName
+  const time = storyboard.time || ''
+  const charactersText = characterNames.join('、')
+  const action = storyboard.action || ''
+  const atmosphere = storyboard.atmosphere || ''
+  const frameHint = frameType === 'first_frame'
+    ? '生成这个镜头的起始关键帧，突出建立关系和动作开始瞬间。'
+    : '生成这个镜头的结束关键帧，突出动作结束、情绪落点或结果状态。'
+
+  return [
+    title ? `镜头标题：${title}` : '',
+    description ? `画面描述：${description}` : '',
+    shotType ? `景别：${shotType}` : '',
+    angle ? `机位：${angle}` : '',
+    movement ? `运镜：${movement}` : '',
+    charactersText ? `角色：${charactersText}` : '',
+    location ? `地点：${location}` : '',
+    time ? `时间：${time}` : '',
+    action ? `动作：${action}` : '',
+    atmosphere ? `氛围：${atmosphere}` : '',
+    aspectRatio ? `画幅比例：${aspectRatio}` : '',
+    frameHint,
+  ].filter(Boolean).join('；')
+}
+
+export function buildDefaultVideoPrompt(storyboard: ChapterStoryboard | null | undefined) {
+  if (!storyboard) return ''
+  return [
+    storyboard.title ? `镜头标题：${storyboard.title}` : '',
+    storyboard.description ? `画面描述：${storyboard.description}` : '',
+    storyboard.shot_type || storyboard.shotType ? `景别：${storyboard.shot_type || storyboard.shotType}` : '',
+    storyboard.movement ? `运镜：${storyboard.movement}` : '',
+    storyboard.action ? `动作：${storyboard.action}` : '',
+    storyboard.atmosphere ? `氛围：${storyboard.atmosphere}` : '',
+    '请生成节奏自然、动作连贯、电影感强的镜头视频。',
+  ].filter(Boolean).join('\n')
+}
+
+export function getStoryboardStateText(input: {
+  storyboard: ChapterStoryboard | null | undefined
+  pendingVideo: boolean
+}) {
+  const { storyboard, pendingVideo } = input
+  if (!storyboard) return '待制作'
+  if (hasStoryboardVideo(storyboard) || hasComposedVideo(storyboard)) return '已生成视频'
+  if (pendingVideo) return '视频生成中'
+  if (getFirstFrame(storyboard) || getLastFrame(storyboard)) return '已出帧'
+  return '待制作'
+}
+
+export function getStoryboardStateClass(stateText: string) {
+  if (stateText === '已生成视频') return 'is-ready'
+  if (stateText === '视频生成中') return 'is-pending'
+  if (stateText === '已出帧') return 'is-warm'
+  return 'is-empty'
+}
+
+export function getVideoGenerateActionLabel(pendingVideo: boolean) {
+  return pendingVideo ? '生成中' : '生成视频'
+}
+
+export function getVideoStateText(input: {
+  storyboard: ChapterStoryboard | null | undefined
+  pendingVideo: boolean
+}) {
+  const { storyboard, pendingVideo } = input
+  if (!storyboard) return '仅文本'
+  if (pendingVideo) return '生成中'
+  if (hasStoryboardVideo(storyboard)) return '已生成'
+  if (hasStoryboardImage(storyboard)) return '待生成'
+  return '仅文本'
+}
+
+export function getVideoStateClass(stateText: string) {
+  if (stateText === '已生成') return 'is-ready'
+  if (stateText === '生成中') return 'is-pending'
+  if (stateText === '待生成') return 'is-warm'
+  return 'is-empty'
+}
+
+export function getVideoReferenceSummary(storyboard: ChapterStoryboard | null | undefined) {
+  const first = getFirstFrame(storyboard)
+  const last = getLastFrame(storyboard)
+  const refs = parseStoryboardReferenceImages(storyboard)
+  if (first && last) return '首尾帧参考'
+  if (first) return '首帧参考'
+  if (refs.length) return `${refs.length} 张参考图`
+  return '仅提示词生成'
+}
+
+export function buildVideoGeneratePayload(input: {
+  storyboard: ChapterStoryboard
+  dramaId: number
+  configId?: number
+  override?: VideoReferenceOverride
+}): VideoGeneratePayload {
+  const { storyboard, dramaId, configId, override = {} } = input
+  const first = getFirstFrame(storyboard)
+  const last = getLastFrame(storyboard)
+  const refs = parseStoryboardReferenceImages(storyboard)
+  const overrideMode = String(override.reference_mode || '').trim()
+  const payload: VideoGeneratePayload = {
+    storyboard_id: storyboard.id,
+    drama_id: dramaId,
+    config_id: configId,
+    prompt: storyboard.video_prompt || storyboard.videoPrompt || '',
+    duration: Number(storyboard.duration || 5),
+  }
+
+  if (overrideMode === 'multimodal') {
+    return {
+      ...payload,
+      reference_mode: 'multimodal',
+      reference_image_urls: normalizeUrlList(override.reference_image_urls),
+      reference_video_urls: normalizeUrlList(override.reference_video_urls),
+      reference_audio_urls: normalizeUrlList(override.reference_audio_urls),
+    }
+  }
+
+  if (first && last) {
+    return { ...payload, reference_mode: 'first_last', first_frame_url: first, last_frame_url: last }
+  }
+  if (refs.length) {
+    return { ...payload, reference_mode: 'multiple', reference_image_urls: [first, ...refs].filter(Boolean) }
+  }
+  if (first) {
+    return { ...payload, reference_mode: 'single', image_url: first }
+  }
+  return payload
+}

@@ -5,13 +5,21 @@ import { success, created, badRequest } from '../utils/response.js'
 import { generateVideo } from '../services/video-generation.js'
 import { logTaskError, logTaskPayload, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
 import { presentVideoGenerationAsset, presentVideoGenerationAssets } from '../utils/public-asset.js'
+import {
+  buildVideoGenerationInput,
+  buildVideoRouteLogContext,
+  errorMessageFromUnknown,
+  validateVideoGenerateBody,
+  type VideoGenerateBody,
+} from './video-route-policy.js'
 
 const app = new Hono()
 
-// POST /videos — Generate video
+// POST /videos - Generate video
 app.post('/', async (c) => {
-  const body = await c.req.json()
-  if (!body.prompt) return badRequest(c, 'prompt is required')
+  const body = await c.req.json() as VideoGenerateBody
+  const validationError = validateVideoGenerateBody(body)
+  if (validationError) return badRequest(c, validationError)
 
   try {
     let configId: number | undefined = body.config_id
@@ -23,37 +31,18 @@ app.post('/', async (c) => {
       }
     }
 
-    logTaskStart('VideoAPI', 'generate', {
-      storyboardId: body.storyboard_id,
-      dramaId: body.drama_id,
-      referenceMode: body.reference_mode,
-      duration: body.duration,
-    })
+    logTaskStart('VideoAPI', 'generate', buildVideoRouteLogContext(body))
     logTaskPayload('VideoAPI', 'request body', body)
-    const id = await generateVideo({
-      storyboardId: body.storyboard_id,
-      dramaId: body.drama_id,
-      prompt: body.prompt,
-      model: body.model,
-      referenceMode: body.reference_mode,
-      imageUrl: body.image_url,
-      firstFrameUrl: body.first_frame_url,
-      lastFrameUrl: body.last_frame_url,
-      referenceImageUrls: body.reference_image_urls,
-      referenceVideoUrls: body.reference_video_urls,
-      referenceAudioUrls: body.reference_audio_urls,
-      duration: body.duration,
-      aspectRatio: body.aspect_ratio,
-      configId,
-    })
+    const id = await generateVideo(buildVideoGenerationInput(body, configId))
 
     const [record] = (await db.select().from(schema.videoGenerations)
       .where(eq(schema.videoGenerations.id, id)).all())
     logTaskSuccess('VideoAPI', 'generate', { generationId: id, provider: record?.provider })
     return created(c, record ? presentVideoGenerationAsset(record) : record)
-  } catch (err: any) {
-    logTaskError('VideoAPI', 'generate', { error: err.message })
-    return badRequest(c, err.message)
+  } catch (err: unknown) {
+    const message = errorMessageFromUnknown(err)
+    logTaskError('VideoAPI', 'generate', { error: message })
+    return badRequest(c, message)
   }
 })
 
@@ -65,7 +54,7 @@ app.get('/:id', async (c) => {
   return success(c, row ? presentVideoGenerationAsset(row) : null)
 })
 
-// GET /videos — List by storyboard_id or drama_id
+// GET /videos - List by storyboard_id or drama_id
 app.get('/', async (c) => {
   const storyboardId = c.req.query('storyboard_id')
   const dramaId = c.req.query('drama_id')

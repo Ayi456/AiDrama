@@ -15,6 +15,24 @@ type MediaReferenceResolverDeps = {
   warn?: (event: string, payload: ReferenceWarningPayload) => void
 }
 
+export type VideoGenerationReferenceRecord = {
+  imageUrl?: string | null
+  firstFrameUrl?: string | null
+  lastFrameUrl?: string | null
+  referenceImageUrls?: string[] | string | null
+  referenceVideoUrls?: string[] | string | null
+  referenceAudioUrls?: string[] | string | null
+}
+
+export type ResolvedVideoGenerationReferences = {
+  imageUrl: string | null
+  firstFrameUrl: string | null
+  lastFrameUrl: string | null
+  referenceImageUrls: string[]
+  referenceVideoUrls: string[]
+  referenceAudioUrls: string[]
+}
+
 type ResolveImageReferenceOptions = Partial<ImageCompressionOptions>
 
 const defaultImageCompressionOptions: ImageCompressionOptions = {
@@ -163,4 +181,34 @@ export async function resolveStoredVideoOrAudioReferences(
     parseStoredStringList(raw).map(item => resolveVideoOrAudioReference(item, deps)),
   )
   return normalized.filter((item): item is string => Boolean(item))
+}
+
+export async function resolveVideoGenerationReferences(
+  record: VideoGenerationReferenceRecord,
+  deps: MediaReferenceResolverDeps,
+): Promise<ResolvedVideoGenerationReferences> {
+  const [
+    imageUrl,
+    firstFrameUrl,
+    lastFrameUrl,
+    referenceImageUrls,
+    referenceVideoUrls,
+    referenceAudioUrls,
+  ] = await Promise.all([
+    resolveImageReference(record.imageUrl, deps),
+    resolveImageReference(record.firstFrameUrl, deps),
+    resolveImageReference(record.lastFrameUrl, deps),
+    resolveStoredImageReferences(record.referenceImageUrls, deps),
+    resolveStoredVideoOrAudioReferences(record.referenceVideoUrls, deps),
+    resolveStoredVideoOrAudioReferences(record.referenceAudioUrls, deps),
+  ])
+
+  return {
+    imageUrl,
+    firstFrameUrl,
+    lastFrameUrl,
+    referenceImageUrls,
+    referenceVideoUrls,
+    referenceAudioUrls,
+  }
 }
