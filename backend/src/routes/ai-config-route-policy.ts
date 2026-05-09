@@ -14,6 +14,7 @@ export type AiConfigCreateBody = RouteBody & {
 }
 
 export type AiConfigProbeBody = AiConfigCreateBody
+  & { config_id?: number }
 
 export type AiConfigUpdateBody = RouteBody & {
   provider?: string
@@ -61,6 +62,21 @@ export type AiConfigProbePayloadInput = {
   responseText: string
 }
 
+export type AiConfigPublicSource = {
+  id: number
+  serviceType?: string | null
+  provider?: string | null
+  name?: string | null
+  baseUrl?: string | null
+  apiKey?: string | null
+  model?: string | null
+  settings?: string | null
+  priority?: number | null
+  isActive?: boolean | null
+  createdAt?: string | null
+  updatedAt?: string | null
+}
+
 function hasOwn(body: RouteBody, key: string) {
   return Object.prototype.hasOwnProperty.call(body, key)
 }
@@ -72,11 +88,49 @@ export function validateAiConfigCreateBody(body: AiConfigCreateBody) {
 }
 
 export function validateAiConfigProbeBody(body: AiConfigProbeBody) {
+  if (body.config_id != null) return null
   if (!body.service_type || !body.provider || !body.base_url) {
     return 'service_type, provider and base_url are required'
   }
   if (!VALID_AI_SERVICE_TYPES.has(body.service_type)) return 'service_type must be one of text, image or video'
   return null
+}
+
+function parseAiConfigModel(raw: string | null | undefined) {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function parseAiConfigSettings(raw: string | null | undefined) {
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+export function buildAiConfigPublicPayload(row: AiConfigPublicSource) {
+  return {
+    id: row.id,
+    service_type: row.serviceType || '',
+    provider: row.provider || '',
+    name: row.name || '',
+    base_url: row.baseUrl || '',
+    model: parseAiConfigModel(row.model),
+    settings: parseAiConfigSettings(row.settings),
+    priority: row.priority,
+    is_active: row.isActive,
+    has_api_key: Boolean(row.apiKey),
+    created_at: row.createdAt,
+    updated_at: row.updatedAt,
+  }
 }
 
 export function buildAiConfigCreateValues(body: AiConfigCreateBody, timestamp: string): AiConfigCreateValues {

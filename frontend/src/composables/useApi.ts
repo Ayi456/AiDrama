@@ -25,7 +25,17 @@ export type Storyboard = ApiEntity & {
   video_url?: string
   videoUrl?: string
 }
-export type AiConfig = ApiEntity & { service_type?: string; provider?: string; name?: string; is_active?: boolean }
+export type AiConfig = ApiEntity & {
+  service_type?: string
+  provider?: string
+  name?: string
+  base_url?: string
+  model?: unknown
+  settings?: Record<string, unknown>
+  priority?: number
+  is_active?: boolean
+  has_api_key?: boolean
+}
 export type AgentConfig = ApiEntity & { type?: string; name?: string }
 export type SkillSummary = { id: string; name: string; description: string }
 export type GridLayout = { rows: number; cols: number }

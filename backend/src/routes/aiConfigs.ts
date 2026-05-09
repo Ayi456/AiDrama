@@ -8,6 +8,7 @@ import { redactUrl, logTaskError, logTaskProgress, logTaskSuccess } from '../uti
 import {
   buildAiConfigCreateValues,
   buildAiConfigProbePayload,
+  buildAiConfigPublicPayload,
   buildAiConfigUpdatePatch,
   errorMessageFromUnknown,
   validateAiConfigCreateBody,
@@ -27,13 +28,13 @@ type ProbeRequest = {
   body?: unknown
 }
 
-function parseSettings(raw: string | null | undefined) {
-  if (!raw) return {}
+function firstStoredModel(raw: string | null | undefined) {
+  if (!raw) return undefined
   try {
     const parsed = JSON.parse(raw)
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+    return Array.isArray(parsed) && typeof parsed[0] === 'string' ? parsed[0] : undefined
   } catch {
-    return {}
+    return undefined
   }
 }
 
@@ -149,11 +150,7 @@ app.get('/', async (c) => {
     .filter((row) => VALID_AI_SERVICE_TYPES.has(row.serviceType))
   if (serviceType) rows = rows.filter((row) => row.serviceType === serviceType)
 
-  const parsed = rows.map(r => ({
-    ...toSnakeCase(r),
-    model: r.model ? JSON.parse(r.model) : [],
-    settings: parseSettings(r.settings),
-  }))
+  const parsed = rows.map(buildAiConfigPublicPayload)
   return success(c, parsed)
 })
 
@@ -170,11 +167,7 @@ app.post('/', async (c) => {
   const [row] = (await db.select().from(schema.aiServiceConfigs)
     .where(eq(schema.aiServiceConfigs.id, Number(res.lastInsertRowid))).all())
 
-  return created(c, {
-    ...toSnakeCase(row),
-    model: row.model ? JSON.parse(row.model) : [],
-    settings: parseSettings(row.settings),
-  })
+  return created(c, buildAiConfigPublicPayload(row))
 })
 
 // POST /ai-configs/test
@@ -183,19 +176,35 @@ app.post('/test', async (c) => {
   const validationError = validateAiConfigProbeBody(body)
   if (validationError) return badRequest(c, validationError)
 
-  const model = Array.isArray(body.model) ? body.model[0] : body.model
+  let serviceType = body.service_type || ''
+  let provider = body.provider || ''
+  let baseUrl = body.base_url || ''
+  let apiKey = body.api_key
+  let model = Array.isArray(body.model) ? body.model[0] : body.model
+
+  if (body.config_id != null) {
+    const id = Number(body.config_id)
+    const [row] = (await db.select().from(schema.aiServiceConfigs).where(eq(schema.aiServiceConfigs.id, id)).all())
+    if (!row || !VALID_AI_SERVICE_TYPES.has(row.serviceType)) return notFound(c)
+    serviceType = body.service_type || row.serviceType
+    provider = body.provider || row.provider || ''
+    baseUrl = body.base_url || row.baseUrl
+    apiKey = body.api_key || row.apiKey
+    model = model || firstStoredModel(row.model)
+  }
+
   const probe = buildProbe(
-    body.service_type || '',
-    body.provider || '',
-    body.base_url || '',
+    serviceType,
+    provider,
+    baseUrl,
     typeof model === 'string' ? model : undefined,
-    body.api_key,
+    apiKey,
   )
   const probeUrl = redactUrl(probe.url)
 
   logTaskProgress('AIConfig', 'probe-start', {
-    serviceType: body.service_type,
-    provider: body.provider,
+    serviceType,
+    provider,
     method: probe.method,
     url: probeUrl,
   })
@@ -218,13 +227,13 @@ app.post('/test', async (c) => {
 
     if (payload.reachable) {
       logTaskSuccess('AIConfig', 'probe-done', {
-        provider: body.provider,
+        provider,
         status: resp.status,
         url: probeUrl,
       })
     } else {
       logTaskError('AIConfig', 'probe-unexpected', {
-        provider: body.provider,
+        provider,
         status: resp.status,
         url: probeUrl,
       })
@@ -233,7 +242,7 @@ app.post('/test', async (c) => {
   } catch (error: unknown) {
     const message = errorMessageFromUnknown(error)
     logTaskError('AIConfig', 'probe-failed', {
-      provider: body.provider,
+      provider,
       url: probeUrl,
       error: message,
     })
@@ -254,9 +263,7 @@ app.get('/:id', async (c) => {
   const [row] = (await db.select().from(schema.aiServiceConfigs).where(eq(schema.aiServiceConfigs.id, id)).all())
   if (!row || !VALID_AI_SERVICE_TYPES.has(row.serviceType)) return notFound(c)
   return success(c, {
-    ...toSnakeCase(row),
-    model: row.model ? JSON.parse(row.model) : [],
-    settings: parseSettings(row.settings),
+    ...buildAiConfigPublicPayload(row),
   })
 })
 

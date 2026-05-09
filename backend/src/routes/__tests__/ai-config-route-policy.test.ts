@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   buildAiConfigCreateValues,
   buildAiConfigProbePayload,
+  buildAiConfigPublicPayload,
   buildAiConfigUpdatePatch,
   errorMessageFromUnknown,
   validateAiConfigCreateBody,
@@ -54,6 +55,28 @@ runTest('buildAiConfigCreateValues maps route body into config insert values', (
   })
 })
 
+runTest('buildAiConfigPublicPayload redacts stored API keys from route responses', () => {
+  const payload = buildAiConfigPublicPayload({
+    id: 1,
+    serviceType: 'image',
+    provider: 'volcengine',
+    name: 'image provider',
+    baseUrl: 'https://ark.cn-beijing.volces.com',
+    apiKey: 'secret-key',
+    model: '["seedream-5-0"]',
+    settings: '{"size":"2K"}',
+    priority: 3,
+    isActive: true,
+    createdAt: '2026-05-08T00:00:00.000Z',
+    updatedAt: '2026-05-08T00:01:00.000Z',
+  })
+
+  assert.equal(Object.prototype.hasOwnProperty.call(payload, 'api_key'), false)
+  assert.equal(payload.has_api_key, true)
+  assert.deepEqual(payload.model, ['seedream-5-0'])
+  assert.deepEqual(payload.settings, { size: '2K' })
+})
+
 runTest('buildAiConfigUpdatePatch maps supported fields and serializes model/settings', () => {
   const patch = buildAiConfigUpdatePatch(
     {
@@ -83,6 +106,7 @@ runTest('validateAiConfigProbeBody preserves probe required-field checks', () =>
   assert.equal(validateAiConfigProbeBody({ service_type: 'video', provider: 'vidu' }), 'service_type, provider and base_url are required')
   assert.equal(validateAiConfigProbeBody({ service_type: 'audio', provider: 'x', base_url: 'https://example.com' }), 'service_type must be one of text, image or video')
   assert.equal(validateAiConfigProbeBody({ service_type: 'video', provider: 'vidu', base_url: 'https://example.com' }), null)
+  assert.equal(validateAiConfigProbeBody({ config_id: 1 }), null)
 })
 
 runTest('buildAiConfigProbePayload returns readable probe messages', () => {
