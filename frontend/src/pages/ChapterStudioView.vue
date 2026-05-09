@@ -157,7 +157,7 @@ import { toast } from 'vue-sonner'
 import { Loader2 } from 'lucide-vue-next'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { chapterAPI, dramaAPI, storyboardAPI, characterAPI, sceneAPI, mergeAPI } from '@/composables/useApi'
+import { chapterAPI, dramaAPI, storyboardAPI, characterAPI, sceneAPI, mergeAPI, characterAssetAPI, uploadAPI } from '@/composables/useApi'
 import { useAgent } from '@/composables/useAgent'
 import ChapterBottomBubble from '@/components/chapter/ChapterBottomBubble.vue'
 import ChapterExportPanel from '@/components/chapter/ChapterExportPanel.vue'
@@ -197,6 +197,8 @@ const scenes = ref([])
 const sbs = ref([])
 const mergeData = ref(null)
 const selectedSb = ref(null)
+const characterAssets = ref([])
+const characterAssetBusy = ref(false)
 
 const { running: rn, runningType: rt, run: runAgent } = useAgent()
 
@@ -275,6 +277,8 @@ const visualChars = computed(() => chars.value.filter(char => !isNarratorCharact
 const shotReferenceOptions = computed(() => {
   const options = []
   chars.value.forEach((char) => {
+    const assetSrc = char.character_asset_image_url || char.characterAssetImageUrl
+    if (assetSrc) options.push({ key: `character-asset-${char.id}`, type: 'character', src: assetSrc, label: `${char.name || `角色 ${char.id}`} 形象` })
     const src = char.image_url || char.imageUrl
     if (src) options.push({ key: `character-${char.id}`, type: 'character', src, label: char.name || `角色 ${char.id}` })
   })
@@ -334,6 +338,71 @@ function updateSceneField(scene, field, value) {
 function handleCharacterDescriptionUpdate(payload) {
   if (!payload?.character) return
   saveMergedCharDesc(payload.character, payload.value || '')
+}
+
+async function loadCharacterAssets() {
+  try {
+    characterAssets.value = await characterAssetAPI.list()
+  } catch (error) {
+    toast.error(error?.message || '角色形象库加载失败')
+  }
+}
+
+function assetNameFromFile(file) {
+  return String(file?.name || '角色形象').replace(/\.[^.]+$/, '').trim() || '角色形象'
+}
+
+async function handleCharacterAssetUpload(payload) {
+  if (!payload?.file) return
+  characterAssetBusy.value = true
+  try {
+    const uploaded = await uploadAPI.image(payload.file)
+    await characterAssetAPI.create({
+      name: assetNameFromFile(payload.file),
+      gender: payload.gender || 'unknown',
+      role_preset: payload.rolePreset || 'custom',
+      image_url: uploaded.url,
+      local_path: uploaded.path,
+      tags: payload.rolePreset ? [payload.rolePreset] : [],
+      is_default: Boolean(payload.isDefault),
+    })
+    await loadCharacterAssets()
+    toast.success('角色形象已加入形象库')
+  } catch (error) {
+    toast.error(error?.message || '角色形象上传失败')
+  } finally {
+    characterAssetBusy.value = false
+  }
+}
+
+async function handleCharacterAssetBind(payload) {
+  if (!payload?.character?.id) return
+  characterAssetBusy.value = true
+  try {
+    const assetId = Number(payload.assetId || 0)
+    if (assetId) await characterAPI.bindAsset(payload.character.id, assetId)
+    else await characterAPI.unbindAsset(payload.character.id)
+    await refresh()
+    toast.success(assetId ? '角色已绑定形象' : '角色已取消形象绑定')
+  } catch (error) {
+    toast.error(error?.message || '角色形象绑定失败')
+  } finally {
+    characterAssetBusy.value = false
+  }
+}
+
+async function handleCharacterAssetDefault(asset) {
+  if (!asset?.id) return
+  characterAssetBusy.value = true
+  try {
+    await characterAssetAPI.setDefault(asset.id)
+    await loadCharacterAssets()
+    toast.success('默认角色形象已更新')
+  } catch (error) {
+    toast.error(error?.message || '默认形象设置失败')
+  } finally {
+    characterAssetBusy.value = false
+  }
 }
 
 function handleSceneFieldUpdate(payload) {
@@ -453,6 +522,7 @@ async function refresh() {
     try { chars.value = await chapterAPI.characters(currentEpisode.id) } catch { chars.value = [] }
     try { scenes.value = await chapterAPI.scenes(currentEpisode.id) } catch { scenes.value = [] }
     sbs.value = await chapterAPI.storyboards(currentEpisode.id)
+    await loadCharacterAssets()
 
     if (!sbs.value.length) selectedSb.value = null
     else if (!selectedSb.value || !sbs.value.some(sb => sb.id === selectedSb.value.id)) selectedSb.value = sbs.value[0]
@@ -696,6 +766,8 @@ const productionPanelState = computed(() => ({
   prodTab: prodTab.value,
   prodTabDefs: prodTabDefs.value,
   visualChars: visualChars.value,
+  characterAssets: characterAssets.value,
+  characterAssetBusy: characterAssetBusy.value,
   chars: chars.value,
   scenes: scenes.value,
   lockedImageConfigLabel: lockedImageConfigLabel.value,
@@ -785,6 +857,9 @@ const productionPanelHandlers = {
   genCharImg,
   replaceCharImage,
   handleCharacterDescriptionUpdate,
+  handleCharacterAssetUpload,
+  handleCharacterAssetBind,
+  handleCharacterAssetDefault,
   handleGalleryViewerOpen,
   batchSceneImages,
   genSceneImg,

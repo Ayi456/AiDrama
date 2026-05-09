@@ -13,7 +13,29 @@ export type ApiList<T> = { items: T[] }
 export type UploadResult = { url: string; path: string }
 export type Drama = ApiEntity & { title?: string; characters?: DramaCharacter[]; scenes?: Scene[] }
 export type Episode = ApiEntity & { drama_id?: number; dramaId?: number; title?: string }
-export type DramaCharacter = ApiEntity & { name?: string; image_url?: string; imageUrl?: string }
+export type CharacterAsset = ApiEntity & {
+  name?: string
+  gender?: string
+  role_preset?: string
+  image_url?: string
+  local_path?: string
+  description?: string
+  appearance?: string
+  tags?: string[]
+  is_default?: boolean
+  is_active?: boolean
+}
+export type DramaCharacter = ApiEntity & {
+  name?: string
+  image_url?: string
+  imageUrl?: string
+  character_asset_id?: number | null
+  characterAssetId?: number | null
+  character_asset?: CharacterAsset | null
+  characterAsset?: CharacterAsset | null
+  character_asset_image_url?: string | null
+  characterAssetImageUrl?: string | null
+}
 export type Scene = ApiEntity & { location?: string; time?: string; image_url?: string; imageUrl?: string }
 export type Storyboard = ApiEntity & {
   storyboard_number?: number
@@ -209,8 +231,18 @@ export const storyboardAPI = {
 
 export const characterAPI = {
   update: (id: number, data: ApiRequestBody) => api.put<DramaCharacter>(`/characters/${id}`, data),
+  bindAsset: (id: number, assetId: number) => api.post(`/characters/${id}/bind-asset`, { character_asset_id: assetId }),
+  unbindAsset: (id: number) => api.del(`/characters/${id}/bind-asset`),
   generateImage: (id: number, episodeId: number) => api.post<ImageGenerationStart>(`/characters/${id}/generate-image`, { episode_id: episodeId }),
   batchImages: (ids: number[], episodeId: number) => api.post('/characters/batch-generate-images', { character_ids: ids, episode_id: episodeId }),
+}
+
+export const characterAssetAPI = {
+  list: () => api.get<CharacterAsset[]>('/character-assets'),
+  create: (data: ApiRequestBody) => api.post<CharacterAsset>('/character-assets', data),
+  update: (id: number, data: ApiRequestBody) => api.put<CharacterAsset>(`/character-assets/${id}`, data),
+  setDefault: (id: number) => api.post<CharacterAsset>(`/character-assets/${id}/default`),
+  del: (id: number) => api.del(`/character-assets/${id}`),
 }
 
 export const sceneAPI = {

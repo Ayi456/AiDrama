@@ -7,14 +7,94 @@
           <span class="character-gallery__title">角色形象画板</span>
         </div>
       </div>
+
       <div class="character-gallery__actions">
         <span class="tag">{{ lockedImageConfigLabel }}</span>
         <span v-if="hasNarratorOnly" class="tag">旁白仅保留声音</span>
+
+        <div class="character-gallery__asset-upload">
+          <label :class="['btn btn-sm character-gallery__upload-btn', assetBusy && 'is-disabled']" title="上传默认男主形象">
+            <input
+              class="character-gallery__replace-input"
+              type="file"
+              accept="image/*"
+              :disabled="assetBusy"
+              @change="handleAssetFile($event, 'male_lead')"
+            />
+            <ImagePlus :size="12" />
+            男主形象
+          </label>
+          <label :class="['btn btn-sm character-gallery__upload-btn', assetBusy && 'is-disabled']" title="上传默认女主形象">
+            <input
+              class="character-gallery__replace-input"
+              type="file"
+              accept="image/*"
+              :disabled="assetBusy"
+              @change="handleAssetFile($event, 'female_lead')"
+            />
+            <ImagePlus :size="12" />
+            女主形象
+          </label>
+          <label :class="['btn btn-sm character-gallery__upload-btn', assetBusy && 'is-disabled']" title="上传自定义角色形象">
+            <input
+              class="character-gallery__replace-input"
+              type="file"
+              accept="image/*"
+              :disabled="assetBusy"
+              @change="handleAssetFile($event, 'custom')"
+            />
+            <Upload :size="12" />
+            自定义
+          </label>
+        </div>
+
         <button class="btn btn-sm" @click="emit('batch-generate')">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
           批量生成
         </button>
       </div>
+    </div>
+
+    <div v-if="characterAssets.length" class="character-gallery__asset-strip">
+      <article
+        v-for="asset in characterAssets"
+        :key="asset.id"
+        :class="['character-gallery__asset-card', isDefaultAsset(asset) && 'is-default']"
+      >
+        <button
+          v-if="getAssetImage(asset)"
+          class="character-gallery__asset-cover"
+          type="button"
+          @click="openAssetImage(asset)"
+        >
+          <img :src="assetUrl(getAssetImage(asset))" :alt="asset.name || '角色形象'" />
+        </button>
+        <div v-else class="character-gallery__asset-cover is-empty">
+          <UserRoundCheck :size="18" />
+        </div>
+
+        <div class="character-gallery__asset-meta">
+          <div class="character-gallery__asset-name">{{ asset.name || '未命名形象' }}</div>
+          <div class="character-gallery__asset-role">
+            <span>{{ rolePresetLabel(asset.role_preset || asset.rolePreset) }}</span>
+            <span v-if="isDefaultAsset(asset)" class="character-gallery__asset-default">默认</span>
+          </div>
+        </div>
+
+        <button
+          v-if="!isDefaultAsset(asset)"
+          class="character-gallery__asset-default-btn"
+          type="button"
+          :disabled="assetBusy"
+          @click="emit('set-default-character-asset', asset)"
+        >
+          设为默认
+        </button>
+      </article>
+    </div>
+    <div v-else class="character-gallery__asset-empty">
+      <ImagePlus :size="15" />
+      <span>形象库为空，角色未绑定时仍按提示词生成</span>
     </div>
 
     <div class="character-gallery__grid">
@@ -45,6 +125,42 @@
               {{ hasCharacterImage(character) ? '已出图' : (isPendingCharacterImage(character.id) ? '生成中' : '待出图') }}
             </span>
           </div>
+
+          <label class="character-gallery__asset-bind">
+            <span class="character-gallery__prompt-label">绑定形象</span>
+            <select
+              class="character-gallery__asset-select"
+              :value="getBoundAssetId(character) || ''"
+              :disabled="assetBusy || (!characterAssets.length && !getBoundAssetId(character))"
+              @change="handleBindAsset(character, $event)"
+            >
+              <option value="">不绑定，使用角色原始提示词</option>
+              <option v-for="asset in characterAssets" :key="asset.id" :value="asset.id">
+                {{ asset.name || '未命名形象' }} · {{ rolePresetLabel(asset.role_preset || asset.rolePreset) }}
+              </option>
+            </select>
+          </label>
+
+          <button
+            v-if="getBoundAsset(character)"
+            class="character-gallery__bound-asset"
+            type="button"
+            @click="openAssetImage(getBoundAsset(character))"
+          >
+            <img
+              v-if="getAssetImage(getBoundAsset(character))"
+              :src="assetUrl(getAssetImage(getBoundAsset(character)))"
+              alt=""
+            />
+            <span>
+              <b>当前引用</b>
+              {{ getBoundAsset(character).name || '角色形象' }}
+            </span>
+          </button>
+          <div v-else class="character-gallery__bound-asset is-empty">
+            未绑定形象，生成时不带形象库参考图
+          </div>
+
           <label class="character-gallery__prompt">
             <div class="character-gallery__prompt-head">
               <span class="character-gallery__prompt-label">角色描述词</span>
@@ -61,7 +177,6 @@
 
         <div class="character-gallery__foot">
           <div class="character-gallery__status">
-            
           </div>
           <div class="character-gallery__foot-actions">
             <label
@@ -88,12 +203,21 @@
 </template>
 
 <script setup>
+import { ImagePlus, Upload, UserRoundCheck } from 'lucide-vue-next'
 import { assetUrl } from '@/utils/asset-url'
 
 const props = defineProps({
   characters: {
     type: Array,
     default: () => [],
+  },
+  characterAssets: {
+    type: Array,
+    default: () => [],
+  },
+  assetBusy: {
+    type: Boolean,
+    default: false,
   },
   lockedImageConfigLabel: {
     type: String,
@@ -113,7 +237,16 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['batch-generate', 'generate', 'replace-image', 'update-character-description', 'open-image-viewer'])
+const emit = defineEmits([
+  'batch-generate',
+  'generate',
+  'replace-image',
+  'upload-character-asset',
+  'bind-character-asset',
+  'set-default-character-asset',
+  'update-character-description',
+  'open-image-viewer',
+])
 
 function getCharacterImage(character) {
   return character?.image_url || character?.imageUrl || ''
@@ -140,6 +273,48 @@ function getGenerateButtonLabel(character) {
   return hasCharacterImage(character) ? '再生成' : '生成'
 }
 
+function rolePresetLabel(rolePreset) {
+  switch (rolePreset) {
+    case 'male_lead':
+      return '男主'
+    case 'female_lead':
+      return '女主'
+    case 'supporting':
+      return '配角'
+    case 'villain':
+      return '反派'
+    default:
+      return '自定义'
+  }
+}
+
+function isDefaultAsset(asset) {
+  return Boolean(asset?.is_default || asset?.isDefault)
+}
+
+function getAssetImage(asset) {
+  return asset?.image_url || asset?.imageUrl || asset?.local_path || asset?.localPath || ''
+}
+
+function getBoundAssetId(character) {
+  return Number(
+    character?.character_asset_id ||
+    character?.characterAssetId ||
+    character?.character_asset?.id ||
+    character?.characterAsset?.id ||
+    0,
+  )
+}
+
+function getBoundAsset(character) {
+  const id = getBoundAssetId(character)
+  if (!id) return null
+  return props.characterAssets.find(asset => Number(asset?.id || 0) === id) ||
+    character?.character_asset ||
+    character?.characterAsset ||
+    null
+}
+
 function openCharacterImage(character) {
   const src = getCharacterImage(character)
   if (!src) return
@@ -149,11 +324,42 @@ function openCharacterImage(character) {
   })
 }
 
+function openAssetImage(asset) {
+  const src = getAssetImage(asset)
+  if (!src) return
+  emit('open-image-viewer', {
+    src: assetUrl(src),
+    title: `${asset?.name || '角色形象'} 形象图片`,
+  })
+}
+
 function handleReplaceFile(character, event) {
   const input = event.target
   const file = input?.files?.[0]
   if (file) emit('replace-image', { character, file })
   if (input) input.value = ''
+}
+
+function handleAssetFile(event, rolePreset) {
+  const input = event.target
+  const file = input?.files?.[0]
+  if (file) {
+    emit('upload-character-asset', {
+      file,
+      rolePreset,
+      gender: rolePreset === 'male_lead' ? 'male' : rolePreset === 'female_lead' ? 'female' : 'unknown',
+      isDefault: rolePreset === 'male_lead' || rolePreset === 'female_lead',
+    })
+  }
+  if (input) input.value = ''
+}
+
+function handleBindAsset(character, event) {
+  const value = event.target?.value
+  emit('bind-character-asset', {
+    character,
+    assetId: value ? Number(value) : null,
+  })
 }
 </script>
 

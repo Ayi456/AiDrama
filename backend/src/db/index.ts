@@ -172,9 +172,27 @@ const tableStatements = [
     personality TEXT,
     image_url TEXT,
     reference_images TEXT,
+    character_asset_id INT,
     seed_value TEXT,
     sort_order INT,
     local_path TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+  `CREATE TABLE IF NOT EXISTS character_assets (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name TEXT NOT NULL,
+    gender VARCHAR(32) DEFAULT 'unknown',
+    role_preset VARCHAR(64) DEFAULT 'custom',
+    image_url TEXT NOT NULL,
+    local_path TEXT,
+    description TEXT,
+    appearance TEXT,
+    tags TEXT,
+    is_default TINYINT(1) DEFAULT 0,
+    is_active TINYINT(1) DEFAULT 1,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT
@@ -462,6 +480,7 @@ async function initializeDatabase(pool: Pool, database: string) {
   await ensureColumn(pool, database, 'episodes', 'video_config_id', 'INT')
   await ensureColumn(pool, database, 'dramas', 'image_config_id', 'INT')
   await ensureColumn(pool, database, 'dramas', 'video_config_id', 'INT')
+  await ensureColumn(pool, database, 'characters', 'character_asset_id', 'INT')
   await ensureColumn(pool, database, 'image_generations', 'normalized_request', 'TEXT')
   await ensureColumn(pool, database, 'image_generations', 'provider_request', 'TEXT')
   await ensureColumn(pool, database, 'image_generations', 'provider_response', 'TEXT')

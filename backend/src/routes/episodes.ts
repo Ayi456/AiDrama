@@ -6,6 +6,34 @@ import { toSnakeCaseArray, toSnakeCase } from '../utils/transform.js'
 
 const app = new Hono()
 
+type CharacterRow = typeof schema.characters.$inferSelect
+type CharacterAssetRow = typeof schema.characterAssets.$inferSelect
+
+async function loadCharacterAssetMap(characters: CharacterRow[]) {
+  const assetIds = [...new Set(characters.map(character => character.characterAssetId).filter((id): id is number => Boolean(id)))]
+  if (!assetIds.length) return new Map<number, CharacterAssetRow>()
+
+  const assets = (await db.select().from(schema.characterAssets).all())
+    .filter(asset => assetIds.includes(asset.id) && !asset.deletedAt && asset.isActive !== false)
+  return new Map(assets.map(asset => [asset.id, asset]))
+}
+
+function presentCharacterWithAsset(character: CharacterRow, assetMap: Map<number, CharacterAssetRow>) {
+  const asset = character.characterAssetId ? assetMap.get(character.characterAssetId) : null
+  return {
+    ...toSnakeCase(character),
+    character_asset: asset
+      ? {
+        id: asset.id,
+        name: asset.name,
+        image_url: asset.imageUrl,
+        role_preset: asset.rolePreset,
+      }
+      : null,
+    character_asset_image_url: asset?.imageUrl || null,
+  }
+}
+
 // POST /episodes - Create a new episode
 app.post('/', async (c) => {
   const body = await c.req.json()
@@ -80,7 +108,8 @@ app.get('/:id/characters', async (c) => {
 
   const allChars = (await db.select().from(schema.characters).all())
   const result = allChars.filter((character) => charIds.includes(character.id) && !character.deletedAt)
-  return success(c, toSnakeCaseArray(result))
+  const assetMap = await loadCharacterAssetMap(result)
+  return success(c, result.map(character => presentCharacterWithAsset(character, assetMap)))
 })
 
 // GET /episodes/:id/scenes - scenes linked to this episode
@@ -119,13 +148,14 @@ app.get('/:episode_id/storyboards', async (c) => {
     .map((link) => link.characterId)
   const allChars = (await db.select().from(schema.characters).all())
     .filter((character) => episodeCharIds.includes(character.id) && !character.deletedAt)
+  const assetMap = await loadCharacterAssetMap(allChars)
 
   return success(c, rows.map((row) => ({
     ...toSnakeCase(row),
     character_ids: charIdsByStoryboard.get(row.id) || [],
     characters: allChars
       .filter((character) => (charIdsByStoryboard.get(row.id) || []).includes(character.id))
-      .map((character) => toSnakeCase(character)),
+      .map((character) => presentCharacterWithAsset(character, assetMap)),
   })))
 })
 

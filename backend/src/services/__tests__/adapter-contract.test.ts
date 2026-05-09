@@ -5,7 +5,7 @@ import path from 'node:path'
 import { AliImageAdapter } from '../adapters/ali-image.js'
 import { AliVideoAdapter } from '../adapters/ali-video.js'
 import { ViduVideoAdapter } from '../adapters/vidu-video.js'
-import type { AIConfig, VideoGenerationRecord } from '../adapters/types.js'
+import type { AIConfig, ImageGenerationRecord, VideoGenerationRecord } from '../adapters/types.js'
 
 function runTest(name: string, fn: () => void | Promise<void>) {
   Promise.resolve()
@@ -66,6 +66,37 @@ runTest('Ali image adapter parses async, completed, failed, and processing respo
   assert.deepEqual(
     adapter.parsePollResponse({ output: { task_status: 'RUNNING' } }),
     { status: 'processing' },
+  )
+})
+
+runTest('Ali image adapter sends bound asset references as image inputs', () => {
+  const adapter = new AliImageAdapter()
+  const config: AIConfig = {
+    provider: 'ali',
+    baseUrl: 'https://dashscope.aliyuncs.com',
+    apiKey: 'test-key',
+    model: 'wan2.6-i2i',
+  }
+  const record: ImageGenerationRecord = {
+    id: 12,
+    prompt: 'keep the same heroine identity, cinematic portrait',
+    size: '1280x1280',
+    referenceImages: JSON.stringify([
+      'data:image/jpeg;base64,asset-reference',
+    ]),
+  }
+
+  const request = adapter.buildGenerateRequest(config, record)
+  const content = (request.body as {
+    input: { messages: Array<{ content: Array<{ image?: string; text?: string }> }> }
+  }).input.messages[0]?.content || []
+
+  assert.deepEqual(
+    content.map(item => item.image || item.text),
+    [
+      'data:image/jpeg;base64,asset-reference',
+      'keep the same heroine identity, cinematic portrait',
+    ],
   )
 })
 

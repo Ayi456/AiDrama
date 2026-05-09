@@ -21,6 +21,7 @@ import merge from './routes/merge.js'
 import grid from './routes/grid.js'
 import skills from './routes/skills.js'
 import assets from './routes/assets.js'
+import characterAssets from './routes/characterAssets.js'
 import webhooks from './routes/webhooks.js'
 import { requestLogger, errorHandler } from './middleware/logger.js'
 import { externalAssetRedirectUrl } from './utils/external-asset-redirect.js'
@@ -71,6 +72,7 @@ export function createApp() {
   api.route('/grid', grid)
   api.route('/skills', skills)
   api.route('/assets', assets)
+  api.route('/character-assets', characterAssets)
 
   app.route('/api/v1', api)
   app.route('/webhooks', webhooks)

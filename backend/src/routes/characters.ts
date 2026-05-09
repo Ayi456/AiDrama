@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { db, schema } from '../db/index.js'
 import { success, badRequest, now } from '../utils/response.js'
 import { generateImage } from '../services/generation/image-generation.js'
+import { resolveCharacterAssetReferenceImages } from '../services/assets/character-asset-generation.js'
 import { logTaskError, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
 
 const app = new Hono()
@@ -13,13 +14,40 @@ app.put('/:id', async (c) => {
   const body = await c.req.json()
   const updates: Record<string, any> = { updatedAt: now() }
 
-  for (const key of ['name', 'role', 'description', 'appearance', 'personality', 'imageUrl', 'localPath']) {
+  for (const key of ['name', 'role', 'description', 'appearance', 'personality', 'imageUrl', 'localPath', 'characterAssetId']) {
     const snakeKey = key.replace(/[A-Z]/g, (match) => `_${match.toLowerCase()}`)
     if (snakeKey in body) updates[key] = body[snakeKey]
     else if (key in body) updates[key] = body[key]
   }
 
   await db.update(schema.characters).set(updates).where(eq(schema.characters.id, id)).run()
+  return success(c)
+})
+
+// POST /characters/:id/bind-asset
+app.post('/:id/bind-asset', async (c) => {
+  const id = Number(c.req.param('id'))
+  const body = await c.req.json()
+  const assetId = Number(body.character_asset_id || body.characterAssetId || 0)
+  if (!assetId) return badRequest(c, '请选择角色形象')
+
+  const [asset] = await db.select().from(schema.characterAssets).where(eq(schema.characterAssets.id, assetId)).all()
+  if (!asset || asset.deletedAt || asset.isActive === false) return badRequest(c, '角色形象未找到')
+
+  await db.update(schema.characters)
+    .set({ characterAssetId: assetId, updatedAt: now() })
+    .where(eq(schema.characters.id, id))
+    .run()
+  return success(c)
+})
+
+// DELETE /characters/:id/bind-asset
+app.delete('/:id/bind-asset', async (c) => {
+  const id = Number(c.req.param('id'))
+  await db.update(schema.characters)
+    .set({ characterAssetId: null, updatedAt: now() })
+    .where(eq(schema.characters.id, id))
+    .run()
   return success(c)
 })
 
@@ -44,8 +72,18 @@ app.post('/:id/generate-image', async (c) => {
   const descParts = [char.appearance, char.description, char.personality].filter(Boolean).join(', ')
   const prompt = `${char.name}, ${descParts || '人物立绘'}, 高清质感, 正面, 白色背景`
   try {
+    const [asset] = char.characterAssetId
+      ? await db.select().from(schema.characterAssets).where(eq(schema.characterAssets.id, char.characterAssetId)).all()
+      : []
+    const referenceImages = resolveCharacterAssetReferenceImages(char, asset)
     logTaskStart('CharacterImage', 'generate', { characterId: id, episodeId: ep.id, dramaId: char.dramaId })
-    const genId = await generateImage({ characterId: id, dramaId: char.dramaId, prompt, configId: ep.imageConfigId ?? undefined })
+    const genId = await generateImage({
+      characterId: id,
+      dramaId: char.dramaId,
+      prompt,
+      referenceImages: referenceImages.length ? referenceImages : undefined,
+      configId: ep.imageConfigId ?? undefined,
+    })
     logTaskSuccess('CharacterImage', 'generate', { characterId: id, generationId: genId })
     return success(c, { image_generation_id: genId })
   } catch (err: any) {
@@ -70,7 +108,17 @@ app.post('/batch-generate-images', async (c) => {
     const descParts = [char.appearance, char.description, char.personality].filter(Boolean).join(', ')
     const prompt = `${char.name}, ${descParts || '人物立绘'}, 高清质感, 正面, 白色背景`
     try {
-      const genId = await generateImage({ characterId: charId, dramaId: char.dramaId, prompt, configId: ep.imageConfigId ?? undefined })
+      const [asset] = char.characterAssetId
+        ? await db.select().from(schema.characterAssets).where(eq(schema.characterAssets.id, char.characterAssetId)).all()
+        : []
+      const referenceImages = resolveCharacterAssetReferenceImages(char, asset)
+      const genId = await generateImage({
+        characterId: charId,
+        dramaId: char.dramaId,
+        prompt,
+        referenceImages: referenceImages.length ? referenceImages : undefined,
+        configId: ep.imageConfigId ?? undefined,
+      })
       results.push(genId)
     } catch {}
   }

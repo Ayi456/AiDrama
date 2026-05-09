@@ -13,7 +13,7 @@ type AliImageRequestBody = {
   input: {
     messages: Array<{
       role: 'user'
-      content: Array<{ text?: string | null }>
+      content: Array<{ text?: string | null; image?: string }>
     }>
   }
   parameters: {
@@ -50,6 +50,25 @@ function aliImageUrl(result: unknown): string | undefined {
   return stringField(firstContent, 'image')
 }
 
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values.map(item => String(item || '').trim()).filter(Boolean)))
+}
+
+function parseReferenceImages(record: ImageGenerationRecord): string[] {
+  const normalizedInputs = (record.normalizedSpec?.inputs || [])
+    .filter(item => item.type === 'image' && !!item.url)
+    .map(item => String(item.url))
+  if (normalizedInputs.length) return uniqueStrings(normalizedInputs)
+
+  if (!record.referenceImages) return []
+  try {
+    const parsed = JSON.parse(record.referenceImages)
+    return Array.isArray(parsed) ? uniqueStrings(parsed.map(item => String(item || ''))) : []
+  } catch {
+    return []
+  }
+}
+
 export class AliImageAdapter implements ImageProviderAdapter {
   readonly provider = 'ali'
 
@@ -57,13 +76,17 @@ export class AliImageAdapter implements ImageProviderAdapter {
     const baseUrl = config.baseUrl || 'https://dashscope.aliyuncs.com'
     const url = joinProviderUrl(baseUrl, '/api/v1', '/services/aigc/image-generation/generation')
     const size = this.normalizeSize(record.size || '1280*1280')
+    const referenceImages = parseReferenceImages(record)
     const body: AliImageRequestBody = {
       model: record.model || 'wan2.6-t2i',
       input: {
         messages: [
           {
             role: 'user',
-            content: [{ text: record.prompt }],
+            content: [
+              ...referenceImages.map(image => ({ image })),
+              { text: record.prompt },
+            ],
           },
         ],
       },
@@ -73,7 +96,7 @@ export class AliImageAdapter implements ImageProviderAdapter {
         negative_prompt: '',
         prompt_extend: true,
         watermark: false,
-        seed: record.referenceImages ? undefined : Math.floor(Math.random() * 2147483647),
+        seed: referenceImages.length ? undefined : Math.floor(Math.random() * 2147483647),
       },
     }
 

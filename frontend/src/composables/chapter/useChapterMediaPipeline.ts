@@ -154,6 +154,7 @@ export function useChapterMediaPipeline(options: UseChapterMediaPipelineOptions)
 
     for (const charId of options.getStoryboardCharacterIds(storyboard)) {
       const char = options.chars.value.find(item => item.id === charId)
+      pushRef(char?.character_asset_image_url || char?.characterAssetImageUrl)
       pushRef(char?.image_url || char?.imageUrl)
     }
 

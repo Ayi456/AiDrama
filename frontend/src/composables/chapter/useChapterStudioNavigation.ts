@@ -53,7 +53,7 @@ export function useChapterStudioNavigation(options: UseChapterStudioNavigationOp
 
   const mainStageDefs = [
     { id: 'script', label: '剧本', desc: '内容改写与整理', icon: FileText },
-    { id: 'assets', label: '资产', desc: '角色与场景', icon: FolderKanban },
+    { id: 'assets', label: '形象库', desc: '角色形象与场景', icon: FolderKanban },
     { id: 'storyboard', label: '分镜', desc: '镜头制作与合成', icon: Clapperboard },
     { id: 'export', label: '导出', desc: '拼接与成片输出', icon: Download },
   ]

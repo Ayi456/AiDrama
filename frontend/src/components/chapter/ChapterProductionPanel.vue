@@ -35,6 +35,8 @@
         v-if="state.prodTab === 'chars'"
         class="prod-content"
         :characters="state.visualChars"
+        :character-assets="state.characterAssets"
+        :asset-busy="state.characterAssetBusy"
         :locked-image-config-label="state.lockedImageConfigLabel"
         :pending-character-image-ids="state.pendingCharImageIds"
         :replacing-character-image-ids="state.replacingCharacterImageIds"
@@ -42,6 +44,9 @@
         @batch-generate="handlers.batchCharImages"
         @generate="handlers.genCharImg"
         @replace-image="handlers.replaceCharImage"
+        @upload-character-asset="handlers.handleCharacterAssetUpload"
+        @bind-character-asset="handlers.handleCharacterAssetBind"
+        @set-default-character-asset="handlers.handleCharacterAssetDefault"
         @update-character-description="handlers.handleCharacterDescriptionUpdate"
         @open-image-viewer="handlers.handleGalleryViewerOpen"
       />
