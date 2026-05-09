@@ -1,6 +1,6 @@
-import type { AIConfig } from './adapters/types.js'
-import { resolveRequestedImageSize } from './image-size.js'
-import { stringifyStringList } from './media-reference-resolver.js'
+import type { AIConfig } from '../../adapters/types.js'
+import { resolveRequestedImageSize } from '../../provider/image-size.js'
+import { stringifyStringList } from '../assets/media-reference-resolver.js'
 
 export type ImageGenerationEnqueueParams = {
   storyboardId?: number

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 
-import { runMediaPollingLoop } from '../media-polling-loop.js'
+import { runMediaPollingLoop } from '../media/job/media-polling-loop.js'
 
 function runTest(name: string, fn: () => void | Promise<void>) {
   Promise.resolve()

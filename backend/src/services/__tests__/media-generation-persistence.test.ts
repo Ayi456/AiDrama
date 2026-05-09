@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import {
   createImageGenerationPersistence,
   createVideoGenerationPersistence,
-} from '../media-generation-persistence.js'
+} from '../media/generation/media-generation-persistence.js'
 
 async function runTest(name: string, fn: () => void | Promise<void>) {
   try {

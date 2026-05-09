@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import {
   isProviderApiError,
   sendProviderJsonRequest,
-} from '../media-provider-transport.js'
+} from '../media/provider/media-provider-transport.js'
 
 type ProviderFetchResponse = {
   ok: boolean

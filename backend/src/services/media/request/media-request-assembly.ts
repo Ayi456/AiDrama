@@ -5,14 +5,14 @@ import type {
   ProviderRequest,
   VideoGenerationRecord,
   VideoProviderAdapter,
-} from './adapters/types.js'
+} from '../../adapters/types.js'
 import {
   buildImageJobSpecFromLegacyRequest,
   buildVideoJobSpecFromLegacyRequest,
   type ImageJobSpec,
   type ProviderDefaults,
   type VideoJobSpec,
-} from './provider-spec.js'
+} from '../../provider/provider-spec.js'
 
 export type ImageRequestRecord = Pick<
   ImageGenerationRecord,

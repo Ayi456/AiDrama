@@ -5,7 +5,7 @@ import {
   interpretImagePollResult,
   interpretVideoGenerateResult,
   interpretVideoPollResult,
-} from '../media-result-interpretation.js'
+} from '../media/request/media-result-interpretation.js'
 
 function runTest(name: string, fn: () => void) {
   try {

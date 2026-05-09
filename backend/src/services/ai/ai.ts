@@ -1,10 +1,10 @@
 /**
  * AI 服务抽象层 — 从数据库配置中获取 provider 和 API key
  */
-import { db, schema } from '../db/index.js'
+import { db, schema } from '../../db/index.js'
 import { eq } from 'drizzle-orm'
-import { logTaskProgress, logTaskWarn } from '../utils/task-logger.js'
-import { joinProviderUrl } from './adapters/url.js'
+import { logTaskProgress, logTaskWarn } from '../../utils/task-logger.js'
+import { joinProviderUrl } from '../adapters/url.js'
 
 export type ServiceType = 'text' | 'image' | 'video'
 export type TextProviderProtocol = 'openai' | 'anthropic'

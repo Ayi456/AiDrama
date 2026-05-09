@@ -11,7 +11,7 @@ import {
   recordMediaJobProcessingHandoff,
   recordMediaJobTimeout,
   serializeJobPayload,
-} from '../media-job-state.js'
+} from '../media/job/media-job-state.js'
 
 function runTest(name: string, fn: () => void | Promise<void>) {
   Promise.resolve()

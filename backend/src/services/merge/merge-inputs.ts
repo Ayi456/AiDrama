@@ -6,7 +6,7 @@ import {
   createCosRequestAuthorization,
   getCosConfig,
   staticAssetToCosObjectKey,
-} from '../utils/cos.js'
+} from '../../utils/cos.js'
 
 export type MergeInputFile = {
   sourceUrl: string

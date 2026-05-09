@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
-import type * as dbSchema from '../db/schema.js'
-import { createMediaJobSnapshotPersistor } from './media-job-state.js'
+import type * as dbSchema from '../../../db/schema.js'
+import { createMediaJobSnapshotPersistor } from '../job/media-job-state.js'
 
 export type MediaGenerationPatch = Record<string, unknown>
 
@@ -61,7 +61,7 @@ export const mediaGenerationDbPersistenceDeps: MediaGenerationPersistenceDeps = 
 }
 
 async function updateImageGenerationPatch(id: number, patch: MediaGenerationPatch) {
-  const { db, schema } = await import('../db/index.js')
+  const { db, schema } = await import('../../../db/index.js')
   await db.update(schema.imageGenerations)
     .set(patch as ImageGenerationDbPatch)
     .where(eq(schema.imageGenerations.id, id))
@@ -69,7 +69,7 @@ async function updateImageGenerationPatch(id: number, patch: MediaGenerationPatc
 }
 
 async function updateVideoGenerationPatch(id: number, patch: MediaGenerationPatch) {
-  const { db, schema } = await import('../db/index.js')
+  const { db, schema } = await import('../../../db/index.js')
   await db.update(schema.videoGenerations)
     .set(patch as VideoGenerationDbPatch)
     .where(eq(schema.videoGenerations.id, id))
@@ -77,7 +77,7 @@ async function updateVideoGenerationPatch(id: number, patch: MediaGenerationPatc
 }
 
 async function updateStoryboardPatch(id: number, patch: MediaGenerationPatch) {
-  const { db, schema } = await import('../db/index.js')
+  const { db, schema } = await import('../../../db/index.js')
   await db.update(schema.storyboards)
     .set(patch as StoryboardDbPatch)
     .where(eq(schema.storyboards.id, id))
@@ -85,7 +85,7 @@ async function updateStoryboardPatch(id: number, patch: MediaGenerationPatch) {
 }
 
 async function updateCharacterPatch(id: number, patch: MediaGenerationPatch) {
-  const { db, schema } = await import('../db/index.js')
+  const { db, schema } = await import('../../../db/index.js')
   await db.update(schema.characters)
     .set(patch as CharacterDbPatch)
     .where(eq(schema.characters.id, id))
@@ -93,7 +93,7 @@ async function updateCharacterPatch(id: number, patch: MediaGenerationPatch) {
 }
 
 async function updateScenePatch(id: number, patch: MediaGenerationPatch) {
-  const { db, schema } = await import('../db/index.js')
+  const { db, schema } = await import('../../../db/index.js')
   await db.update(schema.scenes)
     .set(patch as SceneDbPatch)
     .where(eq(schema.scenes.id, id))

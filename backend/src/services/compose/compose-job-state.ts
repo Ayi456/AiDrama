@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import type * as dbSchema from '../db/schema.js'
+import type * as dbSchema from '../../db/schema.js'
 
 export type ComposeStoryboardRecord = {
   id: number
@@ -64,7 +64,7 @@ export function createComposeJobDbPersistence() {
 }
 
 async function loadStoryboardFromDb(storyboardId: number) {
-  const { db, schema } = await import('../db/index.js')
+  const { db, schema } = await import('../../db/index.js')
   const [storyboard] = await db.select().from(schema.storyboards)
     .where(eq(schema.storyboards.id, storyboardId))
     .all()
@@ -72,7 +72,7 @@ async function loadStoryboardFromDb(storyboardId: number) {
 }
 
 async function updateStoryboardInDb(storyboardId: number, patch: ComposeStatePatch) {
-  const { db, schema } = await import('../db/index.js')
+  const { db, schema } = await import('../../db/index.js')
   await db.update(schema.storyboards)
     .set(patch as StoryboardUpdatePatch)
     .where(eq(schema.storyboards.id, storyboardId))

@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import type * as dbSchema from '../db/schema.js'
+import type * as dbSchema from '../../db/schema.js'
 
 export type MergeStoryboardForRecord = {
   id: number
@@ -144,7 +144,7 @@ export function createMergeJobDbPersistence() {
 }
 
 async function loadEpisodeStoryboardsFromDb(episodeId: number) {
-  const { db, schema } = await import('../db/index.js')
+  const { db, schema } = await import('../../db/index.js')
   return await db.select().from(schema.storyboards)
     .where(eq(schema.storyboards.episodeId, episodeId))
     .orderBy(schema.storyboards.storyboardNumber)
@@ -152,14 +152,14 @@ async function loadEpisodeStoryboardsFromDb(episodeId: number) {
 }
 
 async function loadPreviousEpisodeMergesFromDb(episodeId: number) {
-  const { db, schema } = await import('../db/index.js')
+  const { db, schema } = await import('../../db/index.js')
   return await db.select().from(schema.videoMerges)
     .where(eq(schema.videoMerges.episodeId, episodeId))
     .all()
 }
 
 async function updateEpisodeMergesInDb(episodeId: number, patch: MergeStatePatch) {
-  const { db, schema } = await import('../db/index.js')
+  const { db, schema } = await import('../../db/index.js')
   await db.update(schema.videoMerges)
     .set(patch as VideoMergeUpdatePatch)
     .where(eq(schema.videoMerges.episodeId, episodeId))
@@ -167,7 +167,7 @@ async function updateEpisodeMergesInDb(episodeId: number, patch: MergeStatePatch
 }
 
 async function updateEpisodeInDb(episodeId: number, patch: MergeStatePatch) {
-  const { db, schema } = await import('../db/index.js')
+  const { db, schema } = await import('../../db/index.js')
   await db.update(schema.episodes)
     .set(patch as EpisodeUpdatePatch)
     .where(eq(schema.episodes.id, episodeId))
@@ -175,7 +175,7 @@ async function updateEpisodeInDb(episodeId: number, patch: MergeStatePatch) {
 }
 
 async function insertVideoMergeInDb(record: ReturnType<typeof buildEpisodeMergeRecord>) {
-  const { db, schema } = await import('../db/index.js')
+  const { db, schema } = await import('../../db/index.js')
   const result = await db.insert(schema.videoMerges)
     .values(record)
     .run()
@@ -183,7 +183,7 @@ async function insertVideoMergeInDb(record: ReturnType<typeof buildEpisodeMergeR
 }
 
 async function updateVideoMergeInDb(mergeId: number, patch: MergeStatePatch) {
-  const { db, schema } = await import('../db/index.js')
+  const { db, schema } = await import('../../db/index.js')
   await db.update(schema.videoMerges)
     .set(patch as VideoMergeUpdatePatch)
     .where(eq(schema.videoMerges.id, mergeId))

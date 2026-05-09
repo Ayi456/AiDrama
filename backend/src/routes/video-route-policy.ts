@@ -1,4 +1,4 @@
-import type { VideoGenerationEnqueueParams } from '../services/media-generation-enqueue.js'
+import type { VideoGenerationEnqueueParams } from '../services/media/generation/media-generation-enqueue.js'
 
 type RouteBody = Record<string, unknown>
 

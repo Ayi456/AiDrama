@@ -8,7 +8,7 @@ import {
   buildMergeFailurePatch,
   buildReplacedMergePatch,
   createMergeJobPersistence,
-} from '../merge-job-state.js'
+} from '../merge/merge-job-state.js'
 
 async function runTest(name: string, fn: () => void | Promise<void>) {
   try {

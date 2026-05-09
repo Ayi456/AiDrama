@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import {
   assembleImageGenerateRequest,
   assembleVideoGenerateRequest,
-} from '../media-request-assembly.js'
+} from '../media/request/media-request-assembly.js'
 import type {
   AIConfig,
   ImageGenResponse,

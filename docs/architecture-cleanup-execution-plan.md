@@ -294,6 +294,11 @@ Purpose:
 - Keep architecture docs aligned with the new module boundaries.
 - Resolve owner-controlled repository handoff items that cannot be automated from
   code alone.
+- Record the remaining identity gap after structural cleanup: page and service
+  decomposition makes the project maintainable and AiDrama-owned internally, but
+  a slower pass is still needed across UI appearance, product language, route/API
+  naming, component boundaries, and public handoff docs before the whole repository
+  feels fully distinct from the imported source.
 
 Files:
 

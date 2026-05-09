@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import {
   buildComposeFfmpegOutputOptions,
   runStoryboardComposeFfmpeg,
-} from '../compose-ffmpeg-execution.js'
+} from '../compose/compose-ffmpeg-execution.js'
 
 type FakeCommand = {
   inputCalls: string[]

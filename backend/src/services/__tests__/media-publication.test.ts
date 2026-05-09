@@ -5,7 +5,7 @@ import {
   buildSceneImagePatch,
   buildStoryboardImagePatch,
   buildStoryboardVideoPatch,
-} from '../media-publication.js'
+} from '../media/assets/media-publication.js'
 
 function runTest(name: string, fn: () => void) {
   try {

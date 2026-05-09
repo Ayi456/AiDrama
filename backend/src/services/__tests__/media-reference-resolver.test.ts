@@ -9,7 +9,7 @@ import {
   resolveVideoOrAudioReference,
   resolveVideoGenerationReferences,
   stringifyStringList,
-} from '../media-reference-resolver.js'
+} from '../media/assets/media-reference-resolver.js'
 
 function runTest(name: string, fn: () => void | Promise<void>) {
   Promise.resolve()

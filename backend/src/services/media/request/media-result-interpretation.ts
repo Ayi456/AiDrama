@@ -3,7 +3,7 @@ import type {
   ImagePollResponse,
   VideoGenResponse,
   VideoPollResponse,
-} from './adapters/types.js'
+} from '../../adapters/types.js'
 
 type ImageBase64Payload = {
   data: string

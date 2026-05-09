@@ -11,7 +11,7 @@ import {
 } from '@ai-sdk/openai'
 import { and, eq, isNull } from 'drizzle-orm'
 import { db, schema } from '../db/index.js'
-import { getTextConfig, getTextProviderBaseUrl, getTextProviderProtocol } from '../services/ai.js'
+import { getTextConfig, getTextProviderBaseUrl, getTextProviderProtocol } from '../services/ai/ai.js'
 import { logTaskProgress } from '../utils/task-logger.js'
 import {
   mergeAgentInstructions,

@@ -1,5 +1,5 @@
-import type { AIConfig, ProviderRequest } from './adapters/types.js'
-import type { MediaJobSnapshotField } from './media-job-state.js'
+import type { AIConfig, ProviderRequest } from '../../adapters/types.js'
+import type { MediaJobSnapshotField } from '../job/media-job-state.js'
 
 export type ProviderExchangeSnapshotField = MediaJobSnapshotField
 

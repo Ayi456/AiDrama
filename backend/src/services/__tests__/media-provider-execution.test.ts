@@ -5,7 +5,7 @@ import {
   prepareProviderPollAttempt,
   submitProviderGenerationRequest,
   submitProviderPollAttempt,
-} from '../media-provider-execution.js'
+} from '../media/provider/media-provider-execution.js'
 
 function runTest(name: string, fn: () => void | Promise<void>) {
   Promise.resolve()

@@ -4,7 +4,7 @@ import {
   buildImageGenerationRequestContext,
   buildVideoGenerationRequestContext,
   loadMediaGenerationRecord,
-} from '../media-generation-records.js'
+} from '../media/generation/media-generation-records.js'
 
 function runTest(name: string, fn: () => void | Promise<void>) {
   Promise.resolve()

@@ -7,11 +7,11 @@ import {
   bundledFfprobeCandidatePaths,
   escapeConcatPath,
   firstExistingPath,
-} from '../ffmpeg.js'
-import { ensureMergeInputFiles, type MergeInputFile, requireExistingMergeInputFiles } from '../merge-inputs.js'
-import { selectMergeClipStoryboards } from '../merge-clips.js'
-import { ffmpegMergeOutputOptions, ffmpegMergeStrategies, resolveFfmpegMergeTimeoutMs } from '../merge-ffmpeg-strategy.js'
-import { isStaleProcessingMerge, resolveStaleMergeTimeoutMs } from '../merge-status.js'
+} from '../ffmpeg/ffmpeg.js'
+import { ensureMergeInputFiles, type MergeInputFile, requireExistingMergeInputFiles } from '../merge/merge-inputs.js'
+import { selectMergeClipStoryboards } from '../merge/merge-clips.js'
+import { ffmpegMergeOutputOptions, ffmpegMergeStrategies, resolveFfmpegMergeTimeoutMs } from '../merge/merge-ffmpeg-strategy.js'
+import { isStaleProcessingMerge, resolveStaleMergeTimeoutMs } from '../merge/merge-status.js'
 
 async function runTest(name: string, fn: () => void | Promise<void>) {
   try {

@@ -5,7 +5,7 @@ import {
   buildComposeFailurePatch,
   buildComposeProcessingPatch,
   createComposeJobPersistence,
-} from '../compose-job-state.js'
+} from '../compose/compose-job-state.js'
 
 async function runTest(name: string, fn: () => void | Promise<void>) {
   try {

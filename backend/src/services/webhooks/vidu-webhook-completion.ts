@@ -2,7 +2,7 @@ import {
   completeGeneratedVideoJob,
   type CompleteGeneratedVideoJobDeps,
   type CompletedGeneratedJobResult,
-} from './media-completion.js'
+} from '../media/assets/media-completion.js'
 
 export type ViduWebhookVideoRecord = {
   id: number

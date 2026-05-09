@@ -45,6 +45,39 @@ AiDrama should present a distinct implementation identity:
    storyboard breakdown, grid prompt generation, image/video generation, merge, and
    publishing.
 
+## Identity Gap After Structural Cleanup
+
+The current decomposition work is a necessary architecture pass, not the final
+"this is a completely different product" finish line. When the planned frontend
+page-boundary steps are complete, the core studio workflow should be materially
+different from the imported repository at the code-architecture level: the large
+page and media pipeline scripts will have been replaced by AiDrama-owned workflow
+modules such as export desk, studio config, media pipeline, asset workflow, video
+workflow, and export workflow.
+
+That still does not guarantee the whole repository feels unrecognizable from the
+upstream project. The remaining identity work should continue gradually in these
+areas:
+
+- Visual and interaction layer: make the studio screens, layout rhythm, component
+  composition, and user path feel like AiDrama instead of a lightly rearranged
+  inherited UI.
+- Product language layer: replace generic naming and copy with AiDrama production
+  terms such as script desk, storyboard board, shot gallery, generation queue, and
+  export desk wherever those names fit the actual responsibility.
+- API and route language layer: tighten endpoint, payload, and helper naming where
+  legacy field compatibility is no longer required, while preserving migration
+  safety.
+- Component boundary layer: continue splitting broad presentation components into
+  product-responsibility modules rather than only moving logic out of the page.
+- Documentation and handoff layer: make README, architecture docs, and handoff
+  notes describe AiDrama's current workflow directly, not as a cleanup of an
+  imported codebase.
+
+Treat this as a long-running identity backlog. Each future cleanup batch should
+move one visible or architectural surface further away from upstream style without
+doing risky rewrites just for appearance.
+
 ## Target Architecture Tracks
 
 ### Track A: Agent Runtime Identity

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 
-import { completeViduWebhookVideo } from '../vidu-webhook-completion.js'
+import { completeViduWebhookVideo } from '../webhooks/vidu-webhook-completion.js'
 
 function runTest(name: string, fn: () => void | Promise<void>) {
   Promise.resolve()

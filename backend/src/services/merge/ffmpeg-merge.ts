@@ -2,18 +2,18 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { v4 as uuid } from 'uuid'
-import { now } from '../utils/response.js'
-import { logTaskError, logTaskProgress, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
-import { resolveDataRoot, resolveStorageRoot } from '../utils/runtime-paths.js'
-import { staticAssetToLocalPath, uploadStaticAssetToCos } from '../utils/cos.js'
-import { escapeConcatPath, FFMPEG_PATH, FFPROBE_PATH, getVideoDuration } from './ffmpeg.js'
+import { now } from '../../utils/response.js'
+import { logTaskError, logTaskProgress, logTaskStart, logTaskSuccess } from '../../utils/task-logger.js'
+import { resolveDataRoot, resolveStorageRoot } from '../../utils/runtime-paths.js'
+import { staticAssetToLocalPath, uploadStaticAssetToCos } from '../../utils/cos.js'
+import { escapeConcatPath, FFMPEG_PATH, FFPROBE_PATH, getVideoDuration } from '../ffmpeg/ffmpeg.js'
 import { ensureMergeInputFiles } from './merge-inputs.js'
 import { selectMergeClipStoryboards } from './merge-clips.js'
 import { createMergeJobDbPersistence, normalizeMergeErrorMessage } from './merge-job-state.js'
 import { runFfmpegMergeStrategies } from './merge-ffmpeg-execution.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const PROJECT_ROOT = path.resolve(__dirname, '../../..')
+const PROJECT_ROOT = path.resolve(__dirname, '../../../..')
 const DATA_ROOT = resolveDataRoot(PROJECT_ROOT)
 const STORAGE_ROOT = resolveStorageRoot(PROJECT_ROOT)
 type MergeEpisodeVideoOptions = {

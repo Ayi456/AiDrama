@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../db/index.js'
 import { success, badRequest } from '../utils/response.js'
-import { composeStoryboard } from '../services/ffmpeg-compose.js'
+import { composeStoryboard } from '../services/compose/ffmpeg-compose.js'
 import { logTaskError, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
 import { toSnakeCase } from '../utils/transform.js'
 

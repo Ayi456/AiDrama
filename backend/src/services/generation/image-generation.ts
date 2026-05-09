@@ -1,44 +1,44 @@
-import { db, schema } from '../db/index.js'
+import { db, schema } from '../../db/index.js'
 import { eq } from 'drizzle-orm'
-import { getActiveConfig, getConfigById } from './ai.js'
-import { now } from '../utils/response.js'
-import { downloadFile, readImageAsCompressedDataUrl, saveBase64Image } from '../utils/storage.js'
-import { uploadStaticAssetToCos } from '../utils/cos.js'
-import { getImageAdapter } from './adapters/registry.js'
-import type { AIConfig } from './adapters/types.js'
+import { getActiveConfig, getConfigById } from '../ai/ai.js'
+import { now } from '../../utils/response.js'
+import { downloadFile, readImageAsCompressedDataUrl, saveBase64Image } from '../../utils/storage.js'
+import { uploadStaticAssetToCos } from '../../utils/cos.js'
+import { getImageAdapter } from '../adapters/registry.js'
+import type { AIConfig } from '../adapters/types.js'
 import {
   completeGeneratedImageJob,
   type GeneratedImageSource,
-} from './media-completion.js'
+} from '../media/assets/media-completion.js'
 import {
   buildImageGenerationEnqueueRecord,
   buildImageGenerationEnqueueStartContext,
   buildMediaGenerationEnqueuePayload,
   type ImageGenerationEnqueueParams,
-} from './media-generation-enqueue.js'
-import { resolveImageReferenceArray } from './media-reference-resolver.js'
-import { assembleImageGenerateRequest } from './media-request-assembly.js'
+} from '../media/generation/media-generation-enqueue.js'
+import { resolveImageReferenceArray } from '../media/assets/media-reference-resolver.js'
+import { assembleImageGenerateRequest } from '../media/request/media-request-assembly.js'
 import {
   buildImageGenerationRequestContext,
   loadMediaGenerationRecord,
-} from './media-generation-records.js'
-import { interpretImageGenerateResult, interpretImagePollResult } from './media-result-interpretation.js'
+} from '../media/generation/media-generation-records.js'
+import { interpretImageGenerateResult, interpretImagePollResult } from '../media/request/media-result-interpretation.js'
 import {
   prepareProviderGenerationAttempt,
   prepareProviderPollAttempt,
   submitProviderGenerationRequest,
   submitProviderPollAttempt,
-} from './media-provider-execution.js'
-import { runMediaPollingLoop } from './media-polling-loop.js'
+} from '../media/provider/media-provider-execution.js'
+import { runMediaPollingLoop } from '../media/job/media-polling-loop.js'
 import {
   logDetachedMediaJobError,
   recordMediaJobFailure,
   recordMediaJobProcessingHandoff,
   recordMediaJobTimeout,
-} from './media-job-state.js'
-import { createImageGenerationDbPersistence } from './media-generation-persistence.js'
-import { isProviderApiError, sendProviderJsonRequest } from './media-provider-transport.js'
-import { logTaskError, logTaskPayload, logTaskProgress, logTaskStart, logTaskSuccess, logTaskWarn, redactUrl } from '../utils/task-logger.js'
+} from '../media/job/media-job-state.js'
+import { createImageGenerationDbPersistence } from '../media/generation/media-generation-persistence.js'
+import { isProviderApiError, sendProviderJsonRequest } from '../media/provider/media-provider-transport.js'
+import { logTaskError, logTaskPayload, logTaskProgress, logTaskStart, logTaskSuccess, logTaskWarn, redactUrl } from '../../utils/task-logger.js'
 
 type GenerateImageParams = ImageGenerationEnqueueParams
 

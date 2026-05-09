@@ -8,7 +8,7 @@ import {
   materializeGeneratedImage,
   materializeGeneratedVideo,
   publishGeneratedAsset,
-} from '../media-completion.js'
+} from '../media/assets/media-completion.js'
 
 function runTest(name: string, fn: () => void | Promise<void>) {
   Promise.resolve()

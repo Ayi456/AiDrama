@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 
 import {
   runFfmpegMergeStrategies,
-} from '../merge-ffmpeg-execution.js'
+} from '../merge/merge-ffmpeg-execution.js'
 
 async function runTest(name: string, fn: () => void | Promise<void>) {
   try {

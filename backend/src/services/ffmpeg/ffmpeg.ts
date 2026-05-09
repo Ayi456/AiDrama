@@ -4,7 +4,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const PROJECT_ROOT = path.resolve(__dirname, '../../..')
+const PROJECT_ROOT = path.resolve(__dirname, '../../../..')
 
 export function firstExistingPath(candidates: Array<string | undefined>): string | undefined {
   for (const candidate of candidates) {

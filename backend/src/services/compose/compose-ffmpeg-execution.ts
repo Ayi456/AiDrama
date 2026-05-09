@@ -1,4 +1,4 @@
-import { ffmpeg, hasAudioStream } from './ffmpeg.js'
+import { ffmpeg, hasAudioStream } from '../ffmpeg/ffmpeg.js'
 
 export type RunStoryboardComposeFfmpegInput = {
   inputPath: string

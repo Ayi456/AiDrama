@@ -1,46 +1,46 @@
-import { db, schema } from '../db/index.js'
+import { db, schema } from '../../db/index.js'
 import { eq } from 'drizzle-orm'
-import { getActiveConfig, getConfigById } from './ai.js'
-import { now } from '../utils/response.js'
-import { downloadFile, readImageAsCompressedDataUrl } from '../utils/storage.js'
-import { uploadStaticAssetToCos } from '../utils/cos.js'
-import { getVideoAdapter } from './adapters/registry.js'
-import type { AIConfig } from './adapters/types.js'
+import { getActiveConfig, getConfigById } from '../ai/ai.js'
+import { now } from '../../utils/response.js'
+import { downloadFile, readImageAsCompressedDataUrl } from '../../utils/storage.js'
+import { uploadStaticAssetToCos } from '../../utils/cos.js'
+import { getVideoAdapter } from '../adapters/registry.js'
+import type { AIConfig } from '../adapters/types.js'
 import {
   completeGeneratedVideoJob,
   type GeneratedVideoSource,
-} from './media-completion.js'
+} from '../media/assets/media-completion.js'
 import {
   resolveVideoGenerationReferences,
-} from './media-reference-resolver.js'
+} from '../media/assets/media-reference-resolver.js'
 import {
   buildMediaGenerationEnqueuePayload,
   buildVideoGenerationEnqueueRecord,
   buildVideoGenerationEnqueueStartContext,
   type VideoGenerationEnqueueParams,
-} from './media-generation-enqueue.js'
-import { assembleVideoGenerateRequest } from './media-request-assembly.js'
+} from '../media/generation/media-generation-enqueue.js'
+import { assembleVideoGenerateRequest } from '../media/request/media-request-assembly.js'
 import {
   buildVideoGenerationRequestContext,
   loadMediaGenerationRecord,
-} from './media-generation-records.js'
-import { interpretVideoGenerateResult, interpretVideoPollResult } from './media-result-interpretation.js'
+} from '../media/generation/media-generation-records.js'
+import { interpretVideoGenerateResult, interpretVideoPollResult } from '../media/request/media-result-interpretation.js'
 import {
   prepareProviderGenerationAttempt,
   prepareProviderPollAttempt,
   submitProviderGenerationRequest,
   submitProviderPollAttempt,
-} from './media-provider-execution.js'
-import { runMediaPollingLoop } from './media-polling-loop.js'
+} from '../media/provider/media-provider-execution.js'
+import { runMediaPollingLoop } from '../media/job/media-polling-loop.js'
 import {
   logDetachedMediaJobError,
   recordMediaJobFailure,
   recordMediaJobProcessingHandoff,
   recordMediaJobTimeout,
-} from './media-job-state.js'
-import { createVideoGenerationDbPersistence } from './media-generation-persistence.js'
-import { isProviderApiError, sendProviderJsonRequest } from './media-provider-transport.js'
-import { logTaskError, logTaskPayload, logTaskProgress, logTaskStart, logTaskSuccess, logTaskWarn, redactUrl } from '../utils/task-logger.js'
+} from '../media/job/media-job-state.js'
+import { createVideoGenerationDbPersistence } from '../media/generation/media-generation-persistence.js'
+import { isProviderApiError, sendProviderJsonRequest } from '../media/provider/media-provider-transport.js'
+import { logTaskError, logTaskPayload, logTaskProgress, logTaskStart, logTaskSuccess, logTaskWarn, redactUrl } from '../../utils/task-logger.js'
 
 type GenerateVideoParams = VideoGenerationEnqueueParams
 

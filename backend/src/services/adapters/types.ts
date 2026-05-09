@@ -1,4 +1,4 @@
-import type { ImageJobSpec, VideoJobSpec } from '../provider-spec.js'
+import type { ImageJobSpec, VideoJobSpec } from '../provider/provider-spec.js'
 
 export interface ImageProviderAdapter {
   provider: string

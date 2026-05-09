@@ -1,12 +1,12 @@
 import fs from 'fs'
-import { ffmpeg } from './ffmpeg.js'
+import { ffmpeg } from '../ffmpeg/ffmpeg.js'
 import {
   type FfmpegMergeStrategy,
   ffmpegMergeOutputOptions,
   ffmpegMergeStrategies,
   resolveFfmpegMergeTimeoutMs,
 } from './merge-ffmpeg-strategy.js'
-import { logTaskProgress, logTaskStart, logTaskSuccess, logTaskWarn } from '../utils/task-logger.js'
+import { logTaskProgress, logTaskStart, logTaskSuccess, logTaskWarn } from '../../utils/task-logger.js'
 
 const MERGE_PROGRESS_LOG_INTERVAL_MS = 15_000
 

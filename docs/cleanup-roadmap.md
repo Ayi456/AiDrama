@@ -487,6 +487,11 @@ Next targets:
   presentation from `ChapterStudioView.vue`.
 - Then extract script desk and storyboard desk actions so the page becomes a route
   shell plus workflow composition.
+- After the structural page-boundary tasks are done, continue a slower identity
+  pass across UI appearance, product language, API naming, component boundaries,
+  and public-facing docs. Structural cleanup should make the implementation
+  maintainable and AiDrama-owned, but it is not by itself the final standard for
+  making the project feel completely different from the imported GitHub source.
 - Continue replacing inherited comments, user-facing tool messages, and helper names
   where they are touched by the remaining cleanup batches.
 

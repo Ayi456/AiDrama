@@ -4,8 +4,8 @@ import {
   buildImageJobSpecFromLegacyRequest,
   buildVideoJobSpecFromLegacyRequest,
   mergeProviderDefaults,
-} from '../provider-spec.js'
-import { resolveRequestedImageSize } from '../image-size.js'
+} from '../provider/provider-spec.js'
+import { resolveRequestedImageSize } from '../provider/image-size.js'
 import { VolcEngineImageAdapter } from '../adapters/volcengine-image.js'
 import { VolcEngineVideoAdapter } from '../adapters/volcengine-video.js'
 

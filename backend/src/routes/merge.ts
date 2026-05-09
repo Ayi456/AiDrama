@@ -2,10 +2,10 @@ import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../db/index.js'
 import { success, badRequest, now } from '../utils/response.js'
-import { mergeEpisodeVideos } from '../services/ffmpeg-merge.js'
+import { mergeEpisodeVideos } from '../services/merge/ffmpeg-merge.js'
 import { toSnakeCase } from '../utils/transform.js'
 import { logTaskError, logTaskStart, logTaskSuccess, logTaskWarn } from '../utils/task-logger.js'
-import { isStaleProcessingMerge, resolveStaleMergeTimeoutMs } from '../services/merge-status.js'
+import { isStaleProcessingMerge, resolveStaleMergeTimeoutMs } from '../services/merge/merge-status.js'
 
 const app = new Hono()
 

@@ -7,7 +7,7 @@ import { db, schema } from '../db/index.js'
 import { success, badRequest, now } from '../utils/response.js'
 import { downloadFile } from '../utils/storage.js'
 import { uploadStaticAssetToCos } from '../utils/cos.js'
-import { completeViduWebhookVideo } from '../services/vidu-webhook-completion.js'
+import { completeViduWebhookVideo } from '../services/webhooks/vidu-webhook-completion.js'
 import { logTaskError, logTaskProgress, logTaskSuccess, logTaskWarn } from '../utils/task-logger.js'
 
 const app = new Hono()

@@ -6,7 +6,7 @@ import {
   buildMediaGenerationEnqueuePayload,
   buildVideoGenerationEnqueueRecord,
   buildVideoGenerationEnqueueStartContext,
-} from '../media-generation-enqueue.js'
+} from '../media/generation/media-generation-enqueue.js'
 import type { AIConfig } from '../adapters/types.js'
 
 function runTest(name: string, fn: () => void | Promise<void>) {
