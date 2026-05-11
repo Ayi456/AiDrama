@@ -585,11 +585,11 @@ const defaultPrompts = {
   storyboard_breaker: `你是资深影视分镜师，擅长将剧本拆解为分镜方案。
 
 工作流程：
-1. 调用 read_storyboard_context 读取剧本、角色列表、场景列表
+1. 调用 read_storyboard_context 读取剧本、角色列表、场景列表、项目风格和已有分镜
 2. 将剧本拆解为镜头序列（每个镜头 10-15 秒）
-3. 为每个镜头生成视频提示词（video_prompt）
-  4. 调用 save_storyboards 保存所有分镜`,
-  grid_prompt_generator: `你是专业的 AI 图像提示词工程师，擅长为角色、场景和宫格图生成高质量的英文提示词。
+3. 为每个镜头补全 image_prompt 和 video_prompt，并在有 project.style 时保持统一风格
+4. 调用 save_storyboards 保存所有分镜`,
+  grid_prompt_generator: `你是专业的 AI 图像提示词工程师，擅长为角色、场景和宫格图生成高质量的视觉提示词。
 
 你将收到用户的请求，告知要生成哪种类型的提示词：
 - "角色" → 生成角色图片提示词
@@ -607,7 +607,7 @@ const defaultPrompts = {
 
 工作流程：
 1. 调用 read_scenes 读取所有场景信息
-2. 根据场景地点（location）、时间段（time）、已有描述（prompt）生成英文提示词
+2. 根据场景地点（location）、时间段（time）、已有描述（prompt）生成中文提示词
 3. 提示词结构：[地点]，[时间/光线/氛围]，[已有描述]，[电影感场景]，[高质量]，[无文字水印]
 
 ## 宫格图提示词（参考 skills/grid-image-generator/SKILL.md）
@@ -621,10 +621,11 @@ const defaultPrompts = {
 3. 返回 grid_prompt（整体提示词）和 cell_prompts（每格提示词）
 
 提示词规范：
-- 使用英文提示词
-- 必须包含 "consistent art style" 保持风格统一
-- 必须包含 "cinematic quality"
-- 避免出现文字或水印`,
+ - 角色图提示词使用英文
+ - 场景图提示词使用中文
+ - 必须包含 "consistent art style" 保持风格统一
+ - 必须包含 "cinematic quality"
+ - 避免出现文字或水印`,
 }
 
 function getAgentCfg(type) {

@@ -25,12 +25,14 @@ runTest('buildCharacterImagePrompt composes reusable portrait guidance', () => {
     description: 'owns a mysterious system and receives a secret jade token in episode five',
     role: 'lead',
     personality: 'calm strategist',
-  })
+    style: 'cinematic',
+  } as any)
 
   assert.match(prompt, /顾玄/)
   assert.match(prompt, /silver hair/)
   assert.match(prompt, /role: lead/)
   assert.match(prompt, /calm strategist/)
+  assert.match(prompt, /project style: cinematic/)
   assert.doesNotMatch(prompt, /mysterious system/)
   assert.match(prompt, /cinematic portrait/)
   assert.match(prompt, /no watermark/)
@@ -44,13 +46,15 @@ runTest('buildCharacterPortraitGenerationPrompt keeps portrait prompts visual', 
     appearance: '二十岁出头，清秀面容，明显黑眼圈，身形清瘦挺拔，青色道袍',
     description: '顾玄是青云宗大师兄，同时也是穿越者。他拥有系统和秩序之眼等神秘能力。第五集中，他出席百宗宴，最终获得商会会长赠送的秘境通行玉牌。',
     personality: '疲惫但镇定，气质克制沉稳',
-  })
+    style: 'cinematic',
+  } as any)
 
   assert.match(prompt, /顾玄/)
   assert.match(prompt, /青云宗大师兄/)
   assert.match(prompt, /黑眼圈/)
   assert.match(prompt, /青色道袍/)
   assert.match(prompt, /疲惫但镇定/)
+  assert.match(prompt, /项目风格[:：] cinematic/)
   assert.doesNotMatch(prompt, /穿越者/)
   assert.doesNotMatch(prompt, /系统/)
   assert.doesNotMatch(prompt, /秩序之眼/)
@@ -62,11 +66,13 @@ runTest('buildCharacterPortraitGenerationPrompt falls back to visual description
   const prompt = buildCharacterPortraitGenerationPrompt({
     name: '顾玄',
     description: '顾玄约二十岁出头，外貌清秀但顶着两个黑眼圈，看起来有些疲惫。作为穿越者，他拥有系统和秩序之眼等神秘能力。最终获得商会会长赠送的秘境通行玉牌。',
-  })
+    style: 'realistic',
+  } as any)
 
   assert.match(prompt, /二十岁出头/)
   assert.match(prompt, /黑眼圈/)
   assert.match(prompt, /疲惫/)
+  assert.match(prompt, /项目风格[:：] realistic/)
   assert.doesNotMatch(prompt, /穿越者/)
   assert.doesNotMatch(prompt, /系统/)
   assert.doesNotMatch(prompt, /玉牌/)
@@ -76,7 +82,8 @@ runTest('buildCharacterPortraitGenerationPrompt drops non-visual metaphors that 
   const prompt = buildCharacterPortraitGenerationPrompt({
     name: '顾玄',
     description: '约二十岁出头，外貌清秀但顶着两个黑眼圈。他最大的特点是能把不确定的事情说得像板上钉钉，嘴上功夫极强，明明兜里比脸都干净却能装出高手气度。',
-  })
+    style: 'realistic',
+  } as any)
 
   assert.match(prompt, /黑眼圈/)
   assert.doesNotMatch(prompt, /板上钉钉/)
@@ -90,7 +97,8 @@ runTest('buildCharacterPortraitGenerationPrompt filters non-visual role appearan
     role: '青云宗大师兄，穿越者，拥有系统和秩序之眼能力。',
     appearance: '约二十岁出头，清秀外貌，顶着两个黑眼圈，看起来有些疲惫。下巴微抬，神情淡漠，脚步不疾不徐，明明兜里比脸都干净却能装出高手气度。',
     personality: '疲惫但镇定，能把不确定的事说得像板上钉钉，嘴上功夫极强，内心对系统充满疑惑。',
-  })
+    style: 'realistic',
+  } as any)
 
   assert.match(prompt, /青云宗大师兄/)
   assert.match(prompt, /二十岁出头/)
@@ -99,7 +107,8 @@ runTest('buildCharacterPortraitGenerationPrompt filters non-visual role appearan
   assert.match(prompt, /疲惫但镇定/)
   assert.match(prompt, /三张并排的全身角色设定图/)
   assert.match(prompt, /纯白背景/)
-  assert.match(prompt, /do not add view names/)
+  assert.match(prompt, /项目风格[:：] realistic/)
+  assert.match(prompt, /不要给每张图添加视图名称/)
   assert.doesNotMatch(prompt, /穿越者/)
   assert.doesNotMatch(prompt, /系统/)
   assert.doesNotMatch(prompt, /秩序之眼/)
@@ -115,7 +124,8 @@ runTest('buildCharacterPortraitGenerationPrompt preserves explicit female cues',
   const prompt = buildCharacterPortraitGenerationPrompt({
     name: '阿宁',
     description: '对师兄充满敬佩年轻女孩，一大早就在后院打坐，努力修炼，很有干劲。',
-  })
+    style: 'cinematic',
+  } as any)
 
   assert.match(prompt, /女性角色/)
   assert.match(prompt, /female character/)
@@ -123,16 +133,25 @@ runTest('buildCharacterPortraitGenerationPrompt preserves explicit female cues',
   assert.doesNotMatch(prompt, /男性角色/)
 })
 
-runTest('buildSceneImagePrompt composes location atmosphere guidance', () => {
+runTest('buildSceneImagePrompt uses Chinese scene guidance and project style', () => {
   const prompt = buildSceneImagePrompt({
-    location: 'rainy rooftop',
-    time: 'night',
-    prompt: 'cold blue neon',
-  })
+    location: '雨夜楼顶',
+    time: '夜晚',
+    prompt: '冷蓝霓虹',
+    style: 'cinematic',
+  } as any)
 
-  assert.match(prompt, /rainy rooftop/)
-  assert.match(prompt, /atmospheric lighting/)
-  assert.match(prompt, /consistent art style/)
+  assert.match(prompt, /雨夜楼顶/)
+  assert.match(prompt, /夜晚/)
+  assert.match(prompt, /冷蓝霓虹/)
+  assert.match(prompt, /项目风格[:：] cinematic/)
+  assert.match(prompt, /电影感场景/)
+  assert.match(prompt, /统一画风/)
+  assert.match(prompt, /高质量/)
+  assert.match(prompt, /无文字/)
+  assert.doesNotMatch(prompt, /atmospheric lighting/)
+  assert.doesNotMatch(prompt, /cinematic scene/)
+  assert.doesNotMatch(prompt, /high quality/)
 })
 
 runTest('normalizeVisualGridMode falls back to first_frame for unknown values', () => {

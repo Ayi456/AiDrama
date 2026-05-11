@@ -69,8 +69,9 @@ app.post('/:id/generate-image', async (c) => {
 
   const [ep] = (await db.select().from(schema.episodes).where(eq(schema.episodes.id, Number(body.episode_id))).all())
   if (!ep) return badRequest(c, 'Episode not found')
+  const [drama] = (await db.select().from(schema.dramas).where(eq(schema.dramas.id, char.dramaId)).all())
 
-  const prompt = buildCharacterPortraitGenerationPrompt(char) || `${char.name}, 人物立绘, 高清质感, 三张并排的全身图, 纯白背景, 无文字标签`
+  const prompt = buildCharacterPortraitGenerationPrompt({ ...char, style: drama?.style || '' }) || `${char.name}, 人物立绘, 高清质感, 三张并排的全身图, 纯白背景, 无文字标签`
   try {
     const [asset] = char.characterAssetId
       ? await db.select().from(schema.characterAssets).where(eq(schema.characterAssets.id, char.characterAssetId)).all()
@@ -105,7 +106,8 @@ app.post('/batch-generate-images', async (c) => {
   for (const charId of ids) {
     const [char] = (await db.select().from(schema.characters).where(eq(schema.characters.id, charId)).all())
     if (!char) continue
-    const prompt = buildCharacterPortraitGenerationPrompt(char) || `${char.name}, 人物立绘, 高清质感, 三张并排的全身图, 纯白背景, 无文字标签`
+    const [drama] = (await db.select().from(schema.dramas).where(eq(schema.dramas.id, char.dramaId)).all())
+    const prompt = buildCharacterPortraitGenerationPrompt({ ...char, style: drama?.style || '' }) || `${char.name}, 人物立绘, 高清质感, 三张并排的全身图, 纯白背景, 无文字标签`
     try {
       const [asset] = char.characterAssetId
         ? await db.select().from(schema.characterAssets).where(eq(schema.characterAssets.id, char.characterAssetId)).all()

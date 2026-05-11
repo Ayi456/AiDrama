@@ -51,7 +51,7 @@
           <h3 class="project-title">{{ d.title }}</h3>
 
           <div class="project-meta">
-            <span v-if="d.style" class="style-tag">{{ d.style }}</span>
+            <span v-if="d.style" class="style-tag">{{ getProjectStyleLabel(d.style) }}</span>
             <span class="meta-item">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
               {{ d.characters?.length || 0 }}
@@ -106,6 +106,11 @@
             <input v-model="form.title" class="input" placeholder="例如：都市情感短剧《时光邮局》" required autofocus />
           </label>
           <label class="field">
+            <span class="field-label">项目风格</span>
+            <BaseSelect v-model="form.style" :options="styleOptions" placeholder="选择项目风格" />
+            <span class="field-hint">这会影响整个项目的图片和视频生成风格。</span>
+          </label>
+          <label class="field">
             <span class="field-label">计划集数</span>
             <input v-model.number="form.total_episodes" class="input" type="number" min="1" max="100" />
           </label>
@@ -140,6 +145,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { aiConfigAPI, dramaAPI } from '@/composables/useApi'
 import BaseSelect from '@/components/BaseSelect.vue'
+import { DEFAULT_PROJECT_STYLE, getProjectStyleLabel, PROJECT_STYLE_OPTIONS } from '@/utils/project-style'
 
 const router = useRouter()
 const dramas = ref([])
@@ -147,9 +153,10 @@ const loading = ref(false)
 const showCreate = ref(false)
 const imageConfigs = ref([])
 const videoConfigs = ref([])
-const form = ref({ title: '', total_episodes: 1, image_config_id: null, video_config_id: null })
+const form = ref({ title: '', style: DEFAULT_PROJECT_STYLE, total_episodes: 1, image_config_id: null, video_config_id: null })
 const imageConfigOptions = computed(() => imageConfigs.value.map(c => ({ label: configLabel(c), value: c.id })))
 const videoConfigOptions = computed(() => videoConfigs.value.map(c => ({ label: configLabel(c), value: c.id })))
+const styleOptions = PROJECT_STYLE_OPTIONS.map(option => ({ label: option.label, value: option.value }))
 
 function configLabel(config) {
   if (!config) return ''

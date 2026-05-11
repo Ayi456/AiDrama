@@ -28,12 +28,14 @@ type CharacterPromptSource = {
   description?: string | null
   role?: string | null
   personality?: string | null
+  style?: string | null
 }
 
 type ScenePromptSource = {
   location?: string | null
   time?: string | null
   prompt?: string | null
+  style?: string | null
 }
 
 type VisualGridPromptInput = {
@@ -49,6 +51,11 @@ function compactPromptParts(parts: Array<string | null | undefined>) {
     .map(part => part?.trim())
     .filter((part): part is string => Boolean(part))
     .join(', ')
+}
+
+function getStyleText(style?: string | null) {
+  const normalized = style?.trim()
+  return normalized || ''
 }
 
 const visualDescriptionKeywords = [
@@ -138,6 +145,7 @@ export function buildCharacterImagePrompt(source: CharacterPromptSource) {
   const personality = extractVisualCharacterDescription(source.personality)
   const role = cleanIdentityDescription(source.role)
   const genderCue = extractGenderCue(source.role, source.appearance, source.description, source.personality)
+  const style = getStyleText(source.style)
   const descriptionFallback = appearance
     ? ''
     : extractVisualCharacterDescription(source.description)
@@ -149,6 +157,7 @@ export function buildCharacterImagePrompt(source: CharacterPromptSource) {
     descriptionFallback,
     personality ? `personality: ${personality}` : null,
     role ? `role: ${role}` : null,
+    style ? `project style: ${style}` : null,
     'cinematic portrait',
     'high quality',
     'consistent art style',
@@ -162,6 +171,7 @@ export function buildCharacterPortraitGenerationPrompt(source: CharacterPromptSo
   const personality = extractVisualCharacterDescription(source.personality)
   const role = cleanIdentityDescription(source.role)
   const genderCue = extractGenderCue(source.role, source.appearance, source.description, source.personality)
+  const style = getStyleText(source.style)
   const descriptionFallback = appearance
     ? ''
     : extractVisualCharacterDescription(source.description)
@@ -173,25 +183,27 @@ export function buildCharacterPortraitGenerationPrompt(source: CharacterPromptSo
     descriptionFallback,
     personality,
     role ? `身份：${role}` : null,
+    style ? `项目风格： ${style}` : null,
     '高清质感',
     '三张并排的全身角色设定图，统一纯白背景',
     '画面内只保留人物本身，不要任何文字、标签、标题、编号、水印，不要给每张图添加视图名称',
-    'three separate full-body character sheets, plain white background',
-    'no text, no labels, no captions, no numbering, no watermark, do not add view names',
+    '统一风格、统一构图、统一角色识别',
   ])
 }
 
 export function buildSceneImagePrompt(source: ScenePromptSource) {
+  const style = getStyleText(source.style)
   return compactPromptParts([
     source.location,
     source.time,
     source.prompt,
-    'cinematic scene',
-    'atmospheric lighting',
-    'high quality',
-    'consistent art style',
-    'no text',
-    'no watermark',
+    style ? `项目风格： ${style}` : null,
+    '电影感场景',
+    '氛围光影',
+    '高质量',
+    '统一画风',
+    '无文字',
+    '无水印',
   ])
 }
 

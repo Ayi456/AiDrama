@@ -178,12 +178,14 @@ async function buildExistingStoryboardPayload(episodeId: number) {
 export function createStoryboardTools(episodeId: number, dramaId: number, options: StoryboardToolOptions = {}) {
   const readStoryboardContext = createTool({
     id: 'read_storyboard_context',
-    description: 'Read AiDrama screenplay, character, scene, and existing storyboard context.',
+    description: 'Read AiDrama screenplay, character, scene, project style, and existing storyboard context.',
     inputSchema: z.object({}),
     execute: async () => {
       const [episode] = (await db.select().from(schema.episodes)
         .where(eq(schema.episodes.id, episodeId)).all())
       if (!episode) return { error: 'Episode not found' }
+      const [drama] = (await db.select().from(schema.dramas)
+        .where(eq(schema.dramas.id, dramaId)).all())
       const fullScript = episode.scriptContent || episode.content
       if (!fullScript) return { error: 'Episode has no script' }
       const script = options.scriptChunk?.script || fullScript
@@ -229,6 +231,11 @@ export function createStoryboardTools(episodeId: number, dramaId: number, option
         }))
 
       const payload = {
+        project: {
+          id: dramaId,
+          title: drama?.title || '',
+          style: drama?.style || '',
+        },
         episode: {
           id: episode.id,
           title: episode.title,

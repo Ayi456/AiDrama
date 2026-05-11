@@ -9,6 +9,12 @@ import {
 } from '../visual-prompt-policy.js'
 
 export function createGridPromptTools(episodeId: number, dramaId: number) {
+  async function getDramaStyle() {
+    const [drama] = (await db.select().from(schema.dramas)
+      .where(eq(schema.dramas.id, dramaId)).all())
+    return drama?.style || ''
+  }
+
   const readCharacters = createTool({
     id: 'read_characters',
     description: 'Read AiDrama character assets for visual prompt generation.',
@@ -40,11 +46,12 @@ export function createGridPromptTools(episodeId: number, dramaId: number) {
       const [character] = (await db.select().from(schema.characters)
         .where(eq(schema.characters.id, character_id)).all())
       if (!character) return { error: 'Character not found' }
+      const style = await getDramaStyle()
 
       return {
         character_id: character.id,
         character_name: character.name,
-        prompt: buildCharacterImagePrompt(character),
+        prompt: buildCharacterImagePrompt({ ...character, style }),
       }
     },
   })
@@ -70,7 +77,7 @@ export function createGridPromptTools(episodeId: number, dramaId: number) {
 
   const generateScenePrompt = createTool({
     id: 'generate_scene_prompt',
-    description: 'Generate an English image prompt for one AiDrama scene.',
+    description: 'Generate a Chinese image prompt for one AiDrama scene.',
     inputSchema: z.object({
       scene_id: z.number(),
     }),
@@ -78,11 +85,12 @@ export function createGridPromptTools(episodeId: number, dramaId: number) {
       const [scene] = (await db.select().from(schema.scenes)
         .where(eq(schema.scenes.id, scene_id)).all())
       if (!scene) return { error: 'Scene not found' }
+      const style = await getDramaStyle()
 
       return {
         scene_id: scene.id,
         location: scene.location,
-        prompt: buildSceneImagePrompt(scene),
+        prompt: buildSceneImagePrompt({ ...scene, style }),
       }
     },
   })

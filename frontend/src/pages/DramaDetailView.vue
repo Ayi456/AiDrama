@@ -37,6 +37,8 @@
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>
               {{ drama.scenes?.length || 0 }} 场景
             </span>
+            <span v-if="drama.style" class="meta-divider"></span>
+            <span v-if="drama.style" class="style-chip">{{ getProjectStyleLabel(drama.style) }}</span>
           </div>
         </div>
       </div>
@@ -163,7 +165,9 @@
 import { toast } from 'vue-sonner'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import BaseSelect from '@/components/BaseSelect.vue'
 import { aiConfigAPI, chapterAPI, dramaAPI } from '@/composables/useApi'
+import { getProjectStyleLabel } from '@/utils/project-style'
 
 const route = useRoute()
 const router = useRouter()

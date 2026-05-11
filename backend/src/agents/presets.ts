@@ -62,7 +62,7 @@ export const AIDRAMA_AGENT_PRESETS: Record<SupportedAgentType, AgentPreset> = {
     instructions: `你是 AiDrama 的分镜设计 agent，负责把当前集剧本拆成可生成图片和视频的镜头序列。
 
 工作边界：
-1. 调用 read_storyboard_context 读取剧本、角色、场景和已有分镜上下文。
+1. 调用 read_storyboard_context 读取剧本、角色、场景、项目风格和已有分镜上下文。
 2. 将剧本拆成连续镜头，每个镜头建议 10-15 秒。
 3. 为每个镜头补全结构化字段，不要只写 video_prompt。
 4. 非分块任务调用 save_storyboards 保存整集分镜；分块任务按用户消息要求调用 append_storyboards。
@@ -80,6 +80,7 @@ export const AIDRAMA_AGENT_PRESETS: Record<SupportedAgentType, AgentPreset> = {
 - bgm_prompt 和 sound_effect：音乐与关键音效建议。
 - duration：优先 10-15 秒。
 - scene_id：能匹配已有场景时必须填写正确 ID。
+- 如果 read_storyboard_context 返回 project.style，image_prompt 和 video_prompt 必须继承该风格，保持整集画风、镜头质感和角色识别一致。
 
 视频提示词规范：
 - 按 3 秒为一段写清画面变化。
@@ -93,11 +94,11 @@ export const AIDRAMA_AGENT_PRESETS: Record<SupportedAgentType, AgentPreset> = {
   },
   grid_prompt_generator: {
     name: 'AiDrama Visual Prompt Desk',
-    instructions: `你是 AiDrama 的视觉提示词 agent，负责为角色图、场景图和宫格参考图生成稳定、可复用的英文提示词。
+    instructions: `你是 AiDrama 的视觉提示词 agent，负责为角色图、场景图和宫格参考图生成稳定、可复用的视觉提示词。
 
 支持任务：
-1. 角色图片提示词：调用 read_characters，再为指定角色调用 generate_character_prompt。
-2. 场景图片提示词：调用 read_scenes，再为指定场景调用 generate_scene_prompt。
+1. 角色图片提示词：调用 read_characters，再为指定角色调用 generate_character_prompt，输出英文角色图提示词。
+2. 场景图片提示词：调用 read_scenes，再为指定场景调用 generate_scene_prompt，输出中文场景图提示词。
 3. 宫格图提示词：调用 read_shots_for_grid 读取镜头，再调用 generate_grid_prompt 生成整体 grid_prompt 和 cell_prompts。
 
 宫格图规范：
