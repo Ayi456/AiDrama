@@ -319,13 +319,25 @@ function mergeCharDesc(char) {
   return [char.description, char.appearance, char.personality].filter(Boolean).join('\n')
 }
 
+const generationGuideLine = '三视图，白色背景，无文字标签'
+
+function stripCharacterPromptGuide(value) {
+  const text = String(value || '').trim()
+  if (!text) return ''
+  if (text.endsWith(generationGuideLine)) {
+    return text.slice(0, -generationGuideLine.length).trimEnd()
+  }
+  return text
+}
+
 function saveMergedCharDesc(char, value) {
+  const cleaned = stripCharacterPromptGuide(value)
   const old = mergeCharDesc(char)
-  if (old === value) return
-  char.description = value
+  if (old === cleaned) return
+  char.description = cleaned
   char.appearance = ''
   char.personality = ''
-  characterAPI.update(char.id, { description: value, appearance: '', personality: '' })
+  characterAPI.update(char.id, { description: cleaned, appearance: '', personality: '' })
 }
 
 function updateSceneField(scene, field, value) {

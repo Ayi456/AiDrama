@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 
 import {
   buildCharacterImagePrompt,
+  buildCharacterPortraitGenerationPrompt,
   buildSceneImagePrompt,
   buildVisualGridPromptPlan,
   normalizeVisualGridMode,
@@ -19,17 +20,107 @@ function runTest(name: string, fn: () => void) {
 
 runTest('buildCharacterImagePrompt composes reusable portrait guidance', () => {
   const prompt = buildCharacterImagePrompt({
+    name: '顾玄',
     appearance: 'silver hair, black coat',
-    description: 'calm strategist',
+    description: 'owns a mysterious system and receives a secret jade token in episode five',
     role: 'lead',
-    personality: '',
+    personality: 'calm strategist',
   })
 
+  assert.match(prompt, /顾玄/)
   assert.match(prompt, /silver hair/)
   assert.match(prompt, /role: lead/)
+  assert.match(prompt, /calm strategist/)
+  assert.doesNotMatch(prompt, /mysterious system/)
   assert.match(prompt, /cinematic portrait/)
   assert.match(prompt, /no watermark/)
   assert.doesNotMatch(prompt, /,,/)
+})
+
+runTest('buildCharacterPortraitGenerationPrompt keeps portrait prompts visual', () => {
+  const prompt = buildCharacterPortraitGenerationPrompt({
+    name: '顾玄',
+    role: '青云宗大师兄',
+    appearance: '二十岁出头，清秀面容，明显黑眼圈，身形清瘦挺拔，青色道袍',
+    description: '顾玄是青云宗大师兄，同时也是穿越者。他拥有系统和秩序之眼等神秘能力。第五集中，他出席百宗宴，最终获得商会会长赠送的秘境通行玉牌。',
+    personality: '疲惫但镇定，气质克制沉稳',
+  })
+
+  assert.match(prompt, /顾玄/)
+  assert.match(prompt, /青云宗大师兄/)
+  assert.match(prompt, /黑眼圈/)
+  assert.match(prompt, /青色道袍/)
+  assert.match(prompt, /疲惫但镇定/)
+  assert.doesNotMatch(prompt, /穿越者/)
+  assert.doesNotMatch(prompt, /系统/)
+  assert.doesNotMatch(prompt, /秩序之眼/)
+  assert.doesNotMatch(prompt, /第五集/)
+  assert.doesNotMatch(prompt, /玉牌/)
+})
+
+runTest('buildCharacterPortraitGenerationPrompt falls back to visual description clauses', () => {
+  const prompt = buildCharacterPortraitGenerationPrompt({
+    name: '顾玄',
+    description: '顾玄约二十岁出头，外貌清秀但顶着两个黑眼圈，看起来有些疲惫。作为穿越者，他拥有系统和秩序之眼等神秘能力。最终获得商会会长赠送的秘境通行玉牌。',
+  })
+
+  assert.match(prompt, /二十岁出头/)
+  assert.match(prompt, /黑眼圈/)
+  assert.match(prompt, /疲惫/)
+  assert.doesNotMatch(prompt, /穿越者/)
+  assert.doesNotMatch(prompt, /系统/)
+  assert.doesNotMatch(prompt, /玉牌/)
+})
+
+runTest('buildCharacterPortraitGenerationPrompt drops non-visual metaphors that mention body parts', () => {
+  const prompt = buildCharacterPortraitGenerationPrompt({
+    name: '顾玄',
+    description: '约二十岁出头，外貌清秀但顶着两个黑眼圈。他最大的特点是能把不确定的事情说得像板上钉钉，嘴上功夫极强，明明兜里比脸都干净却能装出高手气度。',
+  })
+
+  assert.match(prompt, /黑眼圈/)
+  assert.doesNotMatch(prompt, /板上钉钉/)
+  assert.doesNotMatch(prompt, /嘴上功夫/)
+  assert.doesNotMatch(prompt, /兜里/)
+})
+
+runTest('buildCharacterPortraitGenerationPrompt filters non-visual role appearance and personality text', () => {
+  const prompt = buildCharacterPortraitGenerationPrompt({
+    name: '顾玄',
+    role: '青云宗大师兄，穿越者，拥有系统和秩序之眼能力。',
+    appearance: '约二十岁出头，清秀外貌，顶着两个黑眼圈，看起来有些疲惫。下巴微抬，神情淡漠，脚步不疾不徐，明明兜里比脸都干净却能装出高手气度。',
+    personality: '疲惫但镇定，能把不确定的事说得像板上钉钉，嘴上功夫极强，内心对系统充满疑惑。',
+  })
+
+  assert.match(prompt, /青云宗大师兄/)
+  assert.match(prompt, /二十岁出头/)
+  assert.match(prompt, /黑眼圈/)
+  assert.match(prompt, /下巴微抬/)
+  assert.match(prompt, /疲惫但镇定/)
+  assert.match(prompt, /三张并排的全身角色设定图/)
+  assert.match(prompt, /纯白背景/)
+  assert.match(prompt, /do not add view names/)
+  assert.doesNotMatch(prompt, /穿越者/)
+  assert.doesNotMatch(prompt, /系统/)
+  assert.doesNotMatch(prompt, /秩序之眼/)
+  assert.doesNotMatch(prompt, /兜里/)
+  assert.doesNotMatch(prompt, /板上钉钉/)
+  assert.doesNotMatch(prompt, /嘴上功夫/)
+  assert.doesNotMatch(prompt, /左视图/)
+  assert.doesNotMatch(prompt, /正视图/)
+  assert.doesNotMatch(prompt, /右视图/)
+})
+
+runTest('buildCharacterPortraitGenerationPrompt preserves explicit female cues', () => {
+  const prompt = buildCharacterPortraitGenerationPrompt({
+    name: '阿宁',
+    description: '对师兄充满敬佩年轻女孩，一大早就在后院打坐，努力修炼，很有干劲。',
+  })
+
+  assert.match(prompt, /女性角色/)
+  assert.match(prompt, /female character/)
+  assert.match(prompt, /年轻女孩/)
+  assert.doesNotMatch(prompt, /男性角色/)
 })
 
 runTest('buildSceneImagePrompt composes location atmosphere guidance', () => {

@@ -209,8 +209,16 @@ function getCharacterImage(character) {
   return character?.image_url || character?.imageUrl || ''
 }
 
+const generationGuideLine = '三视图，白色背景，无文字标签'
+
 function getCharacterDescription(character) {
-  return [character?.description, character?.appearance, character?.personality].filter(Boolean).join('\n')
+  const raw = [character?.description, character?.appearance, character?.personality]
+    .filter(Boolean)
+    .join('\n')
+    .replace(new RegExp(`\\n?${generationGuideLine.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`), '')
+    .trim()
+
+  return raw ? `${raw}\n${generationGuideLine}` : generationGuideLine
 }
 
 function hasCharacterImage(character) {

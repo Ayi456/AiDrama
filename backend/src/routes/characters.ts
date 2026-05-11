@@ -5,6 +5,7 @@ import { success, badRequest, now } from '../utils/response.js'
 import { generateImage } from '../services/generation/image-generation.js'
 import { resolveCharacterAssetReferenceImages } from '../services/assets/character-asset-generation.js'
 import { logTaskError, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
+import { buildCharacterPortraitGenerationPrompt } from '../agents/visual-prompt-policy.js'
 
 const app = new Hono()
 
@@ -69,8 +70,7 @@ app.post('/:id/generate-image', async (c) => {
   const [ep] = (await db.select().from(schema.episodes).where(eq(schema.episodes.id, Number(body.episode_id))).all())
   if (!ep) return badRequest(c, 'Episode not found')
 
-  const descParts = [char.appearance, char.description, char.personality].filter(Boolean).join(', ')
-  const prompt = `${char.name}, ${descParts || '人物立绘'}, 高清质感, 正面, 白色背景`
+  const prompt = buildCharacterPortraitGenerationPrompt(char) || `${char.name}, 人物立绘, 高清质感, 三张并排的全身图, 纯白背景, 无文字标签`
   try {
     const [asset] = char.characterAssetId
       ? await db.select().from(schema.characterAssets).where(eq(schema.characterAssets.id, char.characterAssetId)).all()
@@ -105,8 +105,7 @@ app.post('/batch-generate-images', async (c) => {
   for (const charId of ids) {
     const [char] = (await db.select().from(schema.characters).where(eq(schema.characters.id, charId)).all())
     if (!char) continue
-    const descParts = [char.appearance, char.description, char.personality].filter(Boolean).join(', ')
-    const prompt = `${char.name}, ${descParts || '人物立绘'}, 高清质感, 正面, 白色背景`
+    const prompt = buildCharacterPortraitGenerationPrompt(char) || `${char.name}, 人物立绘, 高清质感, 三张并排的全身图, 纯白背景, 无文字标签`
     try {
       const [asset] = char.characterAssetId
         ? await db.select().from(schema.characterAssets).where(eq(schema.characterAssets.id, char.characterAssetId)).all()

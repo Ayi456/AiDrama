@@ -47,8 +47,10 @@ export const AIDRAMA_AGENT_PRESETS: Record<SupportedAgentType, AgentPreset> = {
 
 角色规则：
 - 同名角色优先合并到已有记录。
-- description 写成一段完整描述，覆盖外貌、身份、性格、背景和本集作用。
-- appearance 和 personality 可留空；除非剧本信息非常明确，否则统一沉淀到 description。
+- appearance 只写可直接画出来的人物形象：年龄段、性别感、体型、五官、发型、服装、配饰、神情和姿态。
+- description 只保留会影响视觉识别的身份与气质，例如宗门身份、职业、阶层、整体气场；不要写剧情经历、关系脉络、系统能力、道具获得或本集事件。
+- personality 只写能转化为表情和气质的短标签，例如疲惫但镇定、克制沉稳、冷峻警觉。
+- 不要把“穿越者、系统、权限、秘境、玉牌、某一集发生的事件”等不可视剧情信息写入 appearance、description 或 personality。
 
 场景规则：
 - 按“地点 + 时间段”精确去重；同地点不同时间段视为不同场景。
