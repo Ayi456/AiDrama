@@ -391,20 +391,6 @@ async function handleCharacterAssetBind(payload) {
   }
 }
 
-async function handleCharacterAssetDefault(asset) {
-  if (!asset?.id) return
-  characterAssetBusy.value = true
-  try {
-    await characterAssetAPI.setDefault(asset.id)
-    await loadCharacterAssets()
-    toast.success('默认角色形象已更新')
-  } catch (error) {
-    toast.error(error?.message || '默认形象设置失败')
-  } finally {
-    characterAssetBusy.value = false
-  }
-}
-
 function handleSceneFieldUpdate(payload) {
   if (!payload?.scene || !payload?.field) return
   updateSceneField(payload.scene, payload.field, payload.value)
@@ -859,7 +845,6 @@ const productionPanelHandlers = {
   handleCharacterDescriptionUpdate,
   handleCharacterAssetUpload,
   handleCharacterAssetBind,
-  handleCharacterAssetDefault,
   handleGalleryViewerOpen,
   batchSceneImages,
   genSceneImg,

@@ -55,48 +55,6 @@
       </div>
     </div>
 
-    <div v-if="characterAssets.length" class="character-gallery__asset-strip">
-      <article
-        v-for="asset in characterAssets"
-        :key="asset.id"
-        :class="['character-gallery__asset-card', isDefaultAsset(asset) && 'is-default']"
-      >
-        <button
-          v-if="getAssetImage(asset)"
-          class="character-gallery__asset-cover"
-          type="button"
-          @click="openAssetImage(asset)"
-        >
-          <img :src="assetUrl(getAssetImage(asset))" :alt="asset.name || '角色形象'" />
-        </button>
-        <div v-else class="character-gallery__asset-cover is-empty">
-          <UserRoundCheck :size="18" />
-        </div>
-
-        <div class="character-gallery__asset-meta">
-          <div class="character-gallery__asset-name">{{ asset.name || '未命名形象' }}</div>
-          <div class="character-gallery__asset-role">
-            <span>{{ rolePresetLabel(asset.role_preset || asset.rolePreset) }}</span>
-            <span v-if="isDefaultAsset(asset)" class="character-gallery__asset-default">默认</span>
-          </div>
-        </div>
-
-        <button
-          v-if="!isDefaultAsset(asset)"
-          class="character-gallery__asset-default-btn"
-          type="button"
-          :disabled="assetBusy"
-          @click="emit('set-default-character-asset', asset)"
-        >
-          设为默认
-        </button>
-      </article>
-    </div>
-    <div v-else class="character-gallery__asset-empty">
-      <ImagePlus :size="15" />
-      <span>形象库为空，角色未绑定时仍按提示词生成</span>
-    </div>
-
     <div class="character-gallery__grid">
       <article v-for="character in characters" :key="character.id" class="character-gallery__card">
         <div class="character-gallery__cover">
@@ -203,7 +161,7 @@
 </template>
 
 <script setup>
-import { ImagePlus, Upload, UserRoundCheck } from 'lucide-vue-next'
+import { ImagePlus, Upload } from 'lucide-vue-next'
 import { assetUrl } from '@/utils/asset-url'
 
 const props = defineProps({
@@ -243,7 +201,6 @@ const emit = defineEmits([
   'replace-image',
   'upload-character-asset',
   'bind-character-asset',
-  'set-default-character-asset',
   'update-character-description',
   'open-image-viewer',
 ])
@@ -286,10 +243,6 @@ function rolePresetLabel(rolePreset) {
     default:
       return '自定义'
   }
-}
-
-function isDefaultAsset(asset) {
-  return Boolean(asset?.is_default || asset?.isDefault)
 }
 
 function getAssetImage(asset) {

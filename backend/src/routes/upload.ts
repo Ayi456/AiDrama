@@ -1,6 +1,8 @@
 import { Hono, type Context } from 'hono'
 import { success, badRequest } from '../utils/response.js'
+import { uploadStaticAssetToCos } from '../utils/cos.js'
 import { saveUploadedFile } from '../utils/storage.js'
+import { buildUploadResponsePayload } from './upload-route-policy.js'
 
 const app = new Hono()
 
@@ -21,7 +23,15 @@ async function saveMediaUpload(c: Context, options: {
 
   const buffer = await file.arrayBuffer()
   const path = await saveUploadedFile(buffer, options.subDir, file.name)
-  return success(c, { url: `/${path}`, path })
+
+  let publicUrl: string | null = null
+  try {
+    publicUrl = await uploadStaticAssetToCos(path)
+  } catch (error) {
+    console.warn(`[Upload] Failed to publish ${path} to COS, falling back to local static path`, error)
+  }
+
+  return success(c, buildUploadResponsePayload(path, publicUrl))
 }
 
 // POST /upload/image
