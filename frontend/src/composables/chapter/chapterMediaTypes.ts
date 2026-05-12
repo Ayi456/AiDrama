@@ -90,6 +90,9 @@ export type ReplaceSceneImagePayload = {
 
 export type VideoReferenceOverride = {
   reference_mode?: string
+  image_url?: string
+  first_frame_url?: string
+  last_frame_url?: string
   reference_image_urls?: string[] | string
   reference_video_urls?: string[] | string
   reference_audio_urls?: string[] | string

@@ -94,6 +94,14 @@
               </button>
               <button
                 type="button"
+                :class="['video-workbench__mode', { active: referenceMode === 'capture' }]"
+                @click="setReferenceMode('capture')"
+              >
+                <Camera :size="13" />
+                截帧
+              </button>
+              <button
+                type="button"
                 :class="['video-workbench__mode', { active: referenceMode === 'multimodal' }]"
                 @click="setReferenceMode('multimodal')"
               >
@@ -102,20 +110,81 @@
               </button>
             </div>
 
-            <template v-if="referenceMode === 'auto'">
+            <template v-if="referenceMode !== 'multimodal'">
+              <div v-if="referenceMode === 'capture'" class="video-workbench__capture-source">
+                <div class="video-workbench__capture-head">
+                  <div class="shot-studio__field-label">上一镜头视频</div>
+                  <div class="video-workbench__capture-actions">
+                    <button
+                      class="btn btn-sm"
+                      type="button"
+                      :disabled="isCapturingFrame || !captureSourceVideoUrl"
+                      @click="captureCurrentFrame"
+                    >
+                      <Camera v-if="!isCapturingFrame" :size="12" />
+                      <Loader2 v-else :size="12" class="animate-spin" />
+                      {{ isCapturingFrame ? '截取中...' : '截取上一镜头当前帧' }}
+                    </button>
+                    <button
+                      v-if="capturedFrameUrl"
+                      class="btn btn-sm"
+                      type="button"
+                      @click="clearCapturedFrame"
+                    >
+                      <Trash2 :size="12" />
+                      清除截帧
+                    </button>
+                  </div>
+                  <span v-if="captureSourceLabel" class="dim" style="font-size:12px">来源：{{ captureSourceLabel }}</span>
+                </div>
+                <video
+                  v-if="captureSourceVideoUrl"
+                  ref="captureSourceVideoEl"
+                  :src="assetUrl(captureSourceVideoUrl)"
+                  class="prod-video prod-video--source"
+                  controls
+                  crossorigin="anonymous"
+                  preload="metadata"
+                  playsinline
+                />
+                <div v-else class="shot-empty-block">当前没有上一镜头视频可截取</div>
+                <div class="shot-studio__helper">暂停上一镜头视频到目标帧后再截取。</div>
+              </div>
+
               <div class="video-workbench__refs">
-                <button class="video-workbench__ref" type="button" @click="openReference(firstFrame, `镜头 #${selectedShotIndexLabel} 首帧`)">
-                  <img v-if="firstFrame" :src="assetUrl(firstFrame)" class="previewable-image" />
-                  <div v-else class="prod-cover-empty">暂无首帧</div>
-                  <b>首帧</b>
+                <button class="video-workbench__ref" type="button" @click="openReference(activeFirstFrame, `镜头 #${selectedShotIndexLabel} ${activeFirstFrameLabel}`)">
+                  <img v-if="activeFirstFrame" :src="assetUrl(activeFirstFrame)" class="previewable-image" />
+                  <div v-else class="prod-cover-empty">{{ activeFirstFrameEmptyText }}</div>
+                  <b>{{ activeFirstFrameLabel }}</b>
                 </button>
-                <button class="video-workbench__ref" type="button" @click="openReference(lastFrame, `镜头 #${selectedShotIndexLabel} 尾帧`)">
-                  <img v-if="lastFrame" :src="assetUrl(lastFrame)" class="previewable-image" />
-                  <div v-else class="prod-cover-empty">暂无尾帧</div>
-                  <b>尾帧</b>
+                <button class="video-workbench__ref" type="button" @click="openReference(activeLastFrame, `镜头 #${selectedShotIndexLabel} ${activeLastFrameLabel}`)">
+                  <img v-if="activeLastFrame" :src="assetUrl(activeLastFrame)" class="previewable-image" />
+                  <div v-else class="prod-cover-empty">{{ activeLastFrameEmptyText }}</div>
+                  <b>{{ activeLastFrameLabel }}</b>
                 </button>
               </div>
-              <div class="shot-studio__helper">{{ state.getVideoReferenceSummary(selectedShot) }}</div>
+
+              <div v-if="referenceMode === 'capture'" class="video-workbench__tail-picker">
+                <div class="video-workbench__tail-picker-head">
+                  <div class="shot-studio__field-label">当前镜头图片</div>
+                  <span class="shot-studio__counter">{{ tailFrameOptions.length }}</span>
+                </div>
+                <div v-if="tailFrameOptions.length" class="video-workbench__tail-grid">
+                  <button
+                    v-for="option in tailFrameOptions"
+                    :key="option.key"
+                    type="button"
+                    :class="['video-workbench__tail-option', { selected: option.url === selectedTailFrameUrl }]"
+                    @click="selectTailFrame(option.url)"
+                  >
+                    <img :src="assetUrl(option.url)" />
+                    <span>{{ option.label }}</span>
+                  </button>
+                </div>
+                <div v-else class="shot-empty-block">当前镜头还没有可选图片，先去出帧页生成首帧或尾帧</div>
+              </div>
+
+              <div class="shot-studio__helper">{{ activeReferenceSummary }}</div>
             </template>
 
             <template v-else>
@@ -290,7 +359,7 @@
                 <div class="shot-board__desc">{{ sb.description || sb.title || '暂无镜头描述' }}</div>
                 <div class="shot-board__meta">
                   <span :class="['shot-board__status', state.getVideoStateClass(sb)]">视频 {{ state.getVideoStateText(sb) }}</span>
-                  <span :class="['shot-board__status', state.hasImg(sb) ? 'is-ready' : 'is-empty']">{{ state.getVideoReferenceSummary(sb) }}</span>
+                  <span :class="['shot-board__status', hasReferencePreview(sb) ? 'is-ready' : 'is-empty']">{{ getReferenceSummary(sb) }}</span>
                 </div>
               </div>
 
@@ -316,7 +385,7 @@
           </div>
           <div class="shot-board__summary-meta">
             <span>当前镜头 {{ selectedShot.title || `#${selectedShotIndexLabel}` }}</span>
-            <span>{{ state.getVideoReferenceSummary(selectedShot) }}</span>
+            <span>{{ activeReferenceSummary }}</span>
           </div>
         </div>
       </section>
@@ -335,9 +404,11 @@
         <div class="video-workbench__result">
           <video
             v-if="state.hasVid(selectedShot)"
+            ref="selectedVideoEl"
             :src="assetUrl(state.getVideoUrl(selectedShot))"
             class="prod-video"
             controls
+            crossorigin="anonymous"
             preload="metadata"
             playsinline
           />
@@ -357,10 +428,10 @@
             <span class="shot-studio__label">结果摘要</span>
             <span class="shot-studio__counter">{{ selectedShot.duration || 10 }}s</span>
           </div>
-          <div class="shot-studio__shot-meta">
-            <span class="tag">{{ selectedShot.shot_type || selectedShot.shotType || '未设景别' }}</span>
-            <span class="tag">{{ state.getVideoReferenceSummary(selectedShot) }}</span>
-          </div>
+            <div class="shot-studio__shot-meta">
+              <span class="tag">{{ selectedShot.shot_type || selectedShot.shotType || '未设景别' }}</span>
+              <span class="tag">{{ activeReferenceSummary }}</span>
+            </div>
           <div class="shot-studio__shot-desc">{{ selectedShot.description || selectedShot.title || '当前镜头还没有补充描述。' }}</div>
           <div v-if="state.videoFailMessage(selectedShot.id)" class="prod-error">{{ state.videoFailMessage(selectedShot.id) }}</div>
         </div>
@@ -383,8 +454,15 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { toast } from 'vue-sonner'
-import { Film, Image as ImageIcon, Loader2, Music } from 'lucide-vue-next'
+import { Camera, Film, Image as ImageIcon, Loader2, Music, Trash2 } from 'lucide-vue-next'
 import { uploadAPI } from '@/composables/useApi'
+import {
+  getCaptureSourceVideoUrl,
+  getCaptureTailFrameOptions,
+  getDefaultCaptureTailFrameUrl,
+  getPreviousStoryboard,
+} from '@/composables/chapter/chapterVideoCaptureTargets'
+import { captureVideoFrameFile } from '@/composables/chapter/chapterVideoFrameCapture'
 import { assetUrl } from '@/utils/asset-url'
 
 const props = defineProps({
@@ -407,9 +485,16 @@ const selectedShotIndex = computed(() => (
 ))
 
 const selectedShotIndexLabel = computed(() => String(selectedShotIndex.value + 1).padStart(2, '0'))
+const selectedShotKey = computed(() => String(selectedShot.value?.id || selectedShotIndex.value || 'current'))
 
 const promptDraft = ref('')
 const referenceMode = ref('auto')
+const selectedVideoEl = ref(null)
+const captureSourceVideoEl = ref(null)
+const capturedFrameByShot = ref({})
+const capturedFrameSourceLabelByShot = ref({})
+const selectedTailFrameByShot = ref({})
+const isCapturingFrame = ref(false)
 const selectedReferenceImagesByShot = ref({})
 const selectedReferenceVideosByShot = ref({})
 const selectedReferenceAudiosByShot = ref({})
@@ -442,7 +527,99 @@ const lastFrame = computed(() => (
   selectedShot.value ? props.state.getLastFrame(selectedShot.value) : ''
 ))
 
-const selectedShotKey = computed(() => String(selectedShot.value?.id || selectedShotIndex.value || 'current'))
+const previousShot = computed(() => (
+  selectedShot.value ? getPreviousStoryboard(selectedShot.value, props.state.sbs) : null
+))
+
+const captureSourceVideoUrl = computed(() => (
+  selectedShot.value ? getCaptureSourceVideoUrl(selectedShot.value, props.state.sbs) : ''
+))
+
+const captureSourceLabel = computed(() => {
+  if (!previousShot.value || !captureSourceVideoUrl.value) return ''
+  const previousIndexLabel = selectedShotIndex.value > 0
+    ? String(selectedShotIndex.value).padStart(2, '0')
+    : ''
+  const base = previousIndexLabel ? `镜头 #${previousIndexLabel}` : '上一镜头'
+  return previousShot.value.title ? `${base} ${previousShot.value.title}` : base
+})
+
+const tailFrameOptions = computed(() => (
+  selectedShot.value ? getCaptureTailFrameOptions(selectedShot.value) : []
+))
+
+const capturedFrameUrl = computed(() => (
+  capturedFrameByShot.value[selectedShotKey.value] || ''
+))
+
+const capturedFrameSourceLabel = computed(() => (
+  capturedFrameSourceLabelByShot.value[selectedShotKey.value] || ''
+))
+
+const selectedTailFrameUrl = computed(() => {
+  if (!selectedShot.value) return ''
+  if (referenceMode.value !== 'capture') return lastFrame.value
+  return selectedTailFrameByShot.value[selectedShotKey.value] || getDefaultCaptureTailFrameUrl(selectedShot.value)
+})
+
+const selectedTailFrameLabel = computed(() => {
+  if (referenceMode.value !== 'capture') return '尾帧'
+  const match = tailFrameOptions.value.find(item => item.url === selectedTailFrameUrl.value)
+  return match?.label || '尾帧'
+})
+
+watch(
+  () => [selectedShotKey.value, tailFrameOptions.value.map(item => item.url).join('|')],
+  () => {
+    if (!selectedShot.value) return
+    const key = selectedShotKey.value
+    const current = selectedTailFrameByShot.value[key] || ''
+    const next = tailFrameOptions.value[0]?.url || ''
+    if (current && tailFrameOptions.value.some(item => item.url === current)) return
+    if (next) {
+      selectedTailFrameByShot.value = {
+        ...selectedTailFrameByShot.value,
+        [key]: next,
+      }
+      return
+    }
+    if (!current) return
+    const nextMap = { ...selectedTailFrameByShot.value }
+    delete nextMap[key]
+    selectedTailFrameByShot.value = nextMap
+  },
+  { immediate: true },
+)
+
+const activeFirstFrame = computed(() => (
+  referenceMode.value === 'capture' ? capturedFrameUrl.value : firstFrame.value
+))
+
+const activeLastFrame = computed(() => (
+  referenceMode.value === 'capture' ? selectedTailFrameUrl.value : lastFrame.value
+))
+
+const activeFirstFrameLabel = computed(() => (
+  referenceMode.value === 'capture'
+    ? '截帧'
+    : '首帧'
+))
+
+const activeFirstFrameEmptyText = computed(() => (
+  referenceMode.value === 'capture' ? '暂无截帧' : '暂无首帧'
+))
+
+const activeLastFrameLabel = computed(() => (
+  referenceMode.value === 'capture'
+    ? selectedTailFrameLabel.value
+    : '尾帧'
+))
+
+const activeLastFrameEmptyText = computed(() => (
+  referenceMode.value === 'capture'
+    ? '暂无当前镜头图片'
+    : '暂无尾帧'
+))
 
 const selectedReferenceImages = computed(() => (
   selectedReferenceImagesByShot.value[selectedShotKey.value] || []
@@ -493,9 +670,40 @@ const referenceCountLabel = computed(() => {
     return `${multimodalImageUrls.value.length} 图 / ${multimodalVideoUrls.value.length} 视频 / ${multimodalAudioUrls.value.length} 音频`
   }
   let count = 0
-  if (firstFrame.value) count += 1
-  if (lastFrame.value) count += 1
+  if (activeFirstFrame.value) count += 1
+  if (activeLastFrame.value) count += 1
   return `${count} 张`
+})
+
+function getReferenceSummary(storyboard) {
+  if (!storyboard) return '仅文本生成'
+  if (referenceMode.value === 'capture' && selectedShot.value?.id === storyboard.id) {
+    return activeReferenceSummary.value
+  }
+  return props.state.getVideoReferenceSummary(storyboard)
+}
+
+function hasReferencePreview(storyboard) {
+  if (!storyboard) return false
+  if (referenceMode.value === 'capture' && selectedShot.value?.id === storyboard.id) {
+    return Boolean(capturedFrameUrl.value || selectedTailFrameUrl.value)
+  }
+  return props.state.hasImg(storyboard)
+}
+
+const activeReferenceSummary = computed(() => {
+  if (!selectedShot.value) return '仅文本生成'
+  if (referenceMode.value !== 'capture') {
+    return props.state.getVideoReferenceSummary(selectedShot.value)
+  }
+  if (!captureSourceVideoUrl.value) return '当前没有上一镜头视频'
+  const firstLabel = capturedFrameUrl.value
+    ? (capturedFrameSourceLabel.value ? `首帧：${capturedFrameSourceLabel.value}` : '首帧：上一镜头视频')
+    : '首帧：待截取'
+  const tailLabel = selectedTailFrameUrl.value
+    ? `尾帧：${selectedTailFrameLabel.value}`
+    : '尾帧：待选择'
+  return `${firstLabel} / ${tailLabel}`
 })
 
 const videoGenerationProgress = computed(() => {
@@ -532,6 +740,19 @@ function selectShot(sb) {
 function generateSelectedVideo() {
   if (!selectedShot.value) return
   savePromptDraft()
+  if (referenceMode.value === 'capture') {
+    if (!capturedFrameUrl.value) {
+      toast.error('请先截取上一镜头视频帧')
+      return
+    }
+    const lastFrameUrl = selectedTailFrameUrl.value || ''
+    props.handlers.genVid(selectedShot.value, {
+      reference_mode: 'capture',
+      first_frame_url: capturedFrameUrl.value,
+      last_frame_url: lastFrameUrl || undefined,
+    })
+    return
+  }
   if (referenceMode.value !== 'multimodal') {
     props.handlers.genVid(selectedShot.value)
     return
@@ -561,6 +782,55 @@ function formatShotIndex(index) {
 
 function setReferenceMode(mode) {
   referenceMode.value = mode
+}
+
+function selectTailFrame(url) {
+  if (!selectedShot.value || !url) return
+  selectedTailFrameByShot.value = {
+    ...selectedTailFrameByShot.value,
+    [selectedShotKey.value]: url,
+  }
+}
+
+function clearCapturedFrame() {
+  if (!selectedShot.value) return
+  const key = selectedShotKey.value
+  const nextCaptured = { ...capturedFrameByShot.value }
+  const nextSourceLabels = { ...capturedFrameSourceLabelByShot.value }
+  delete nextCaptured[key]
+  delete nextSourceLabels[key]
+  capturedFrameByShot.value = nextCaptured
+  capturedFrameSourceLabelByShot.value = nextSourceLabels
+}
+
+async function captureCurrentFrame() {
+  if (!captureSourceVideoEl.value || !selectedShot.value || !captureSourceVideoUrl.value) {
+    toast.error('当前没有上一镜头视频可截取')
+    return
+  }
+  isCapturingFrame.value = true
+  try {
+    const file = await captureVideoFrameFile(captureSourceVideoEl.value, {
+      filenamePrefix: `shot-${selectedShotIndexLabel.value}-prev`,
+    })
+    const uploaded = await uploadAPI.image(file)
+    const nextCaptured = uploaded?.url || uploaded?.path || ''
+    if (!nextCaptured) throw new Error('截帧上传失败')
+    capturedFrameByShot.value = {
+      ...capturedFrameByShot.value,
+      [selectedShotKey.value]: nextCaptured,
+    }
+    capturedFrameSourceLabelByShot.value = {
+      ...capturedFrameSourceLabelByShot.value,
+      [selectedShotKey.value]: captureSourceLabel.value || '上一镜头视频',
+    }
+    referenceMode.value = 'capture'
+    toast.success('已截取上一镜头帧')
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : '截帧失败')
+  } finally {
+    isCapturingFrame.value = false
+  }
 }
 
 function mediaRefFor(type) {

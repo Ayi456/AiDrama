@@ -9,7 +9,7 @@ export const PROJECT_STYLE_OPTIONS = [
 
 export const DEFAULT_PROJECT_STYLE = 'realistic'
 
-const projectStyleLabelMap = new Map(PROJECT_STYLE_OPTIONS.map(option => [option.value, option.label]))
+const projectStyleLabelMap = new Map<string, string>(PROJECT_STYLE_OPTIONS.map(option => [option.value, option.label]))
 
 export function getProjectStyleLabel(style?: string | null) {
   const normalized = String(style || '').trim()

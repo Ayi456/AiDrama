@@ -2763,6 +2763,38 @@
   gap: 5px;
 }
 
+.video-workbench__capture-source,
+.video-workbench__tail-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.video-workbench__capture-head,
+.video-workbench__tail-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.video-workbench__capture-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.prod-video--source {
+  width: 100%;
+  min-height: 220px;
+  border-radius: 14px;
+  background: #0b1020;
+  object-fit: cover;
+  display: block;
+}
+
 .video-workbench__ref {
   position: relative;
   min-height: 132px;
@@ -2885,6 +2917,47 @@
 .video-workbench__refs--compact .video-workbench__ref,
 .video-workbench__refs--compact .video-workbench__ref img {
   min-height: 86px;
+}
+
+.video-workbench__tail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.video-workbench__tail-option {
+  position: relative;
+  min-height: 84px;
+  overflow: hidden;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  background: #eef3fb;
+  cursor: pointer;
+}
+
+.video-workbench__tail-option img {
+  width: 100%;
+  height: 84px;
+  object-fit: cover;
+  display: block;
+}
+
+.video-workbench__tail-option span {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(12, 20, 33, 0.62);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.video-workbench__tail-option.selected {
+  border-color: #4f7cff;
+  box-shadow: 0 0 0 3px rgba(79, 124, 255, 0.14);
 }
 
 .video-workbench__clip-grid {

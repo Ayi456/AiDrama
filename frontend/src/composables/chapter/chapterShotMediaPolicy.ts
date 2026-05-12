@@ -170,6 +170,9 @@ export function buildVideoGeneratePayload(input: {
   const last = getLastFrame(storyboard)
   const refs = parseStoryboardReferenceImages(storyboard)
   const overrideMode = String(override.reference_mode || '').trim()
+  const overrideImage = String(override.image_url || '').trim()
+  const overrideFirst = String(override.first_frame_url || '').trim()
+  const overrideLast = String(override.last_frame_url || '').trim()
   const payload: VideoGeneratePayload = {
     storyboard_id: storyboard.id,
     drama_id: dramaId,
@@ -185,6 +188,36 @@ export function buildVideoGeneratePayload(input: {
       reference_image_urls: normalizeUrlList(override.reference_image_urls),
       reference_video_urls: normalizeUrlList(override.reference_video_urls),
       reference_audio_urls: normalizeUrlList(override.reference_audio_urls),
+    }
+  }
+
+  const captureFirst = overrideFirst || overrideImage
+  const captureLast = overrideLast || last
+
+  if (overrideMode === 'capture') {
+    if (captureFirst && captureLast) {
+      return { ...payload, reference_mode: 'first_last', first_frame_url: captureFirst, last_frame_url: captureLast }
+    }
+    if (captureFirst) {
+      return { ...payload, reference_mode: 'single', image_url: captureFirst }
+    }
+  }
+
+  if (overrideMode === 'single') {
+    const imageUrl = overrideImage || overrideFirst || first
+    if (imageUrl) {
+      return { ...payload, reference_mode: 'single', image_url: imageUrl }
+    }
+  }
+
+  if (overrideMode === 'first_last') {
+    const firstFrame = overrideFirst || first
+    const lastFrame = overrideLast || last
+    if (firstFrame && lastFrame) {
+      return { ...payload, reference_mode: 'first_last', first_frame_url: firstFrame, last_frame_url: lastFrame }
+    }
+    if (firstFrame) {
+      return { ...payload, reference_mode: 'single', image_url: firstFrame }
     }
   }
 
