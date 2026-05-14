@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
 import { createAgent, isValidAgentType } from '../agents/index.js'
+import { runDirectAgentIfNeeded } from '../agents/direct-mode.js'
 import { splitScriptIntoStoryboardChunks } from '../agents/storyboard-chunks.js'
 import { db, schema } from '../db/index.js'
 import { success, badRequest } from '../utils/response.js'
@@ -167,6 +168,29 @@ app.post('/:type/chat', async (c) => {
       logTaskPayload('Agent', `${agentType} tool-results`, data.toolResults)
 
       return success(c, data)
+    }
+
+    const directResult = (agentType === 'script_rewriter' || agentType === 'extractor')
+      ? await runDirectAgentIfNeeded(agentType, {
+        dramaId,
+        episodeId,
+        message: String(message || ''),
+      })
+      : null
+    if (directResult) {
+      const elapsed = ((performance.now() - startTime) / 1000).toFixed(1)
+      logTaskSuccess('Agent', agentType, {
+        elapsedSeconds: elapsed,
+        agentMode: directResult.agentMode,
+      })
+      logTaskProgress('Agent', 'tool-summary', {
+        agentType,
+        agentMode: directResult.agentMode,
+        toolCalls: [],
+        toolResults: directResult.toolResults.map((tr) => tr.toolName),
+      })
+      logTaskPayload('Agent', `${agentType} tool-results`, directResult.toolResults)
+      return success(c, directResult)
     }
 
     const agent = await createAgent(agentType, episodeId, dramaId)
