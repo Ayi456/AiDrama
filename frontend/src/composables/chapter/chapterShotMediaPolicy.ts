@@ -56,6 +56,24 @@ export function normalizeUrlList(value: unknown): string[] {
   return Array.from(new Set(String(value).split(/\r?\n|,/).map(item => item.trim()).filter(Boolean)))
 }
 
+function getStoryboardDialogue(storyboard: ChapterStoryboard | null | undefined) {
+  return String(
+    storyboard?.dialogue ||
+    storyboard?.narration ||
+    storyboard?.voice_over ||
+    storyboard?.voiceOver ||
+    '',
+  ).trim()
+}
+
+function appendDialogueToVideoPrompt(prompt: string, storyboard: ChapterStoryboard | null | undefined) {
+  const dialogue = getStoryboardDialogue(storyboard)
+  const normalizedPrompt = String(prompt || '').trim()
+  if (!dialogue) return normalizedPrompt
+  if (normalizedPrompt.includes(dialogue) || normalizedPrompt.includes('对白/旁白')) return normalizedPrompt
+  return [normalizedPrompt, `对白/旁白：${dialogue}`].filter(Boolean).join('\n')
+}
+
 export function buildShotImagePrompt(input: {
   storyboard: ChapterStoryboard
   frameType: string
@@ -96,7 +114,7 @@ export function buildShotImagePrompt(input: {
 
 export function buildDefaultVideoPrompt(storyboard: ChapterStoryboard | null | undefined) {
   if (!storyboard) return ''
-  return [
+  return appendDialogueToVideoPrompt([
     storyboard.title ? `镜头标题：${storyboard.title}` : '',
     storyboard.description ? `画面描述：${storyboard.description}` : '',
     storyboard.shot_type || storyboard.shotType ? `景别：${storyboard.shot_type || storyboard.shotType}` : '',
@@ -104,7 +122,7 @@ export function buildDefaultVideoPrompt(storyboard: ChapterStoryboard | null | u
     storyboard.action ? `动作：${storyboard.action}` : '',
     storyboard.atmosphere ? `氛围：${storyboard.atmosphere}` : '',
     '请生成节奏自然、动作连贯、电影感强的镜头视频。',
-  ].filter(Boolean).join('\n')
+  ].filter(Boolean).join('\n'), storyboard)
 }
 
 export function getStoryboardStateText(input: {
@@ -173,11 +191,15 @@ export function buildVideoGeneratePayload(input: {
   const overrideImage = String(override.image_url || '').trim()
   const overrideFirst = String(override.first_frame_url || '').trim()
   const overrideLast = String(override.last_frame_url || '').trim()
+  const prompt = appendDialogueToVideoPrompt(
+    storyboard.video_prompt || storyboard.videoPrompt || buildDefaultVideoPrompt(storyboard),
+    storyboard,
+  )
   const payload: VideoGeneratePayload = {
     storyboard_id: storyboard.id,
     drama_id: dramaId,
     config_id: configId,
-    prompt: storyboard.video_prompt || storyboard.videoPrompt || '',
+    prompt,
     duration: Number(storyboard.duration || 5),
   }
 

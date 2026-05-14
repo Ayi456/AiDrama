@@ -125,10 +125,11 @@
             </div>
             <textarea
               class="character-gallery__prompt-input"
-              :value="getCharacterDescription(character)"
+              :value="getCharacterDescriptionValue(character)"
               rows="5"
               placeholder="这里的内容会直接用于角色形象生成"
-              @blur="emit('update-character-description', { character, value: $event.target.value })"
+              @input="updateCharacterDescriptionDraft(character, $event.target.value)"
+              @blur="commitCharacterDescription(character)"
             />
           </label>
         </div>
@@ -150,7 +151,7 @@
               />
               {{ isReplacingCharacterImage(character.id) ? '替换中' : '替换' }}
             </label>
-            <button class="btn btn-sm character-gallery__action" :disabled="isPendingCharacterImage(character.id) || isReplacingCharacterImage(character.id)" @click="emit('generate', character.id)">
+            <button class="btn btn-sm character-gallery__action" :disabled="isPendingCharacterImage(character.id) || isReplacingCharacterImage(character.id)" @click="handleGenerate(character)">
               {{ getGenerateButtonLabel(character) }}
             </button>
           </div>
@@ -161,6 +162,7 @@
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import { ImagePlus, Upload } from 'lucide-vue-next'
 import { assetUrl } from '@/utils/asset-url'
 
@@ -210,6 +212,11 @@ function getCharacterImage(character) {
 }
 
 const generationGuideLine = '三视图，白色背景，无文字标签'
+const descriptionDrafts = ref({})
+
+function characterDraftKey(character) {
+  return String(character?.id || character?.name || '')
+}
 
 function getCharacterDescription(character) {
   const raw = [character?.description, character?.appearance, character?.personality]
@@ -219,6 +226,36 @@ function getCharacterDescription(character) {
     .trim()
 
   return raw ? `${raw}\n${generationGuideLine}` : generationGuideLine
+}
+
+function getCharacterDescriptionValue(character) {
+  const key = characterDraftKey(character)
+  if (Object.prototype.hasOwnProperty.call(descriptionDrafts.value, key)) {
+    return descriptionDrafts.value[key]
+  }
+  return getCharacterDescription(character)
+}
+
+function updateCharacterDescriptionDraft(character, value) {
+  descriptionDrafts.value = {
+    ...descriptionDrafts.value,
+    [characterDraftKey(character)]: value,
+  }
+}
+
+function commitCharacterDescription(character) {
+  emit('update-character-description', {
+    character,
+    value: getCharacterDescriptionValue(character),
+  })
+}
+
+function handleGenerate(character) {
+  emit('generate', {
+    id: character.id,
+    character,
+    value: getCharacterDescriptionValue(character),
+  })
 }
 
 function hasCharacterImage(character) {

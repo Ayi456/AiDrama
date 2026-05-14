@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 
-import { buildVideoGeneratePayload } from '../chapterShotMediaPolicy.ts'
+import {
+  buildDefaultVideoPrompt,
+  buildVideoGeneratePayload,
+} from '../chapterShotMediaPolicy.ts'
 
 function runTest(name: string, fn: () => void) {
   try {
@@ -18,8 +21,27 @@ const storyboard = {
   first_frame_image: 'current-first.png',
   last_frame_image: 'current-last.png',
   video_prompt: 'shot 9 video',
+  dialogue: '旁白：山门外的钟声骤然响起。\n顾玄：别慌，先看阵眼。',
   duration: 7,
 }
+
+runTest('default video prompt includes dialogue and narration', () => {
+  const prompt = buildDefaultVideoPrompt(storyboard)
+
+  assert.match(prompt, /对白\/旁白：旁白：山门外的钟声骤然响起。/)
+  assert.match(prompt, /顾玄：别慌，先看阵眼。/)
+})
+
+runTest('video generation payload appends dialogue when custom video prompt omits it', () => {
+  const payload = buildVideoGeneratePayload({
+    storyboard,
+    dramaId: 3,
+  })
+
+  assert.match(payload.prompt, /shot 9 video/)
+  assert.match(payload.prompt, /对白\/旁白：旁白：山门外的钟声骤然响起。/)
+  assert.match(payload.prompt, /顾玄：别慌，先看阵眼。/)
+})
 
 runTest('capture mode keeps captured first frame and current tail frame', () => {
   const payload = buildVideoGeneratePayload({

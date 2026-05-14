@@ -104,6 +104,11 @@ export type VideoGeneration = GenerationStatus & {
   videoUrl?: string
   minio_url?: string
   minioUrl?: string
+  provider?: string
+  model?: string
+  prompt?: string
+  created_at?: string
+  createdAt?: string
 }
 export type ImageGenerationStart = {
   image_generation_id: number
@@ -269,6 +274,12 @@ export const gridAPI = {
 export const videoAPI = {
   generate: (d: ApiRequestBody) => api.post<VideoGeneration>('/videos', d),
   get: (id: number) => api.get<VideoGeneration>(`/videos/${id}`),
+  list: (params?: { drama_id?: number; storyboard_id?: number }) => {
+    const query = new URLSearchParams()
+    if (params?.drama_id) query.set('drama_id', String(params.drama_id))
+    if (params?.storyboard_id) query.set('storyboard_id', String(params.storyboard_id))
+    return api.get<VideoGeneration[]>(`/videos${query.size ? `?${query.toString()}` : ''}`)
+  },
 }
 export const composeAPI = {
   shot: (id: number) => api.post(`/compose/storyboards/${id}/compose`),

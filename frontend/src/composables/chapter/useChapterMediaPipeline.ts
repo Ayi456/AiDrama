@@ -49,7 +49,7 @@ interface UseChapterMediaPipelineOptions {
   lockedVideoConfigId: ComputedRef<number | null>
   shotImageResolvedSize: ComputedRef<string>
   shotImageAspectRatio: Ref<string>
-  updateField: (sb: ChapterStoryboard, field: string, value: unknown) => void
+  updateField: (sb: ChapterStoryboard, field: string, value: unknown) => void | Promise<unknown>
   getStoryboardCharacterIds: (sb: ChapterStoryboard) => number[]
   getStoryboardCharacterNames: (sb: ChapterStoryboard) => string[]
   getSceneName: (sb: ChapterStoryboard) => string
@@ -94,14 +94,22 @@ export function useChapterMediaPipeline(options: UseChapterMediaPipelineOptions)
     sbs: options.sbs,
     lockedVideoConfigId: options.lockedVideoConfigId,
     refresh: options.refresh,
+    updateField: options.updateField,
     sleep,
     watchAsyncResult,
   })
   const {
     pendingVideoIds,
     failedVideoMessages,
+    videoHistory,
+    loadingVideoHistoryIds,
     isPendingVideo,
     videoFailMessage,
+    getVideoHistory,
+    isVideoHistoryLoading,
+    loadVideoHistory,
+    restoreVideoFromHistory,
+    videoHistoryUrl,
     genVid,
     pollVideoGeneration,
     batchVideos,
@@ -294,6 +302,8 @@ export function useChapterMediaPipeline(options: UseChapterMediaPipelineOptions)
     replacingSceneImageIds,
     pendingShotFrameKeys,
     pendingVideoIds,
+    videoHistory,
+    loadingVideoHistoryIds,
     isMerging,
     failedVideoMessages,
     shotImageHistory,
@@ -309,6 +319,11 @@ export function useChapterMediaPipeline(options: UseChapterMediaPipelineOptions)
     isPendingShotFrame,
     isPendingVideo,
     videoFailMessage,
+    getVideoHistory,
+    isVideoHistoryLoading,
+    loadVideoHistory,
+    restoreVideoFromHistory,
+    videoHistoryUrl,
     getStoryboardStateText,
     getStoryboardStateClass,
     getVideoGenerateActionLabel,

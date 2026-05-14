@@ -308,11 +308,11 @@ function toCamel(field) {
 
 function updateField(sb, field, value) {
   const current = sb[field] ?? sb[toCamel(field)]
-  if (current === value) return
+  if (current === value) return Promise.resolve()
   sb[field] = value
   const camelField = toCamel(field)
   if (camelField !== field) sb[camelField] = value
-  storyboardAPI.update(sb.id, { [field]: value })
+  return storyboardAPI.update(sb.id, { [field]: value })
 }
 
 function mergeCharDesc(char) {
@@ -320,6 +320,7 @@ function mergeCharDesc(char) {
 }
 
 const generationGuideLine = '三视图，白色背景，无文字标签'
+const characterDescriptionSavePromises = new Map()
 
 function stripCharacterPromptGuide(value) {
   const text = String(value || '').trim()
@@ -330,14 +331,23 @@ function stripCharacterPromptGuide(value) {
   return text
 }
 
-function saveMergedCharDesc(char, value) {
+async function saveMergedCharDesc(char, value) {
   const cleaned = stripCharacterPromptGuide(value)
   const old = mergeCharDesc(char)
-  if (old === cleaned) return
+  const key = Number(char?.id || 0)
+  if (old === cleaned) return key ? characterDescriptionSavePromises.get(key) : undefined
   char.description = cleaned
   char.appearance = ''
   char.personality = ''
-  characterAPI.update(char.id, { description: cleaned, appearance: '', personality: '' })
+  const savePromise = characterAPI
+    .update(char.id, { description: cleaned, appearance: '', personality: '' })
+    .finally(() => {
+      if (key && characterDescriptionSavePromises.get(key) === savePromise) {
+        characterDescriptionSavePromises.delete(key)
+      }
+    })
+  if (key) characterDescriptionSavePromises.set(key, savePromise)
+  await savePromise
 }
 
 function updateSceneField(scene, field, value) {
@@ -347,9 +357,29 @@ function updateSceneField(scene, field, value) {
   sceneAPI.update(scene.id, { [field]: value })
 }
 
-function handleCharacterDescriptionUpdate(payload) {
+async function handleCharacterDescriptionUpdate(payload) {
   if (!payload?.character) return
-  saveMergedCharDesc(payload.character, payload.value || '')
+  try {
+    await saveMergedCharDesc(payload.character, payload.value || '')
+  } catch (error) {
+    toast.error(error?.message || '角色描述词保存失败')
+  }
+}
+
+async function handleCharacterGenerate(payload) {
+  const character = typeof payload === 'object'
+    ? payload.character
+    : chars.value.find(item => item.id === payload)
+  const id = Number(typeof payload === 'object' ? (payload.id || character?.id || 0) : payload)
+  if (!id) return
+  try {
+    if (character && typeof payload === 'object' && 'value' in payload) {
+      await saveMergedCharDesc(character, payload.value || '')
+    }
+    await genCharImg(id)
+  } catch (error) {
+    toast.error(error?.message || '角色图片生成失败')
+  }
 }
 
 async function loadCharacterAssets() {
@@ -555,6 +585,11 @@ const {
   isPendingShotFrame,
   isPendingVideo,
   videoFailMessage,
+  getVideoHistory,
+  isVideoHistoryLoading,
+  loadVideoHistory,
+  restoreVideoFromHistory,
+  videoHistoryUrl,
   getStoryboardStateText,
   getStoryboardStateClass,
   getVideoGenerateActionLabel,
@@ -844,6 +879,10 @@ const productionPanelState = computed(() => ({
   getVideoReferenceSummary,
   isPendingVideo,
   videoFailMessage,
+  getVideoHistory,
+  isVideoHistoryLoading,
+  loadVideoHistory,
+  videoHistoryUrl,
   getVideoGenerateActionLabel,
   buildDefaultVideoPrompt,
 }))
@@ -852,7 +891,7 @@ const productionPanelHandlers = {
   goScript: () => { panel.value = 'script' },
   setProdTab: (value) => { prodTab.value = value },
   batchCharImages,
-  genCharImg,
+  genCharImg: handleCharacterGenerate,
   replaceCharImage,
   handleCharacterDescriptionUpdate,
   handleCharacterAssetUpload,
@@ -893,6 +932,7 @@ const productionPanelHandlers = {
   handleGridDialogFinish,
   batchVideos,
   genVid,
+  restoreVideoFromHistory,
   openImageByPath: (path, title) => {
     if (path) openImageViewer(assetUrl(path), title)
   },
@@ -909,4 +949,3 @@ onMounted(() => {
 <style>
 @import url('@/assets/episode-studio.css');
 </style>
-

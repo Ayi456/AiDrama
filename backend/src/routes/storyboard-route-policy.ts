@@ -7,6 +7,7 @@ export type StoryboardCreateBody = RouteBody & {
   description?: string | null
   action?: string | null
   dialogue?: string | null
+  video_prompt?: string | null
   scene_id?: number | null
   duration?: number | null
   character_ids?: number[] | null
@@ -30,6 +31,7 @@ export type StoryboardUpdateBody = RouteBody & {
   result?: string | null
   bgm_prompt?: string | null
   sound_effect?: string | null
+  video_url?: string | null
   character_ids?: number[] | null
 }
 
@@ -40,6 +42,7 @@ export type StoryboardCreateValues = {
   description?: string | null
   action?: string | null
   dialogue?: string | null
+  videoPrompt?: string | null
   sceneId?: number | null
   duration: number
   createdAt: string
@@ -64,6 +67,7 @@ type StoryboardPatchField =
   | 'result'
   | 'bgmPrompt'
   | 'soundEffect'
+  | 'videoUrl'
 
 export type StoryboardUpdatePatch = {
   updatedAt: string
@@ -84,6 +88,7 @@ export type StoryboardUpdatePatch = {
   result?: string | null
   bgmPrompt?: string | null
   soundEffect?: string | null
+  videoUrl?: string | null
 }
 
 type StoryboardUpdateKey = Exclude<keyof StoryboardUpdateBody, 'character_ids'>
@@ -106,14 +111,31 @@ const STORYBOARD_UPDATE_FIELDS = [
   ['result', 'result'],
   ['bgm_prompt', 'bgmPrompt'],
   ['sound_effect', 'soundEffect'],
+  ['video_url', 'videoUrl'],
 ] as const satisfies readonly (readonly [StoryboardUpdateKey, StoryboardPatchField])[]
 
 function hasOwn(body: RouteBody, key: string) {
   return Object.prototype.hasOwnProperty.call(body, key)
 }
 
+export function appendDialogueToVideoPrompt(
+  videoPrompt?: string | null,
+  dialogue?: string | null,
+) {
+  const normalizedPrompt = String(videoPrompt || '').trim()
+  const normalizedDialogue = String(dialogue || '').trim()
+  if (!normalizedDialogue) return normalizedPrompt
+  if (
+    normalizedPrompt.includes(normalizedDialogue) ||
+    normalizedPrompt.includes('对白/旁白')
+  ) {
+    return normalizedPrompt
+  }
+  return [normalizedPrompt, `对白/旁白：${normalizedDialogue}`].filter(Boolean).join('\n')
+}
+
 export function buildStoryboardCreateValues(body: StoryboardCreateBody, timestamp: string): StoryboardCreateValues {
-  return {
+  const values: StoryboardCreateValues = {
     episodeId: body.episode_id,
     storyboardNumber: body.storyboard_number || 1,
     title: body.title,
@@ -125,6 +147,9 @@ export function buildStoryboardCreateValues(body: StoryboardCreateBody, timestam
     createdAt: timestamp,
     updatedAt: timestamp,
   }
+  const videoPrompt = appendDialogueToVideoPrompt(body.video_prompt, body.dialogue)
+  if (videoPrompt) values.videoPrompt = videoPrompt
+  return values
 }
 
 export function buildStoryboardUpdatePatch(body: StoryboardUpdateBody, updatedAt: string): StoryboardUpdatePatch {
@@ -133,6 +158,10 @@ export function buildStoryboardUpdatePatch(body: StoryboardUpdateBody, updatedAt
 
   for (const [sourceKey, targetKey] of STORYBOARD_UPDATE_FIELDS) {
     if (hasOwn(body, sourceKey)) target[targetKey] = body[sourceKey]
+  }
+
+  if (hasOwn(body, 'video_prompt')) {
+    updates.videoPrompt = appendDialogueToVideoPrompt(body.video_prompt, body.dialogue)
   }
 
   return updates

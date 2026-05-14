@@ -54,7 +54,7 @@ runTest('buildCharacterPortraitGenerationPrompt keeps portrait prompts visual', 
   assert.match(prompt, /黑眼圈/)
   assert.match(prompt, /青色道袍/)
   assert.match(prompt, /疲惫但镇定/)
-  assert.match(prompt, /项目风格[:：] cinematic/)
+  assert.match(prompt, /项目风格[:：]\s*电影感/)
   assert.doesNotMatch(prompt, /穿越者/)
   assert.doesNotMatch(prompt, /系统/)
   assert.doesNotMatch(prompt, /秩序之眼/)
@@ -72,7 +72,7 @@ runTest('buildCharacterPortraitGenerationPrompt falls back to visual description
   assert.match(prompt, /二十岁出头/)
   assert.match(prompt, /黑眼圈/)
   assert.match(prompt, /疲惫/)
-  assert.match(prompt, /项目风格[:：] realistic/)
+  assert.match(prompt, /项目风格[:：]\s*写实/)
   assert.doesNotMatch(prompt, /穿越者/)
   assert.doesNotMatch(prompt, /系统/)
   assert.doesNotMatch(prompt, /玉牌/)
@@ -107,7 +107,7 @@ runTest('buildCharacterPortraitGenerationPrompt filters non-visual role appearan
   assert.match(prompt, /疲惫但镇定/)
   assert.match(prompt, /三张并排的全身角色设定图/)
   assert.match(prompt, /纯白背景/)
-  assert.match(prompt, /项目风格[:：] realistic/)
+  assert.match(prompt, /项目风格[:：]\s*写实/)
   assert.match(prompt, /不要给每张图添加视图名称/)
   assert.doesNotMatch(prompt, /穿越者/)
   assert.doesNotMatch(prompt, /系统/)
@@ -133,6 +133,28 @@ runTest('buildCharacterPortraitGenerationPrompt preserves explicit female cues',
   assert.doesNotMatch(prompt, /男性角色/)
 })
 
+runTest('buildCharacterPortraitGenerationPrompt lets character prompt style override generic project style', () => {
+  const prompt = buildCharacterPortraitGenerationPrompt({
+    name: '会长',
+    role: '龙套',
+    description: [
+      '青州商会会长，圆脸中年人，笑容和气，穿金戴玉，看着像个弥勒佛，眼底却精得很',
+      '圆脸中年人，笑容和气，穿金戴玉',
+      '精明老练，和气中藏锋芒',
+      '动漫修仙风格',
+      '三视图，白色背景，无文字标签',
+    ].join('\n'),
+    style: 'realistic',
+  } as any)
+
+  assert.match(prompt, /青州商会会长/)
+  assert.match(prompt, /动漫修仙风格/)
+  assert.doesNotMatch(prompt, /项目风格[:：]\s*realistic/)
+  assert.doesNotMatch(prompt, /身份[:：]\s*龙套/)
+  assert.doesNotMatch(prompt, /左视图/)
+  assert.doesNotMatch(prompt, /右视图/)
+})
+
 runTest('buildSceneImagePrompt uses Chinese scene guidance and project style', () => {
   const prompt = buildSceneImagePrompt({
     location: '雨夜楼顶',
@@ -144,7 +166,7 @@ runTest('buildSceneImagePrompt uses Chinese scene guidance and project style', (
   assert.match(prompt, /雨夜楼顶/)
   assert.match(prompt, /夜晚/)
   assert.match(prompt, /冷蓝霓虹/)
-  assert.match(prompt, /项目风格[:：] cinematic/)
+  assert.match(prompt, /项目风格[:：]\s*电影感/)
   assert.match(prompt, /电影感场景/)
   assert.match(prompt, /统一画风/)
   assert.match(prompt, /高质量/)

@@ -1,6 +1,6 @@
 import { ref, type ComputedRef, type Ref } from 'vue'
 import { toast } from 'vue-sonner'
-import { videoAPI } from '@/composables/useApi'
+import { videoAPI, type VideoGeneration } from '@/composables/useApi'
 import type {
   ChapterStoryboard,
   VideoReferenceOverride,
@@ -10,6 +10,16 @@ import {
   buildVideoGeneratePayload,
   hasStoryboardVideo,
 } from './chapterShotMediaPolicy'
+import {
+  VIDEO_CLIENT_POLL_ATTEMPTS,
+  VIDEO_CLIENT_POLL_DELAY_MS,
+  resolveVideoPollExhaustedOutcome,
+  resolveVideoPollOutcome,
+} from './chapterVideoPollingPolicy'
+import {
+  getVideoHistoryUrl,
+  normalizeVideoHistory,
+} from './chapterVideoHistoryPolicy'
 
 type VideoMonitor = {
   sleep: (ms: number) => Promise<unknown>
@@ -21,11 +31,14 @@ type ChapterVideoWorkflowOptions = VideoMonitor & {
   sbs: Ref<ChapterStoryboard[]>
   lockedVideoConfigId: ComputedRef<number | null>
   refresh: () => Promise<void>
+  updateField: (storyboard: ChapterStoryboard, field: string, value: unknown) => void | Promise<unknown>
 }
 
 export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
   const pendingVideoIds = ref<number[]>([])
   const failedVideoMessages = ref<Record<number, string>>({})
+  const videoHistory = ref<Record<number, VideoGeneration[]>>({})
+  const loadingVideoHistoryIds = ref<number[]>([])
 
   function isPendingVideo(id: number) {
     return pendingVideoIds.value.includes(id)
@@ -33,6 +46,47 @@ export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
 
   function videoFailMessage(id: number) {
     return failedVideoMessages.value[id] || ''
+  }
+
+  const videoHistoryUrl = getVideoHistoryUrl
+
+  function getVideoHistory(storyboardId: number) {
+    return videoHistory.value[Number(storyboardId)] || []
+  }
+
+  function isVideoHistoryLoading(storyboardId: number) {
+    return loadingVideoHistoryIds.value.includes(Number(storyboardId))
+  }
+
+  async function loadVideoHistory(storyboardId: number) {
+    const id = Number(storyboardId)
+    if (!id || isVideoHistoryLoading(id)) return
+
+    loadingVideoHistoryIds.value = [...new Set([...loadingVideoHistoryIds.value, id])]
+    try {
+      const rows = await videoAPI.list({ storyboard_id: id })
+      videoHistory.value = {
+        ...videoHistory.value,
+        [id]: normalizeVideoHistory(rows || []),
+      }
+    } catch (error: unknown) {
+      toast.error(errorMessageFromUnknown(error, '视频历史加载失败'))
+    } finally {
+      loadingVideoHistoryIds.value = loadingVideoHistoryIds.value.filter(item => item !== id)
+    }
+  }
+
+  async function restoreVideoFromHistory(storyboard: ChapterStoryboard, item: VideoGeneration) {
+    const url = videoHistoryUrl(item)
+    if (!storyboard?.id || !url) return
+
+    try {
+      await options.updateField(storyboard, 'video_url', url)
+      await options.refresh()
+      toast.success('已切换为历史视频')
+    } catch (error: unknown) {
+      toast.error(errorMessageFromUnknown(error, '历史视频切换失败'))
+    }
   }
 
   async function genVid(storyboard: ChapterStoryboard, optionsOverride: VideoReferenceOverride = {}) {
@@ -67,22 +121,24 @@ export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
       return
     }
 
-    for (let i = 0; i < 120; i++) {
-      await options.sleep(4000)
+    for (let i = 0; i < VIDEO_CLIENT_POLL_ATTEMPTS; i++) {
+      await options.sleep(VIDEO_CLIENT_POLL_DELAY_MS)
       try {
         const res = await videoAPI.get(generationId)
         await options.refresh()
-        if (res?.status === 'completed') {
+        const outcome = resolveVideoPollOutcome(res)
+        if (outcome.type === 'completed') {
           pendingVideoIds.value = pendingVideoIds.value.filter(item => item !== storyboardId)
           delete failedVideoMessages.value[storyboardId]
+          await loadVideoHistory(storyboardId)
           toast.success('视频生成完成')
           return
         }
-        if (res?.status === 'failed') {
+        if (outcome.type === 'failed') {
           pendingVideoIds.value = pendingVideoIds.value.filter(item => item !== storyboardId)
           failedVideoMessages.value = {
             ...failedVideoMessages.value,
-            [storyboardId]: res?.error_msg || res?.errorMsg || '视频生成失败',
+            [storyboardId]: outcome.message,
           }
           toast.error(failedVideoMessages.value[storyboardId])
           return
@@ -91,11 +147,9 @@ export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
     }
 
     pendingVideoIds.value = pendingVideoIds.value.filter(item => item !== storyboardId)
-    failedVideoMessages.value = {
-      ...failedVideoMessages.value,
-      [storyboardId]: '视频生成超时',
-    }
-    toast.error('视频生成超时')
+    const exhaustedOutcome = resolveVideoPollExhaustedOutcome()
+    delete failedVideoMessages.value[storyboardId]
+    toast.info(exhaustedOutcome.message)
   }
 
   function batchVideos() {
@@ -121,8 +175,15 @@ export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
   return {
     pendingVideoIds,
     failedVideoMessages,
+    videoHistory,
+    loadingVideoHistoryIds,
     isPendingVideo,
     videoFailMessage,
+    getVideoHistory,
+    isVideoHistoryLoading,
+    loadVideoHistory,
+    restoreVideoFromHistory,
+    videoHistoryUrl,
     genVid,
     pollVideoGeneration,
     batchVideos,

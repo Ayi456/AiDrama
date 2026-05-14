@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 
 import {
+  appendDialogueToVideoPrompt,
   buildStoryboardCreateLogContext,
   buildStoryboardCreateValues,
   buildStoryboardUpdatePatch,
@@ -41,6 +42,7 @@ runTest('buildStoryboardCreateValues maps create bodies and preserves legacy def
     description: 'Wide hall',
     action: 'Hero enters',
     dialogue: 'We are late.',
+    videoPrompt: '对白/旁白：We are late.',
     sceneId: 9,
     duration: 10,
     createdAt: '2026-05-08T00:00:00.000Z',
@@ -54,6 +56,7 @@ runTest('buildStoryboardUpdatePatch maps supported fields and ignores route-only
       title: 'New title',
       shot_type: 'close_up',
       video_prompt: 'slow push in',
+      video_url: 'https://cdn.example.com/history.mp4',
       character_ids: [7, 8],
       unknown_field: 'ignored',
     },
@@ -65,6 +68,34 @@ runTest('buildStoryboardUpdatePatch maps supported fields and ignores route-only
     title: 'New title',
     shotType: 'close_up',
     videoPrompt: 'slow push in',
+    videoUrl: 'https://cdn.example.com/history.mp4',
+  })
+})
+
+runTest('appendDialogueToVideoPrompt adds dialogue and narration to saved video prompts', () => {
+  const prompt = appendDialogueToVideoPrompt(
+    '前 3 秒推近山门，后 3 秒切到顾玄回头。',
+    '旁白：山门钟声骤响。\n顾玄：别慌，先看阵眼。',
+  )
+
+  assert.match(prompt, /前 3 秒推近山门/)
+  assert.match(prompt, /对白\/旁白：旁白：山门钟声骤响。/)
+  assert.match(prompt, /顾玄：别慌，先看阵眼。/)
+})
+
+runTest('buildStoryboardUpdatePatch stores video prompt with dialogue when both are provided', () => {
+  const patch = buildStoryboardUpdatePatch(
+    {
+      video_prompt: '镜头缓慢推进到主角脸部。',
+      dialogue: '旁白：风声压过人群。',
+    },
+    '2026-05-08T00:01:00.000Z',
+  )
+
+  assert.deepEqual(patch, {
+    updatedAt: '2026-05-08T00:01:00.000Z',
+    dialogue: '旁白：风声压过人群。',
+    videoPrompt: '镜头缓慢推进到主角脸部。\n对白/旁白：旁白：风声压过人群。',
   })
 })
 

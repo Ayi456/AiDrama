@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { db, schema } from '../../db/index.js'
 import { now } from '../../utils/response.js'
 import { logTaskProgress, logTaskSuccess } from '../../utils/task-logger.js'
+import { appendDialogueToVideoPrompt } from '../../routes/storyboard-route-policy.js'
 import {
   getNextStoryboardNumber,
   renumberStoryboardsForAppend,
@@ -130,7 +131,7 @@ async function insertStoryboards(episodeId: number, storyboards: StoryboardInput
       result: storyboard.result,
       atmosphere: storyboard.atmosphere,
       imagePrompt: storyboard.image_prompt,
-      videoPrompt: storyboard.video_prompt,
+      videoPrompt: appendDialogueToVideoPrompt(storyboard.video_prompt, storyboard.dialogue) || undefined,
       bgmPrompt: storyboard.bgm_prompt,
       soundEffect: storyboard.sound_effect,
       sceneId: storyboard.scene_id,
@@ -396,11 +397,19 @@ export function createStoryboardTools(episodeId: number, dramaId: number, option
       if ('result' in fields) updates.result = fields.result
       if ('atmosphere' in fields) updates.atmosphere = fields.atmosphere
       if ('image_prompt' in fields) updates.imagePrompt = fields.image_prompt
-      if ('video_prompt' in fields) updates.videoPrompt = fields.video_prompt
+      if ('video_prompt' in fields) {
+        updates.videoPrompt = appendDialogueToVideoPrompt(
+          fields.video_prompt,
+          'dialogue' in fields ? fields.dialogue : storyboard.dialogue,
+        )
+      }
       if ('bgm_prompt' in fields) updates.bgmPrompt = fields.bgm_prompt
       if ('sound_effect' in fields) updates.soundEffect = fields.sound_effect
       if ('description' in fields) updates.description = fields.description
       if ('dialogue' in fields) updates.dialogue = fields.dialogue
+      if ('dialogue' in fields && !('video_prompt' in fields) && storyboard.videoPrompt) {
+        updates.videoPrompt = appendDialogueToVideoPrompt(storyboard.videoPrompt, fields.dialogue)
+      }
       if ('scene_id' in fields) updates.sceneId = fields.scene_id
       if ('duration' in fields) updates.duration = fields.duration
 

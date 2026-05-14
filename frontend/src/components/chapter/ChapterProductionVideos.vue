@@ -423,16 +423,39 @@
           </div>
         </div>
 
-        <div class="shot-studio__group">
-          <div class="shot-studio__group-head">
-            <span class="shot-studio__label">结果摘要</span>
-            <span class="shot-studio__counter">{{ selectedShot.duration || 10 }}s</span>
+        <div class="shot-results__history video-history-panel">
+          <div class="shot-results__history-head">
+            <span class="shot-results__history-title"><History :size="13" /> 视频历史记录</span>
+            <button class="btn btn-sm" type="button" :disabled="selectedVideoHistoryLoading" @click="reloadSelectedVideoHistory">
+              <Loader2 v-if="selectedVideoHistoryLoading" :size="12" class="animate-spin" />
+              <RefreshCw v-else :size="12" />
+              刷新
+            </button>
           </div>
-            <div class="shot-studio__shot-meta">
-              <span class="tag">{{ selectedShot.shot_type || selectedShot.shotType || '未设景别' }}</span>
-              <span class="tag">{{ activeReferenceSummary }}</span>
-            </div>
-          <div class="shot-studio__shot-desc">{{ selectedShot.description || selectedShot.title || '当前镜头还没有补充描述。' }}</div>
+
+          <div v-if="selectedVideoHistoryLoading && !selectedVideoHistory.length" class="shot-empty-block">正在加载视频历史...</div>
+          <div v-else-if="selectedVideoHistory.length" class="video-history-list">
+            <button
+              v-for="(item, index) in selectedVideoHistory"
+              :key="item.id || state.videoHistoryUrl(item)"
+              type="button"
+              :class="['video-history-item', { active: isActiveHistoryVideo(item) }]"
+              @click="selectHistoryVideo(item)"
+            >
+              <span class="video-history-thumb">
+                <video :src="assetUrl(state.videoHistoryUrl(item))" muted playsinline preload="metadata" />
+              </span>
+              <span class="video-history-copy">
+                <span class="video-history-title">{{ videoHistoryTitle(item, index) }}</span>
+                <span class="video-history-meta">{{ videoHistoryMeta(item, index) }}</span>
+              </span>
+              <span class="video-history-action">
+                <Check v-if="isActiveHistoryVideo(item)" :size="13" />
+                {{ videoHistoryActionLabel(item) }}
+              </span>
+            </button>
+          </div>
+          <div v-else class="shot-empty-block">这个镜头还没有历史视频，生成完成后会出现在这里。</div>
           <div v-if="state.videoFailMessage(selectedShot.id)" class="prod-error">{{ state.videoFailMessage(selectedShot.id) }}</div>
         </div>
 
@@ -454,7 +477,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { toast } from 'vue-sonner'
-import { Camera, Film, Image as ImageIcon, Loader2, Music, Trash2 } from 'lucide-vue-next'
+import { Camera, Check, Film, History, Image as ImageIcon, Loader2, Music, RefreshCw, Trash2 } from 'lucide-vue-next'
 import { uploadAPI } from '@/composables/useApi'
 import {
   getCaptureSourceVideoUrl,
@@ -486,6 +509,15 @@ const selectedShotIndex = computed(() => (
 
 const selectedShotIndexLabel = computed(() => String(selectedShotIndex.value + 1).padStart(2, '0'))
 const selectedShotKey = computed(() => String(selectedShot.value?.id || selectedShotIndex.value || 'current'))
+const selectedVideoHistory = computed(() => (
+  selectedShot.value ? props.state.getVideoHistory(selectedShot.value.id) : []
+))
+const selectedVideoHistoryLoading = computed(() => (
+  selectedShot.value ? props.state.isVideoHistoryLoading(selectedShot.value.id) : false
+))
+const selectedVideoUrl = computed(() => (
+  selectedShot.value ? props.state.getVideoUrl(selectedShot.value) : ''
+))
 
 const promptDraft = ref('')
 const referenceMode = ref('auto')
@@ -515,6 +547,14 @@ watch(
       return
     }
     promptDraft.value = shot.video_prompt || shot.videoPrompt || props.state.buildDefaultVideoPrompt(shot)
+  },
+  { immediate: true },
+)
+
+watch(
+  () => selectedShot.value?.id || 0,
+  (id) => {
+    if (id) void props.state.loadVideoHistory(id)
   },
   { immediate: true },
 )
@@ -769,6 +809,38 @@ function generateSelectedVideo() {
     reference_video_urls: multimodalVideoUrls.value,
     reference_audio_urls: multimodalAudioUrls.value,
   })
+}
+
+function isActiveHistoryVideo(item) {
+  return !!selectedVideoUrl.value && props.state.videoHistoryUrl(item) === selectedVideoUrl.value
+}
+
+function videoHistoryTitle(item, index) {
+  const model = item?.model || item?.provider || ''
+  return model ? `${model}` : `历史视频 ${index + 1}`
+}
+
+function videoHistoryMeta(item, index) {
+  const rawDate = item?.created_at || item?.createdAt || ''
+  const date = rawDate ? new Date(rawDate) : null
+  const dateLabel = date && Number.isFinite(date.getTime())
+    ? date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    : `#${item?.id || index + 1}`
+  return item?.status ? `${dateLabel} · ${item.status}` : dateLabel
+}
+
+function videoHistoryActionLabel(item) {
+  return isActiveHistoryVideo(item) ? '当前' : '使用'
+}
+
+function reloadSelectedVideoHistory() {
+  if (!selectedShot.value?.id) return
+  void props.state.loadVideoHistory(selectedShot.value.id)
+}
+
+function selectHistoryVideo(item) {
+  if (!selectedShot.value || isActiveHistoryVideo(item)) return
+  props.handlers.restoreVideoFromHistory(selectedShot.value, item)
 }
 
 function openReference(path, title) {

@@ -85,6 +85,7 @@ export const AIDRAMA_AGENT_PRESETS: Record<SupportedAgentType, AgentPreset> = {
 视频提示词规范：
 - 按 3 秒为一段写清画面变化。
 - 使用 <location>地点</location>、<role>角色名</role>、<voice>角色名</voice> 标签。
+- 如果该镜头有 dialogue（对白或旁白），video_prompt 必须包含对应台词/旁白内容，并用 <voice>说话人</voice> 标明发声者；不要只把台词放在 dialogue 字段。
 - 用 <n> 分隔不同时间段。
 
 生产要求：

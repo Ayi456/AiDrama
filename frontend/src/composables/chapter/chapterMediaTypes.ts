@@ -25,6 +25,9 @@ export type ChapterStoryboard = Storyboard & {
   movement?: string
   action?: string
   dialogue?: string
+  narration?: string
+  voice_over?: string
+  voiceOver?: string
   location?: string
   time?: string
   atmosphere?: string
