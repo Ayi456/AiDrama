@@ -59,13 +59,13 @@ runTest('isAllowedAssetProxyTarget rejects non-asset and unconfigured hosts', ()
   assert.equal(isAllowedAssetProxyTarget('http://127.0.0.1/static/images/a.jpeg', config), false)
 })
 
-runTest('shouldRedirectAssetProxyTarget proxies configured COS streamable media so anti-hotlink rules do not block playback', () => {
+runTest('shouldRedirectAssetProxyTarget redirects configured COS streamable media to avoid SCF body limits', () => {
   assert.equal(
     shouldRedirectAssetProxyTarget(
       new URL('https://ai-drama-1255393412.cos.ap-shanghai.myqcloud.com/seedance/videos/a.mp4'),
       config,
     ),
-    false,
+    true,
   )
 })
 
