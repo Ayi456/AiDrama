@@ -11,6 +11,12 @@ type ApiEnvelope<T> = {
 export type ApiEntity = Record<string, unknown> & { id?: number }
 export type ApiList<T> = { items: T[] }
 export type UploadResult = { url: string; path: string }
+type DirectUploadTarget = UploadResult & {
+  upload_url?: string
+  uploadUrl?: string
+  method?: string
+  headers?: Record<string, string>
+}
 export type Drama = ApiEntity & { title?: string; characters?: DramaCharacter[]; scenes?: Scene[] }
 export type Episode = ApiEntity & { drama_id?: number; dramaId?: number; title?: string }
 export type CharacterAsset = ApiEntity & {
@@ -184,11 +190,50 @@ export const api = {
   del: <T = ApiEntity>(p: string) => req<T>('DELETE', p),
 }
 
+function uploadImageMultipart(file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return uploadReq<UploadResult>('/upload/image', formData)
+}
+
+async function requestDirectImageUpload(file: File) {
+  return api.post<DirectUploadTarget>('/upload/image/direct', {
+    filename: file.name,
+    content_type: file.type,
+    size: file.size,
+  })
+}
+
+async function uploadToDirectTarget(file: File, target: DirectUploadTarget) {
+  const uploadUrl = target.upload_url || target.uploadUrl
+  if (!uploadUrl || !target.url || !target.path) {
+    throw new Error('Direct upload target is invalid')
+  }
+
+  const resp = await fetch(uploadUrl, {
+    method: target.method || 'PUT',
+    headers: target.headers || {},
+    body: file,
+  })
+  if (resp.ok) return
+
+  const text = await resp.text().catch(() => '')
+  const detail = text ? `: ${text.slice(0, 200)}` : ''
+  throw new Error(`COS direct upload failed ${resp.status}${detail}`)
+}
+
 export const uploadAPI = {
-  image: (file: File) => {
-    const formData = new FormData()
-    formData.append('file', file)
-    return uploadReq<UploadResult>('/upload/image', formData)
+  image: async (file: File) => {
+    let target: DirectUploadTarget
+    try {
+      target = await requestDirectImageUpload(file)
+    } catch (error) {
+      console.warn('[Upload] Direct image upload is unavailable, falling back to multipart upload.', error)
+      return uploadImageMultipart(file)
+    }
+
+    await uploadToDirectTarget(file, target)
+    return { url: target.url, path: target.path }
   },
   video: (file: File) => {
     const formData = new FormData()

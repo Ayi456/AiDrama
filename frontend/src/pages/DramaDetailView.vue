@@ -41,13 +41,10 @@
             <span v-if="drama.style" class="style-chip">{{ getProjectStyleLabel(drama.style) }}</span>
           </div>
           <div class="project-style-editor">
-            <div class="project-style-editor__copy">
-              <span class="field-label">项目风格</span>
-              <span class="field-hint">会影响当前项目后续图片和视频生成。</span>
-            </div>
-            <ProjectStyleInput v-model="styleDraft" :disabled="savingStyle" />
-            <button class="btn btn-sm" :disabled="savingStyle || !styleDirty" @click="saveProjectStyle">
-              {{ savingStyle ? '保存中...' : '保存风格' }}
+            <span class="project-style-editor__label">项目风格</span>
+            <ProjectStyleInput v-model="styleDraft" class="project-style-editor__input" :disabled="savingStyle" compact />
+            <button class="btn btn-sm project-style-editor__save" :disabled="savingStyle || !styleDirty" @click="saveProjectStyle">
+              {{ savingStyle ? '保存中...' : styleDirty ? '保存' : '已同步' }}
             </button>
           </div>
         </div>

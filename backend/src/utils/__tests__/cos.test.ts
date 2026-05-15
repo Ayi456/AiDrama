@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import {
   buildCosObjectUrl,
+  createCosPresignedObjectUrl,
   createCosRequestAuthorization,
   cosUrlToStaticPath,
   staticAssetToCosObjectKey,
@@ -111,4 +112,23 @@ runTest('createCosRequestAuthorization signs configured COS URLs only', () => {
     createCosRequestAuthorization('GET', 'https://example.com/seedance/videos/demo.mp4', config),
     null,
   )
+})
+
+runTest('createCosPresignedObjectUrl builds a signed PUT URL for direct uploads', () => {
+  const signedUrl = createCosPresignedObjectUrl('PUT', 'seedream/uploads/demo.jpg', config)
+
+  assert.ok(signedUrl)
+  assert.match(signedUrl, /^https:\/\/ai-drama-1255393412\.cos\.ap-shanghai\.myqcloud\.com\/seedream\/uploads\/demo\.jpg\?/)
+  assert.match(signedUrl, /q-ak=id/)
+  assert.match(signedUrl, /q-signature=/)
+})
+
+runTest('createCosPresignedObjectUrl uses the native COS host when publicBaseUrl is configured', () => {
+  const signedUrl = createCosPresignedObjectUrl('PUT', 'seedream/uploads/demo.jpg', {
+    ...config,
+    publicBaseUrl: 'https://assets.example.com',
+  })
+
+  assert.ok(signedUrl)
+  assert.match(signedUrl, /^https:\/\/ai-drama-1255393412\.cos\.ap-shanghai\.myqcloud\.com\/seedream\/uploads\/demo\.jpg\?/)
 })

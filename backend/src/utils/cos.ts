@@ -243,6 +243,18 @@ export function createCosRequestAuthorization(
   return createAuthorization(method, url.pathname || '/', config)
 }
 
+export function createCosPresignedObjectUrl(
+  method: string,
+  key: string,
+  config: CosConfig | null = getCosConfig(),
+) {
+  if (!config) return null
+  const objectUrl = buildCosObjectUrl(key, { ...config, publicBaseUrl: undefined })
+  const authorization = createCosRequestAuthorization(method, objectUrl, config)
+  if (!authorization) return null
+  return `${objectUrl}?${authorization}`
+}
+
 export async function uploadFileToCos(filePath: string, key: string, config: CosConfig = getCosConfig() as CosConfig) {
   if (!config) return null
 

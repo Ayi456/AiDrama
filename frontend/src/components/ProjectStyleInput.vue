@@ -1,5 +1,5 @@
 <template>
-  <div class="project-style-input">
+  <div :class="['project-style-input', { 'project-style-input--compact': compact }]">
     <input
       v-model="draft"
       class="input project-style-input__field"
@@ -40,6 +40,7 @@ const props = defineProps({
   modelValue: { type: String, default: '' },
   placeholder: { type: String, default: '选择或输入项目风格' },
   disabled: { type: Boolean, default: false },
+  compact: { type: Boolean, default: false },
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -87,6 +88,10 @@ function pick(value) {
   gap: 6px;
 }
 
+.project-style-input--compact {
+  gap: 6px;
+}
+
 .project-style-input__preset {
   height: 26px;
   padding: 0 10px;
@@ -98,6 +103,13 @@ function pick(value) {
   font-weight: 600;
   cursor: pointer;
   transition: border-color 0.16s var(--ease-out), color 0.16s var(--ease-out), background 0.16s var(--ease-out);
+}
+
+.project-style-input--compact .project-style-input__preset {
+  height: 24px;
+  padding: 0 9px;
+  font-size: 10.5px;
+  background: rgba(248, 251, 255, 0.74);
 }
 
 .project-style-input__preset:hover,
