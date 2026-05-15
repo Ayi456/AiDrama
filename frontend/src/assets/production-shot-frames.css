@@ -2795,6 +2795,11 @@
   display: block;
 }
 
+.prod-video--source-compact {
+  min-height: 160px;
+  max-height: 220px;
+}
+
 .video-workbench__ref {
   position: relative;
   min-height: 132px;

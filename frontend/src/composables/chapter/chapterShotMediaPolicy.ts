@@ -204,10 +204,15 @@ export function buildVideoGeneratePayload(input: {
   }
 
   if (overrideMode === 'multimodal') {
+    const referenceImageUrls = normalizeUrlList([
+      overrideFirst,
+      overrideImage,
+      ...normalizeUrlList(override.reference_image_urls),
+    ]).slice(0, 9)
     return {
       ...payload,
       reference_mode: 'multimodal',
-      reference_image_urls: normalizeUrlList(override.reference_image_urls),
+      reference_image_urls: referenceImageUrls,
       reference_video_urls: normalizeUrlList(override.reference_video_urls),
       reference_audio_urls: normalizeUrlList(override.reference_audio_urls),
     }

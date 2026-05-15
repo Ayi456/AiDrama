@@ -61,15 +61,21 @@ const projectStyleLabelMap: Record<string, string> = {
   realistic: '写实',
   cinematic: '电影感',
   guofeng: '国风写实',
-  anime: '二次元动漫',
+  anime: '动漫',
   ink_wash: '水墨风',
   cyberpunk: '赛博朋克',
+}
+
+const legacyProjectStyleMap: Record<string, string> = {
+  二次元: 'anime',
+  二次元动漫: 'anime',
 }
 
 function getStyleText(style?: string | null, useLabel = false) {
   const normalized = style?.trim()
   if (!normalized) return ''
-  return useLabel ? (projectStyleLabelMap[normalized] || normalized) : normalized
+  const legacyValue = legacyProjectStyleMap[normalized]
+  return useLabel ? (projectStyleLabelMap[normalized] || projectStyleLabelMap[legacyValue] || normalized) : (legacyValue || normalized)
 }
 
 const visualDescriptionKeywords = [

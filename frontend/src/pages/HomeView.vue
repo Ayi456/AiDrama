@@ -107,7 +107,7 @@
           </label>
           <label class="field">
             <span class="field-label">项目风格</span>
-            <BaseSelect v-model="form.style" :options="styleOptions" placeholder="选择项目风格" />
+            <ProjectStyleInput v-model="form.style" />
             <span class="field-hint">这会影响整个项目的图片和视频生成风格。</span>
           </label>
           <label class="field">
@@ -145,7 +145,8 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { aiConfigAPI, dramaAPI } from '@/composables/useApi'
 import BaseSelect from '@/components/BaseSelect.vue'
-import { DEFAULT_PROJECT_STYLE, getProjectStyleLabel, PROJECT_STYLE_OPTIONS } from '@/utils/project-style'
+import ProjectStyleInput from '@/components/ProjectStyleInput.vue'
+import { DEFAULT_PROJECT_STYLE, getProjectStyleLabel, normalizeProjectStyleInput } from '@/utils/project-style'
 
 const router = useRouter()
 const dramas = ref([])
@@ -156,7 +157,6 @@ const videoConfigs = ref([])
 const form = ref({ title: '', style: DEFAULT_PROJECT_STYLE, total_episodes: 1, image_config_id: null, video_config_id: null })
 const imageConfigOptions = computed(() => imageConfigs.value.map(c => ({ label: configLabel(c), value: c.id })))
 const videoConfigOptions = computed(() => videoConfigs.value.map(c => ({ label: configLabel(c), value: c.id })))
-const styleOptions = PROJECT_STYLE_OPTIONS.map(option => ({ label: option.label, value: option.value }))
 
 function configLabel(config) {
   if (!config) return ''
@@ -196,7 +196,10 @@ async function loadConfigs() {
 async function create() {
   if (!form.value.title?.trim()) return
   try {
-    const d = await dramaAPI.create(form.value)
+    const d = await dramaAPI.create({
+      ...form.value,
+      style: normalizeProjectStyleInput(form.value.style),
+    })
     showCreate.value = false
     router.push(`/drama/${d.id}`)
   } catch (e) {

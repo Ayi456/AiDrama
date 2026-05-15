@@ -62,6 +62,23 @@ runTest('buildCharacterPortraitGenerationPrompt keeps portrait prompts visual', 
   assert.doesNotMatch(prompt, /玉牌/)
 })
 
+runTest('buildCharacterPortraitGenerationPrompt labels anime project style as 动漫', () => {
+  const prompt = buildCharacterPortraitGenerationPrompt({
+    name: '阿宁',
+    description: '年轻女孩，黑色长发，青色修炼服，神情专注',
+    style: 'anime',
+  } as any)
+  const legacyPrompt = buildCharacterPortraitGenerationPrompt({
+    name: '阿宁',
+    description: '年轻女孩，黑色长发，青色修炼服，神情专注',
+    style: '二次元',
+  } as any)
+
+  assert.match(prompt, /项目风格[:：]\s*动漫/)
+  assert.doesNotMatch(prompt, /二次元动漫/)
+  assert.match(legacyPrompt, /项目风格[:：]\s*动漫/)
+})
+
 runTest('buildCharacterPortraitGenerationPrompt falls back to visual description clauses', () => {
   const prompt = buildCharacterPortraitGenerationPrompt({
     name: '顾玄',

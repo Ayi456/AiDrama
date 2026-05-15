@@ -40,6 +40,16 @@
             <span v-if="drama.style" class="meta-divider"></span>
             <span v-if="drama.style" class="style-chip">{{ getProjectStyleLabel(drama.style) }}</span>
           </div>
+          <div class="project-style-editor">
+            <div class="project-style-editor__copy">
+              <span class="field-label">项目风格</span>
+              <span class="field-hint">会影响当前项目后续图片和视频生成。</span>
+            </div>
+            <ProjectStyleInput v-model="styleDraft" :disabled="savingStyle" />
+            <button class="btn btn-sm" :disabled="savingStyle || !styleDirty" @click="saveProjectStyle">
+              {{ savingStyle ? '保存中...' : '保存风格' }}
+            </button>
+          </div>
         </div>
       </div>
       <button class="btn btn-primary" @click="openAddChapter">
@@ -166,8 +176,9 @@ import { toast } from 'vue-sonner'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BaseSelect from '@/components/BaseSelect.vue'
+import ProjectStyleInput from '@/components/ProjectStyleInput.vue'
 import { aiConfigAPI, chapterAPI, dramaAPI } from '@/composables/useApi'
-import { getProjectStyleLabel } from '@/utils/project-style'
+import { getProjectStyleLabel, normalizeProjectStyleInput } from '@/utils/project-style'
 
 const route = useRoute()
 const router = useRouter()
@@ -177,7 +188,9 @@ const loading = ref(true)
 const loadError = ref('')
 const addDialog = ref(false)
 const creatingChapter = ref(false)
+const savingStyle = ref(false)
 const newChapterTitle = ref('')
+const styleDraft = ref('')
 const imageConfigs = ref([])
 const videoConfigs = ref([])
 const newChapterImageConfigId = ref(null)
@@ -198,12 +211,16 @@ const videoConfigOptions = computed(() => videoConfigs.value.map(c => ({ label: 
 const canCreateChapter = computed(() => !!(newChapterImageConfigId.value && newChapterVideoConfigId.value))
 const dramaImageConfigId = computed(() => drama.value?.image_config_id || drama.value?.imageConfigId || null)
 const dramaVideoConfigId = computed(() => drama.value?.video_config_id || drama.value?.videoConfigId || null)
+const styleDirty = computed(() => (
+  normalizeProjectStyleInput(styleDraft.value) !== normalizeProjectStyleInput(drama.value?.style || '')
+))
 
 async function load() {
   loading.value = true
   loadError.value = ''
   try {
     drama.value = await dramaAPI.get(dramaId)
+    styleDraft.value = drama.value?.style || ''
     if (dramaImageConfigId.value) newChapterImageConfigId.value = dramaImageConfigId.value
     if (dramaVideoConfigId.value) newChapterVideoConfigId.value = dramaVideoConfigId.value
   } catch (e) {
@@ -252,6 +269,22 @@ async function addChapter() {
     toast.error(e.message)
   } finally {
     creatingChapter.value = false
+  }
+}
+
+async function saveProjectStyle() {
+  if (!drama.value || !styleDirty.value) return
+  try {
+    savingStyle.value = true
+    const style = normalizeProjectStyleInput(styleDraft.value)
+    await dramaAPI.update(dramaId, { style })
+    drama.value = { ...drama.value, style }
+    styleDraft.value = style
+    toast.success('项目风格已更新')
+  } catch (e) {
+    toast.error(e.message)
+  } finally {
+    savingStyle.value = false
   }
 }
 

@@ -194,6 +194,53 @@
                 <span class="tag"><Music :size="11" /> 音频 {{ multimodalAudioUrls.length }}/3</span>
               </div>
 
+              <div class="video-workbench__multi-block video-workbench__capture-source video-workbench__capture-source--multi">
+                <div class="video-workbench__capture-head">
+                  <div class="shot-studio__field-label">上一镜头截帧</div>
+                  <div class="video-workbench__capture-actions">
+                    <button
+                      class="btn btn-sm"
+                      type="button"
+                      :disabled="isCapturingFrame || !captureSourceVideoUrl"
+                      @click="captureCurrentFrame"
+                    >
+                      <Camera v-if="!isCapturingFrame" :size="12" />
+                      <Loader2 v-else :size="12" class="animate-spin" />
+                      {{ isCapturingFrame ? '截取中...' : '截取当前帧' }}
+                    </button>
+                    <button
+                      v-if="capturedFrameUrl"
+                      class="btn btn-sm"
+                      type="button"
+                      @click="clearCapturedFrame"
+                    >
+                      <Trash2 :size="12" />
+                      移除截帧
+                    </button>
+                  </div>
+                  <span v-if="captureSourceLabel" class="dim" style="font-size:12px">来源：{{ captureSourceLabel }}</span>
+                </div>
+                <video
+                  v-if="captureSourceVideoUrl"
+                  ref="captureSourceVideoEl"
+                  :src="assetUrl(captureSourceVideoUrl)"
+                  class="prod-video prod-video--source prod-video--source-compact"
+                  controls
+                  crossorigin="anonymous"
+                  preload="metadata"
+                  playsinline
+                />
+                <div v-else class="shot-empty-block">当前没有上一镜头视频可截取</div>
+                <div v-if="capturedFrameUrl" class="video-workbench__refs video-workbench__refs--compact">
+                  <button class="video-workbench__ref" type="button" @click="openReference(capturedFrameUrl, '多模态截帧参考')">
+                    <img :src="assetUrl(capturedFrameUrl)" class="previewable-image" />
+                    <b>截帧参考</b>
+                    <span class="video-workbench__remove" @click.stop="clearCapturedFrame">×</span>
+                  </button>
+                </div>
+                <div class="shot-studio__helper">截取的画面会作为 1 张参考图，与下方图片、视频、音频一起参与多模态生成。</div>
+              </div>
+
               <div class="video-workbench__multi-block">
                 <div class="video-workbench__multi-head">
                   <div class="shot-studio__field-label">参考图</div>
@@ -694,7 +741,7 @@ const sceneReferenceOptions = computed(() => (
 ))
 
 const multimodalImageUrls = computed(() => (
-  uniqueStrings(selectedReferenceImages.value.map(item => item.url)).slice(0, 9)
+  uniqueStrings([capturedFrameUrl.value, ...selectedReferenceImages.value.map(item => item.url)]).slice(0, 9)
 ))
 
 const multimodalVideoUrls = computed(() => (
@@ -805,6 +852,7 @@ function generateSelectedVideo() {
 
   props.handlers.genVid(selectedShot.value, {
     reference_mode: 'multimodal',
+    first_frame_url: capturedFrameUrl.value || undefined,
     reference_image_urls: multimodalImageUrls.value,
     reference_video_urls: multimodalVideoUrls.value,
     reference_audio_urls: multimodalAudioUrls.value,
@@ -880,6 +928,10 @@ async function captureCurrentFrame() {
     toast.error('当前没有上一镜头视频可截取')
     return
   }
+  if (referenceMode.value === 'multimodal' && !capturedFrameUrl.value && mediaItemsFor('image').length >= mediaLimit('image')) {
+    toast.error('参考图已达到上限，请先移除一张图片再截帧')
+    return
+  }
   isCapturingFrame.value = true
   try {
     const file = await captureVideoFrameFile(captureSourceVideoEl.value, {
@@ -896,7 +948,7 @@ async function captureCurrentFrame() {
       ...capturedFrameSourceLabelByShot.value,
       [selectedShotKey.value]: captureSourceLabel.value || '上一镜头视频',
     }
-    referenceMode.value = 'capture'
+    if (referenceMode.value !== 'multimodal') referenceMode.value = 'capture'
     toast.success('已截取上一镜头帧')
   } catch (error) {
     toast.error(error instanceof Error ? error.message : '截帧失败')
@@ -922,6 +974,13 @@ function mediaLimit(type) {
   return 3
 }
 
+function mediaCount(type) {
+  const count = mediaItemsFor(type).length
+  if (type !== 'image' || referenceMode.value !== 'multimodal') return count
+  if (!capturedFrameUrl.value) return count
+  return mediaItemsFor(type).some(item => item.url === capturedFrameUrl.value) ? count : count + 1
+}
+
 function setReferenceItems(type, items) {
   const targetRef = mediaRefFor(type)
   targetRef.value = {
@@ -934,7 +993,7 @@ function addReference(type, item) {
   if (!item?.url) return
   const current = mediaItemsFor(type)
   if (current.some(ref => ref.url === item.url)) return
-  if (current.length >= mediaLimit(type)) {
+  if (mediaCount(type) >= mediaLimit(type)) {
     toast.error(`参考${type === 'image' ? '图' : type === 'video' ? '视频' : '音频'}最多 ${mediaLimit(type)} 个`)
     return
   }
@@ -967,7 +1026,7 @@ async function uploadReferenceFiles(type, event) {
   if (input) input.value = ''
   if (!files.length) return
 
-  const remaining = mediaLimit(type) - mediaItemsFor(type).length
+  const remaining = mediaLimit(type) - mediaCount(type)
   if (remaining <= 0) {
     toast.error(`参考${type === 'image' ? '图' : type === 'video' ? '视频' : '音频'}已达到上限`)
     return

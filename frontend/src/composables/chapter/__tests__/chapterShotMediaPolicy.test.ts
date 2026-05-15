@@ -77,3 +77,24 @@ runTest('capture mode falls back to single image when no tail frame exists', () 
   assert.equal(payload.first_frame_url, undefined)
   assert.equal(payload.last_frame_url, undefined)
 })
+
+runTest('multimodal mode can include a captured frame as a reference image', () => {
+  const payload = buildVideoGeneratePayload({
+    storyboard,
+    dramaId: 3,
+    override: {
+      reference_mode: 'multimodal',
+      first_frame_url: 'captured-frame.png',
+      reference_image_urls: ['manual-image.png'],
+      reference_video_urls: ['motion-ref.mp4'],
+      reference_audio_urls: ['voice-ref.mp3'],
+    },
+  })
+
+  assert.equal(payload.reference_mode, 'multimodal')
+  assert.deepEqual(payload.reference_image_urls, ['captured-frame.png', 'manual-image.png'])
+  assert.deepEqual(payload.reference_video_urls, ['motion-ref.mp4'])
+  assert.deepEqual(payload.reference_audio_urls, ['voice-ref.mp3'])
+  assert.equal(payload.first_frame_url, undefined)
+  assert.equal(payload.image_url, undefined)
+})
