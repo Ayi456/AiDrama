@@ -79,6 +79,7 @@
               :view-mode="viewMode"
               @edit="openEdit"
               @delete="deleteAsset"
+              @open-preview="openPreview"
             />
             <button class="character-assets__add-card" type="button" @click="openCreate('male_lead')">
               <Plus :size="20" />
@@ -100,6 +101,7 @@
               :view-mode="viewMode"
               @edit="openEdit"
               @delete="deleteAsset"
+              @open-preview="openPreview"
             />
             <button class="character-assets__add-card" type="button" @click="openCreate('custom')">
               <Plus :size="20" />
@@ -192,16 +194,35 @@
         </form>
       </div>
     </div>
+
+    <div v-if="previewImage.open && previewImage.src" class="overlay character-assets__preview-overlay" @click.self="closePreview">
+      <div class="character-assets__preview">
+        <div class="character-assets__preview-head">
+          <div class="character-assets__preview-copy">
+            <h2>{{ previewImage.title || '角色形象预览' }}</h2>
+            <p>{{ previewImage.meta || '角色形象库' }}</p>
+          </div>
+          <button class="btn btn-ghost btn-icon" type="button" title="关闭" @click="closePreview">
+            <X :size="15" />
+          </button>
+        </div>
+        <div class="character-assets__preview-body">
+          <img :src="assetUrl(previewImage.src)" :alt="previewImage.title || '角色形象预览'" />
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { toast } from 'vue-sonner'
 import { computed, defineComponent, h, onMounted, ref } from 'vue'
-import { LayoutGrid, List, Pencil, Plus, Search, Trash2, Upload, UserRound, X } from 'lucide-vue-next'
+import { LayoutGrid, List, Pencil, Plus, Search, Trash2, Upload, UserRound, X, ZoomIn } from 'lucide-vue-next'
 import { characterAssetAPI, uploadAPI } from '@/composables/useApi'
+import { useConfirm } from '@/composables/useConfirm'
 import { assetUrl } from '@/utils/asset-url'
 
+const { confirm } = useConfirm()
 const assets = ref([])
 const loading = ref(false)
 const assetBusy = ref(false)
@@ -215,6 +236,7 @@ const showEditor = ref(false)
 const editingAsset = ref(null)
 const pendingFile = ref(null)
 const previewUrl = ref('')
+const previewImage = ref({ open: false, src: '', title: '', meta: '' })
 const form = ref(defaultForm())
 
 const mainRolePresets = new Set(['male_lead', 'female_lead'])
@@ -262,14 +284,27 @@ const CharacterAssetCard = defineComponent({
     asset: { type: Object, required: true },
     viewMode: { type: String, default: 'grid' },
   },
-  emits: ['edit', 'delete'],
+  emits: ['edit', 'delete', 'open-preview'],
   setup(props, { emit }) {
+    const openPreview = (event) => {
+      event.stopPropagation()
+      emit('open-preview', props.asset)
+    }
+
     return () => h('article', {
       class: ['character-asset-card', props.viewMode === 'list' && 'is-list'],
     }, [
       h('div', { class: 'character-asset-card__image' }, [
         imageSource(props.asset)
-          ? h('img', { src: assetUrl(imageSource(props.asset)), alt: props.asset.name || '角色形象' })
+          ? h('button', {
+            type: 'button',
+            class: 'character-asset-card__preview-trigger',
+            title: '放大预览',
+            onClick: openPreview,
+          }, [
+            h('img', { src: assetUrl(imageSource(props.asset)), alt: props.asset.name || '角色形象' }),
+            h('span', { class: 'character-asset-card__preview-icon' }, [h(ZoomIn, { size: 14 })]),
+          ])
           : h(UserRound, { size: 34 }),
         h('span', { class: ['character-asset-card__ribbon', getRolePreset(props.asset)] }, rolePresetLabel(getRolePreset(props.asset))),
       ]),
@@ -356,6 +391,21 @@ function cardTags(asset) {
 function cardMeta(asset) {
   const desc = String(asset?.description || asset?.appearance || '').trim()
   return desc || `${rolePresetLabel(getRolePreset(asset))} / ${genderLabel(getGender(asset))}`
+}
+
+function openPreview(asset) {
+  const src = imageSource(asset)
+  if (!src) return
+  previewImage.value = {
+    open: true,
+    src,
+    title: asset?.name || '角色形象预览',
+    meta: cardMeta(asset),
+  }
+}
+
+function closePreview() {
+  previewImage.value = { open: false, src: '', title: '', meta: '' }
 }
 
 async function loadAssets() {
@@ -452,7 +502,13 @@ async function saveAsset() {
 
 async function deleteAsset(asset) {
   if (!asset?.id) return
-  if (!confirm(`确定删除「${asset.name || '角色形象'}」吗？`)) return
+  const ok = await confirm({
+    title: '删除角色形象',
+    message: `确定删除「${asset.name || '角色形象'}」吗？`,
+    confirmText: '删除',
+    variant: 'danger',
+  })
+  if (!ok) return
   try {
     await characterAssetAPI.del(asset.id)
     await loadAssets()

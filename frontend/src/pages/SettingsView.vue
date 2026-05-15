@@ -319,6 +319,9 @@ import { Plus, Pencil, Trash2, FileText, ChevronDown, Check, Loader2, Bot, Cpu }
 import BaseSelect from '@/components/BaseSelect.vue'
 import { toast } from 'vue-sonner'
 import { aiConfigAPI, agentConfigAPI, skillsAPI } from '@/composables/useApi'
+import { useConfirm } from '@/composables/useConfirm'
+
+const { confirm } = useConfirm()
 const tab = ref('ai')
 const showAdvanced = ref(false)
 const baseTabs = [
@@ -457,7 +460,17 @@ function applyProviderPreset(type, provider) {
 
 async function loadCfgs() { try { cfgs.value = await aiConfigAPI.list() } catch (e) { toast.error(e.message) } }
 async function toggleCfg(c) { await aiConfigAPI.update(c.id, { is_active: !c.is_active }); loadCfgs() }
-async function delCfg(id) { await aiConfigAPI.del(id); toast.success('已删除'); loadCfgs() }
+async function delCfg(id) {
+  const cfg = cfgs.value.find(item => item.id === id)
+  const ok = await confirm({
+    title: '删除 AI 服务',
+    message: `确定删除「${cfg?.name || 'AI 服务'}」？此操作不可恢复。`,
+    confirmText: '删除',
+    variant: 'danger',
+  })
+  if (!ok) return
+  await aiConfigAPI.del(id); toast.success('已删除'); loadCfgs()
+}
 function startAddCfg(t) {
   cfgEditId.value = null
   cfgTestResult.value = null
@@ -752,7 +765,13 @@ async function confirmAddSkill() {
 }
 
 async function deleteSkill(id) {
-  if (!confirm(`确定删除 Skill「${id}」？`)) return
+  const ok = await confirm({
+    title: '删除 Skill',
+    message: `确定删除 Skill「${id}」？`,
+    confirmText: '删除',
+    variant: 'danger',
+  })
+  if (!ok) return
   try {
     await skillsAPI.del(id)
     if (editingSkill.value === id) editingSkill.value = null

@@ -4,13 +4,15 @@
       <component :is="Component" :key="viewKey" />
     </component>
   </RouterView>
-  <Toaster position="top-center" :duration="3000" rich-colors close-button />
+  <Toaster position="top-right" :duration="3000" rich-colors close-button />
+  <AppConfirm />
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import { Toaster } from 'vue-sonner'
+import AppConfirm from './components/AppConfirm.vue'
 import DefaultLayout from './layouts/default.vue'
 import StudioLayout from './layouts/studio.vue'
 

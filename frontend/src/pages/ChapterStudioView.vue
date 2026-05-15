@@ -159,6 +159,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { chapterAPI, dramaAPI, storyboardAPI, characterAPI, sceneAPI, mergeAPI, characterAssetAPI, uploadAPI } from '@/composables/useApi'
 import { useAgent } from '@/composables/useAgent'
+import { useConfirm } from '@/composables/useConfirm'
 import ChapterBottomBubble from '@/components/chapter/ChapterBottomBubble.vue'
 import ChapterExportPanel from '@/components/chapter/ChapterExportPanel.vue'
 import ChapterImageViewer from '@/components/chapter/ChapterImageViewer.vue'
@@ -185,6 +186,7 @@ import {
 
 const route = useRoute()
 const router = useRouter()
+const { confirm } = useConfirm()
 const dramaId = Number(route.params.id)
 const chapterNumber = Number(route.params.chapterNumber || route.params.episodeNumber)
 
@@ -467,7 +469,13 @@ function getSceneName(sb) {
 }
 
 async function deleteShot(sb) {
-  if (!confirm('确定删除此镜头？')) return
+  const ok = await confirm({
+    title: '删除镜头',
+    message: '确定删除此镜头？',
+    confirmText: '删除',
+    variant: 'danger',
+  })
+  if (!ok) return
   const index = sbs.value.indexOf(sb)
   await storyboardAPI.del(sb.id)
   await refresh()

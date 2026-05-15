@@ -144,11 +144,13 @@ import { toast } from 'vue-sonner'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { aiConfigAPI, dramaAPI } from '@/composables/useApi'
+import { useConfirm } from '@/composables/useConfirm'
 import BaseSelect from '@/components/BaseSelect.vue'
 import ProjectStyleInput from '@/components/ProjectStyleInput.vue'
 import { DEFAULT_PROJECT_STYLE, getProjectStyleLabel, normalizeProjectStyleInput } from '@/utils/project-style'
 
 const router = useRouter()
+const { confirm } = useConfirm()
 const dramas = ref([])
 const loading = ref(false)
 const showCreate = ref(false)
@@ -208,7 +210,13 @@ async function create() {
 }
 
 async function delDrama(d) {
-  if (!confirm(`确定删除「${d.title}」？此操作不可恢复。`)) return
+  const ok = await confirm({
+    title: '删除项目',
+    message: `确定删除「${d.title}」？此操作不可恢复。`,
+    confirmText: '删除',
+    variant: 'danger',
+  })
+  if (!ok) return
   try {
     await dramaAPI.del(d.id)
     toast.success('已删除')

@@ -248,10 +248,66 @@
   display: block;
 }
 
+.character-asset-card__preview-trigger {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #fff;
+  cursor: zoom-in;
+}
+
+.character-asset-card__preview-trigger img {
+  transition: transform 0.22s var(--ease-out), filter 0.22s var(--ease-out);
+}
+
+.character-asset-card:hover .character-asset-card__preview-trigger img,
+.character-asset-card__preview-trigger:focus-visible img {
+  transform: scale(1.035);
+  filter: saturate(1.05);
+}
+
+.character-asset-card__preview-trigger:focus-visible {
+  outline: 2px solid rgba(76, 125, 255, 0.88);
+  outline-offset: -3px;
+}
+
+.character-asset-card__preview-icon {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.66);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.18s var(--ease-out), transform 0.18s var(--ease-out), background 0.18s var(--ease-out);
+}
+
+.character-asset-card:hover .character-asset-card__preview-icon,
+.character-asset-card__preview-trigger:focus-visible .character-asset-card__preview-icon {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.character-asset-card__preview-trigger:hover .character-asset-card__preview-icon {
+  background: rgba(15, 23, 42, 0.78);
+}
+
 .character-asset-card__ribbon {
   position: absolute;
   top: 10px;
   left: 10px;
+  z-index: 1;
   padding: 4px 8px;
   border-radius: 6px;
   background: rgba(96, 113, 138, 0.78);
@@ -553,6 +609,86 @@
   padding-top: 4px;
 }
 
+.character-assets__preview-overlay {
+  z-index: 130;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.48);
+}
+
+.character-assets__preview {
+  width: min(980px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow-elevated);
+  animation: scaleIn 0.2s var(--ease-out);
+}
+
+.character-assets__preview-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.character-assets__preview-copy {
+  min-width: 0;
+}
+
+.character-assets__preview-copy h2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-body);
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.character-assets__preview-copy p {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  margin-top: 4px;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.character-assets__preview-body {
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background:
+    linear-gradient(45deg, rgba(226, 232, 240, 0.34) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(226, 232, 240, 0.34) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(226, 232, 240, 0.34) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(226, 232, 240, 0.34) 75%),
+    #f8fafc;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  background-size: 16px 16px;
+}
+
+.character-assets__preview-body img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: calc(100vh - 150px);
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
+}
+
 @media (max-width: 820px) {
   .character-assets.page {
     padding: 22px 18px 32px;
@@ -592,6 +728,27 @@
     grid-column: 1 / -1;
     justify-content: flex-end;
     padding: 0 12px 12px;
+  }
+
+  .character-assets__preview-overlay {
+    padding: 12px;
+  }
+
+  .character-assets__preview {
+    width: 100%;
+    max-height: calc(100vh - 24px);
+  }
+
+  .character-assets__preview-head {
+    padding: 12px 12px 10px;
+  }
+
+  .character-assets__preview-body {
+    padding: 10px;
+  }
+
+  .character-assets__preview-body img {
+    max-height: calc(100vh - 122px);
   }
 }
 
