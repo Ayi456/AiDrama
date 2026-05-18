@@ -5,6 +5,7 @@ import { success, badRequest } from '../utils/response.js'
 import { composeStoryboard } from '../services/compose/ffmpeg-compose.js'
 import { logTaskError, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
 import { toSnakeCase } from '../utils/transform.js'
+import { errorMessageFromUnknown } from '../utils/error.js'
 
 const app = new Hono()
 
@@ -16,9 +17,10 @@ app.post('/storyboards/:id/compose', async (c) => {
     const composedUrl = await composeStoryboard(id)
     logTaskSuccess('ComposeAPI', 'single-compose', { storyboardId: id, output: composedUrl })
     return success(c, { id, composed_video_url: composedUrl })
-  } catch (err: any) {
-    logTaskError('ComposeAPI', 'single-compose', { storyboardId: id, error: err.message })
-    return badRequest(c, err.message)
+  } catch (error: unknown) {
+    const message = errorMessageFromUnknown(error, 'Compose failed')
+    logTaskError('ComposeAPI', 'single-compose', { storyboardId: id, error: message })
+    return badRequest(c, message)
   }
 })
 
@@ -45,8 +47,9 @@ app.post('/episodes/:id/compose-all', async (c) => {
     for (const sb of withVideo) {
       try {
         await composeStoryboard(sb.id)
-      } catch (err: any) {
-        logTaskError('ComposeAPI', 'batch-item', { storyboardId: sb.id, episodeId, error: err.message })
+      } catch (error: unknown) {
+        const message = errorMessageFromUnknown(error, 'Compose failed')
+        logTaskError('ComposeAPI', 'batch-item', { storyboardId: sb.id, episodeId, error: message })
       }
     }
     logTaskSuccess('ComposeAPI', 'batch-compose', { episodeId, total: withVideo.length })

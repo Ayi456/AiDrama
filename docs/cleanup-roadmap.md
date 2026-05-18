@@ -73,12 +73,67 @@ Current result:
 - `frontend/package.json` has `npm run typecheck`.
 - `vue-tsc` and `@types/node` are installed as dev dependencies.
 - `frontend/src/composables/useApi.ts` has first-pass API envelope, request body, upload, grid, generation, and config types.
+- `frontend/src/composables/chapter/useChapterStudioNavigation.ts` now consumes
+  shared chapter domain types instead of loose `any[]` inputs.
+- `frontend/src/composables/chapter/__tests__/useChapterStudioNavigationTypes.test.ts`
+  locks the navigation composable against reintroducing loose `any` types.
+- `frontend/src/composables/chapter/useChapterGridTool.ts` now uses local chapter
+  grid/history/cache types instead of loose `any` inputs and catch values.
+- `frontend/src/composables/chapter/__tests__/useChapterGridToolTypes.test.ts`
+  locks the grid tool against reintroducing loose `any` usage.
+- `frontend/src/composables/chapter/useChapterImageViewer.ts` now uses an explicit
+  gallery payload type instead of a loose `any` handler parameter.
+- `frontend/src/composables/chapter/__tests__/useChapterImageViewerTypes.test.ts`
+  locks the image viewer against reintroducing loose `any` usage.
+- `frontend/src/composables/useAgent.ts` now uses a typed API entity response and
+  `unknown` error handling instead of loose `any`.
+- `frontend/src/composables/useImageGenerationMonitor.ts` now uses the shared
+  image-generation response type instead of a loose `any` poll result.
+- `frontend/src/composables/__tests__/useAgentTypes.test.ts` and
+  `frontend/src/composables/__tests__/useImageGenerationMonitorTypes.test.ts` lock
+  those non-UI composables against reintroducing loose `any` usage.
 
 Verification:
 
 - `cd frontend && npm run typecheck`
 - `cd frontend && npm run build`
 - `cd frontend && npm run test:layout`
+
+## Batch 11: Backend Route Boundary Cleanup
+
+Status: in progress; typed route bodies and error helpers are in place.
+
+Scope:
+
+- Remove loose body and error typing from the simpler backend route handlers and
+  shared middleware.
+- Keep the larger grid, drama, episode, and adapter cleanup for a later batch.
+- Preserve current API behavior while making route payload contracts explicit.
+
+Current result:
+
+- `backend/src/utils/error.ts` now owns reusable unknown-error message
+  normalization.
+- `backend/src/routes/route-body.ts` now owns JSON body parsing and own-property
+  checks for backend routes.
+- `backend/src/routes/merge-route-policy.ts` now owns selected storyboard id
+  extraction from merge request bodies.
+- `backend/src/routes/merge.ts`, `backend/src/routes/compose.ts`,
+  `backend/src/routes/images.ts`, `backend/src/routes/characters.ts`,
+  `backend/src/routes/scenes.ts`, and `backend/src/middleware/logger.ts` now use
+  typed route bodies and normalized error handling instead of loose route-local
+  `any`.
+- `backend/src/routes/__tests__/route-body.test.ts`,
+  `backend/src/routes/__tests__/merge-route-policy.test.ts`, and
+  `backend/src/utils/__tests__/error.test.ts` lock the new helper boundaries.
+- The backend route cleanup batch passes `cd backend && npm test`.
+
+Next targets:
+
+- Continue backend route cleanup through the remaining high-churn handlers and
+  adapter payload surfaces, starting with the larger grid and drama/episode
+  routes.
+- Keep UI presentation work deferred.
 
 ## Batch 4: Backend Compatibility Cleanup
 
@@ -478,23 +533,31 @@ Current result:
 - `frontend/src/composables/chapter/useChapterStudioConfig.ts` now owns image/video
   config loading, locked config id selection, provider/model labels, and missing
   episode config id backfill.
-- `frontend/src/pages/ChapterStudioView.vue` no longer owns the export selection
-  watcher or direct AI config loading/backfill logic.
+- `frontend/src/composables/chapter/useChapterShotImagePreferences.ts` now owns shot
+  image frame mode, aspect ratio/size presets, local preference persistence, visual
+  character filtering, and shot reference option presentation.
+- `frontend/src/composables/chapter/useChapterScriptDesk.ts` now owns raw/script
+  buffers, save actions, rewrite skip behavior, and script agent dispatch.
+- `frontend/src/composables/chapter/useChapterStoryboardDesk.ts` now owns storyboard
+  field patching, character selection, scene labels, shot selection/opening, and
+  shot create/delete actions.
+- `frontend/src/composables/chapter/useChapterProductionPanelBridge.ts` now owns
+  `ChapterProductionPanel` state and handler assembly.
+- `ChapterStudioView.vue` is now a route shell plus workflow composition layer
+  instead of owning export, config, script, storyboard, shot preference, and
+  production panel wiring inline.
 
 Next targets:
 
-- Continue Track C by extracting shot image preferences and reference option
-  presentation from `ChapterStudioView.vue`.
-- Then extract script desk and storyboard desk actions so the page becomes a route
-  shell plus workflow composition.
-- After the structural page-boundary tasks are done, continue a slower identity
-  pass across UI appearance, product language, API naming, component boundaries,
-  and public-facing docs. Structural cleanup should make the implementation
-  maintainable and AiDrama-owned, but it is not by itself the final standard for
-  making the project feel completely different from the imported GitHub source.
+- UI appearance and presentation-component identity work is deferred for now.
+- Continue non-UI cleanup by tightening remaining chapter workflow contracts and
+  API naming compatibility boundaries, then lock the remaining composables with
+  lightweight residual-scan tests.
 - Continue replacing inherited comments, user-facing tool messages, and helper names
   where they are touched by the remaining cleanup batches.
 
 Verification:
 
-- `cd backend && npm test`
+- `cd frontend && npm run typecheck`
+- `cd frontend && npm run build`
+- `cd frontend && npm run test:layout`

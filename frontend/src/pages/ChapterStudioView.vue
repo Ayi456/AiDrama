@@ -155,9 +155,9 @@
 <script setup>
 import { toast } from 'vue-sonner'
 import { Loader2 } from 'lucide-vue-next'
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { chapterAPI, dramaAPI, storyboardAPI, characterAPI, sceneAPI, mergeAPI, characterAssetAPI, uploadAPI } from '@/composables/useApi'
+import { chapterAPI, dramaAPI, characterAPI, sceneAPI, mergeAPI, characterAssetAPI, uploadAPI } from '@/composables/useApi'
 import { useAgent } from '@/composables/useAgent'
 import { useConfirm } from '@/composables/useConfirm'
 import ChapterBottomBubble from '@/components/chapter/ChapterBottomBubble.vue'
@@ -173,16 +173,13 @@ import { useChapterExportDesk } from '@/composables/chapter/useChapterExportDesk
 import { useChapterGridTool } from '@/composables/chapter/useChapterGridTool'
 import { useChapterImageViewer } from '@/composables/chapter/useChapterImageViewer'
 import { useChapterMediaPipeline } from '@/composables/chapter/useChapterMediaPipeline'
+import { useChapterProductionPanelBridge } from '@/composables/chapter/useChapterProductionPanelBridge'
+import { useChapterScriptDesk } from '@/composables/chapter/useChapterScriptDesk'
+import { useChapterShotImagePreferences } from '@/composables/chapter/useChapterShotImagePreferences'
+import { useChapterStoryboardDesk } from '@/composables/chapter/useChapterStoryboardDesk'
 import { useChapterStudioConfig } from '@/composables/chapter/useChapterStudioConfig'
 import { useChapterStudioNavigation } from '@/composables/chapter/useChapterStudioNavigation'
 import { assetUrl } from '@/utils/asset-url'
-import {
-  SHOT_IMAGE_ASPECT_RATIO_OPTIONS,
-  SHOT_IMAGE_SIZE_PRESET_OPTIONS,
-  isShotImageAspectRatio,
-  isShotImageSizePreset,
-  resolveShotImageSize,
-} from '@/utils/shot-image-size'
 
 const route = useRoute()
 const router = useRouter()
@@ -203,12 +200,7 @@ const characterAssets = ref([])
 const characterAssetBusy = ref(false)
 
 const { running: rn, runningType: rt, run: runAgent } = useAgent()
-
-const localRaw = ref('')
-const localScript = ref('')
-const frameMode = ref('first')
-const shotImageAspectRatio = ref('16:9')
-const shotImageSizePreset = ref('2K')
+const scriptStep = ref(0)
 
 const {
   imageConfigs,
@@ -227,18 +219,34 @@ const {
   episode,
 })
 
-const rawContent = computed(() => episode.value?.content || '')
-const scriptContent = computed(() => episode.value?.script_content || episode.value?.scriptContent || '')
 const epId = computed(() => episode.value?.id || 0)
-const rawLen = computed(() => localRaw.value.replace(/\s/g, '').length || 0)
-const scriptLen = computed(() => localScript.value.replace(/\s/g, '').length || 0)
 
-const frameModeOptions = [
-  { label: '仅首帧', value: 'first' },
-  { label: '首尾帧', value: 'first_last' },
-]
-const shotImageAspectRatioOptions = SHOT_IMAGE_ASPECT_RATIO_OPTIONS.map(option => ({ ...option }))
-const shotImageSizePresetOptions = SHOT_IMAGE_SIZE_PRESET_OPTIONS.map(option => ({ ...option }))
+const {
+  localRaw,
+  localScript,
+  rawContent,
+  scriptContent,
+  rawLen,
+  scriptLen,
+  saveRaw,
+  saveScr,
+  doRewrite,
+  skipRewrite,
+  doExtract,
+  doBreakdown,
+} = useChapterScriptDesk({
+  dramaId,
+  epId,
+  episode,
+  scriptStep,
+  videoConfigs,
+  lockedVideoConfigId,
+  runAgent,
+  refresh,
+  notifySuccess: toast.success,
+  notifyWarning: toast.warning,
+})
+
 const gridLayoutOptions = [
   { label: '2x2', value: '2x2' },
   { label: '3x3', value: '3x3' },
@@ -246,76 +254,50 @@ const gridLayoutOptions = [
   { label: '5x5', value: '5x5' },
 ]
 
-const shotImageResolvedSize = computed(() => resolveShotImageSize(shotImageAspectRatio.value, shotImageSizePreset.value))
-const shotImagePrefsKey = computed(() => `aidrama:shot-image-prefs:${dramaId}:${epId.value || chapterNumber}`)
-
-function restoreShotImagePreferences() {
-  if (!import.meta.client) return
-  try {
-    const raw = localStorage.getItem(shotImagePrefsKey.value)
-    if (!raw) return
-    const parsed = JSON.parse(raw)
-    if (isShotImageAspectRatio(parsed?.aspectRatio)) shotImageAspectRatio.value = parsed.aspectRatio
-    if (isShotImageSizePreset(parsed?.sizePreset)) shotImageSizePreset.value = parsed.sizePreset
-  } catch {}
-}
-
-function handleShotImageAspectRatioChange(value) {
-  if (!isShotImageAspectRatio(value)) return
-  shotImageAspectRatio.value = value
-}
-
-function handleShotImageSizePresetChange(value) {
-  if (!isShotImageSizePreset(value)) return
-  shotImageSizePreset.value = value
-}
-
-function isNarratorCharacter(char) {
-  const text = `${char?.name || ''} ${char?.role || ''}`.toLowerCase()
-  return text.includes('旁白') || text.includes('narrator') || text.includes('画外音')
-}
-
-const visualChars = computed(() => chars.value.filter(char => !isNarratorCharacter(char)))
-const shotReferenceOptions = computed(() => {
-  const options = []
-  chars.value.forEach((char) => {
-    const assetSrc = char.character_asset_image_url || char.characterAssetImageUrl
-    if (assetSrc) options.push({ key: `character-asset-${char.id}`, type: 'character', src: assetSrc, label: `${char.name || `角色 ${char.id}`} 形象` })
-    const src = char.image_url || char.imageUrl
-    if (src) options.push({ key: `character-${char.id}`, type: 'character', src, label: char.name || `角色 ${char.id}` })
-  })
-  scenes.value.forEach((scene) => {
-    const src = scene.image_url || scene.imageUrl
-    if (src) options.push({ key: `scene-${scene.id}`, type: 'scene', src, label: scene.name || scene.location || `场景 ${scene.id}` })
-  })
-  return options
+const {
+  frameMode,
+  frameModeOptions,
+  shotImageAspectRatio,
+  shotImageAspectRatioOptions,
+  shotImageSizePreset,
+  shotImageSizePresetOptions,
+  shotImageResolvedSize,
+  visualChars,
+  shotReferenceOptions,
+  restoreShotImagePreferences,
+  handleFrameModeChange,
+  handleShotImageAspectRatioChange,
+  handleShotImageSizePresetChange,
+} = useChapterShotImagePreferences({
+  dramaId,
+  chapterNumber,
+  epId,
+  chars,
+  scenes,
 })
 
-watch([shotImageAspectRatio, shotImageSizePreset, shotImagePrefsKey], () => {
-  if (!import.meta.client) return
-  try {
-    localStorage.setItem(shotImagePrefsKey.value, JSON.stringify({
-      aspectRatio: shotImageAspectRatio.value,
-      sizePreset: shotImageSizePreset.value,
-    }))
-  } catch {}
+const {
+  updateField,
+  getStoryboardCharacterIds,
+  getStoryboardCharacterNames,
+  isStoryboardCharacterSelected,
+  toggleStoryboardCharacter,
+  getSceneName,
+  addShot,
+  deleteShot,
+  handleShotSelection,
+  handleStoryboardOpen,
+  handleShotFieldUpdate,
+} = useChapterStoryboardDesk({
+  epId,
+  sbs,
+  chars,
+  scenes,
+  selectedSb,
+  confirm,
+  refresh,
+  goSubStep: key => goSubStep(key),
 })
-
-watch(rawContent, value => { localRaw.value = value }, { immediate: true })
-watch(scriptContent, value => { localScript.value = value }, { immediate: true })
-
-function toCamel(field) {
-  return field.replace(/_([a-z])/g, (_, char) => char.toUpperCase())
-}
-
-function updateField(sb, field, value) {
-  const current = sb[field] ?? sb[toCamel(field)]
-  if (current === value) return Promise.resolve()
-  sb[field] = value
-  const camelField = toCamel(field)
-  if (camelField !== field) sb[camelField] = value
-  return storyboardAPI.update(sb.id, { [field]: value })
-}
 
 function mergeCharDesc(char) {
   return [char.description, char.appearance, char.personality].filter(Boolean).join('\n')
@@ -438,103 +420,6 @@ async function handleCharacterAssetBind(payload) {
 function handleSceneFieldUpdate(payload) {
   if (!payload?.scene || !payload?.field) return
   updateSceneField(payload.scene, payload.field, payload.value)
-}
-
-function getStoryboardCharacterIds(sb) {
-  return sb?.character_ids || sb?.characterIds || []
-}
-
-function getStoryboardCharacterNames(sb) {
-  const ids = getStoryboardCharacterIds(sb)
-  return chars.value.filter(char => ids.includes(char.id)).map(char => char.name)
-}
-
-function isStoryboardCharacterSelected(sb, charId) {
-  return getStoryboardCharacterIds(sb).includes(charId)
-}
-
-function toggleStoryboardCharacter(sb, charId) {
-  const currentIds = getStoryboardCharacterIds(sb)
-  const nextIds = currentIds.includes(charId)
-    ? currentIds.filter(id => id !== charId)
-    : [...currentIds, charId]
-  updateField(sb, 'character_ids', nextIds)
-}
-
-function getSceneName(sb) {
-  const sceneId = sb?.scene_id || sb?.sceneId
-  if (!sceneId) return '未绑定场景'
-  const scene = scenes.value.find(item => item.id === sceneId)
-  return scene ? `${scene.location} · ${scene.time || '未设时间'}` : `场景 #${sceneId}`
-}
-
-async function deleteShot(sb) {
-  const ok = await confirm({
-    title: '删除镜头',
-    message: '确定删除此镜头？',
-    confirmText: '删除',
-    variant: 'danger',
-  })
-  if (!ok) return
-  const index = sbs.value.indexOf(sb)
-  await storyboardAPI.del(sb.id)
-  await refresh()
-  if (sbs.value.length) selectedSb.value = sbs.value[Math.min(index, sbs.value.length - 1)]
-  else selectedSb.value = null
-}
-
-function saveRaw() {
-  chapterAPI.update(epId.value, { content: localRaw.value })
-  episode.value.content = localRaw.value
-}
-
-function saveScr() {
-  chapterAPI.update(epId.value, { script_content: localScript.value })
-  episode.value.script_content = localScript.value
-}
-
-function doRewrite() {
-  saveRaw()
-  runAgent('script_rewriter', '请读取剧本并改写为格式化剧本，然后保存。', dramaId, epId.value, refresh)
-}
-
-function skipRewrite() {
-  const raw = (localRaw.value || rawContent.value || '').trim()
-  if (!raw) {
-    toast.warning('请先填写原始内容')
-    return
-  }
-  localScript.value = raw
-  saveScr()
-  toast.success('已跳过 AI 改写，当前将直接使用原始内容')
-  scriptStep.value = 2
-}
-
-function doExtract() {
-  saveScr()
-  runAgent('extractor', '请从剧本中提取所有角色和场景信息，提取时自动与项目已有数据进行去重合并。', dramaId, epId.value, refresh)
-}
-
-function doBreakdown() {
-  const config = videoConfigs.value.find(item => item.id === lockedVideoConfigId.value)
-  const label = config ? `${config.name} (${config.provider})` : '默认'
-  runAgent(
-    'storyboard_breaker',
-    `请拆解分镜并生成视频提示词。视频模型：${label}，请根据该模型的特性和时长限制生成合适的视频提示词。`,
-    dramaId,
-    epId.value,
-    refresh,
-  )
-}
-
-async function addShot() {
-  await storyboardAPI.create({
-    episode_id: epId.value,
-    storyboard_number: sbs.value.length + 1,
-    title: `镜头${sbs.value.length + 1}`,
-    duration: 10,
-  })
-  await refresh()
 }
 
 async function refresh() {
@@ -731,7 +616,6 @@ const {
 
 const {
   panel,
-  scriptStep,
   prodTab,
   prodTabIdx,
   prodTabDefs,
@@ -756,6 +640,7 @@ const {
   pipelineProgress,
   currentSubStageLabel,
 } = useChapterStudioNavigation({
+  scriptStep,
   rawContent,
   scriptContent,
   localRaw,
@@ -779,91 +664,84 @@ const shotTypes = [
 const shotAngles = ['平视', '仰视', '俯视', '侧拍', '背拍', '斜侧', '主观视角', '过肩']
 const shotMovements = ['固定', '推镜', '拉镜', '摇镜', '移镜', '跟拍', '升降', '手持', '环绕']
 
-function handleFrameModeChange(value) {
-  frameMode.value = value
-}
-
-function handleShotSelection(sb) {
-  selectedSb.value = sb
-}
-
-function handleStoryboardOpen(sb) {
-  selectedSb.value = sb
-  goSubStep('script:storyboard')
-}
-
 function goPrevProd() {
   prodTabIdx.value = Math.max(0, prodTabIdx.value - 1)
 }
 
-function handleShotFieldUpdate(payload) {
-  if (!payload?.sb || !payload?.field) return
-  updateField(payload.sb, payload.field, payload.value)
-}
-
-const productionPanelState = computed(() => ({
-  scriptContent: scriptContent.value,
-  sbs: sbs.value,
-  prodTab: prodTab.value,
-  prodTabDefs: prodTabDefs.value,
-  visualChars: visualChars.value,
-  characterAssets: characterAssets.value,
-  characterAssetBusy: characterAssetBusy.value,
-  chars: chars.value,
-  scenes: scenes.value,
-  lockedImageConfigLabel: lockedImageConfigLabel.value,
-  pendingCharImageIds: pendingCharImageIds.value,
-  pendingSceneImageIds: pendingSceneImageIds.value,
-  replacingCharacterImageIds: replacingCharacterImageIds.value,
-  replacingSceneImageIds: replacingSceneImageIds.value,
-  shotImgCount: shotImgCount.value,
-  lockedImageModelName: lockedImageModelName.value,
-  lockedImageProvider: lockedImageProvider.value,
-  selectedSbId: selectedSb.value?.id || 0,
-  referenceOptions: shotReferenceOptions.value,
-  shotImageHistory: shotImageHistory.value,
-  frameMode: frameMode.value,
+const {
+  productionPanelState,
+  productionPanelHandlers,
+} = useChapterProductionPanelBridge({
+  panel,
+  scriptContent,
+  sbs,
+  prodTab,
+  prodTabDefs,
+  visualChars,
+  characterAssets,
+  characterAssetBusy,
+  chars,
+  scenes,
+  lockedImageConfigLabel,
+  pendingCharImageIds,
+  pendingSceneImageIds,
+  replacingCharacterImageIds,
+  replacingSceneImageIds,
+  shotImgCount,
+  lockedImageModelName,
+  lockedImageProvider,
+  selectedSb,
+  shotReferenceOptions,
+  shotImageHistory,
+  frameMode,
   frameModeOptions,
-  shotImageAspectRatio: shotImageAspectRatio.value,
+  shotImageAspectRatio,
   shotImageAspectRatioOptions,
-  shotImageSizePreset: shotImageSizePreset.value,
+  shotImageSizePreset,
   shotImageSizePresetOptions,
-  shotImageResolvedSize: shotImageResolvedSize.value,
-  gridImagePath: gridImagePath.value,
-  gridActualLayout: gridActualLayout.value,
-  gridRecoveredMode: gridRecoveredMode.value,
-  gridRecoveredAt: gridRecoveredAt.value,
-  showAllGridHistory: showAllGridHistory.value,
-  gridHistory: gridHistory.value,
-  gridDialog: gridDialog.value,
-  gridStep: gridStep.value,
+  shotImageResolvedSize,
+  gridImagePath,
+  gridActualLayout,
+  gridRecoveredMode,
+  gridRecoveredAt,
+  showAllGridHistory,
+  gridHistory,
+  gridDialog,
+  gridStep,
   gridModes,
-  gridMode: gridMode.value,
-  gridLayout: gridLayout.value,
+  gridMode,
+  gridLayout,
   gridLayoutOptions,
-  gridSelected: gridSelected.value,
-  gridSingleTarget: gridSingleTarget.value,
-  gridCanStart: gridCanStart.value,
-  gridAutoLayout: gridAutoLayout.value,
-  gridPromptLoading: gridPromptLoading.value,
-  gridPromptStatus: gridPromptStatus.value,
-  gridSummary: gridSummary.value,
-  gridPromptSource: gridPromptSource.value,
-  gridPromptText: gridPromptText.value,
-  gridCellPrompts: gridCellPrompts.value,
-  gridBlankStyle: gridBlankStyle.value,
-  gridStatusText: gridStatusText.value,
-  gridOverlayStyle: gridOverlayStyle.value,
-  gridAssignments: gridAssignments.value,
-  activeGridCell: activeGridCell.value,
-  gridAssignedCount: gridAssignedCount.value,
-  gridAssignmentTotalPages: gridAssignmentTotalPages.value,
-  gridAssignmentPage: gridAssignmentPage.value,
-  gridAssignmentPageStart: gridAssignmentPageStart.value,
-  gridAssignmentPageEnd: gridAssignmentPageEnd.value,
-  pagedGridAssignments: pagedGridAssignments.value,
-  gridAssignmentShotOptions: gridAssignmentShotOptions.value,
-  gridFrameTypeOptions: gridFrameTypeOptions.value,
+  gridSelected,
+  gridSingleTarget,
+  gridCanStart,
+  gridAutoLayout,
+  gridPromptLoading,
+  gridPromptStatus,
+  gridSummary,
+  gridPromptSource,
+  gridPromptText,
+  gridCellPrompts,
+  gridBlankStyle,
+  gridStatusText,
+  gridOverlayStyle,
+  gridAssignments,
+  activeGridCell,
+  gridAssignedCount,
+  gridAssignmentTotalPages,
+  gridAssignmentPage,
+  gridAssignmentPageStart,
+  gridAssignmentPageEnd,
+  pagedGridAssignments,
+  gridAssignmentShotOptions,
+  gridFrameTypeOptions,
+  lockedVideoConfigLabel,
+  shotVidCount,
+  lockedVideoProvider,
+  lockedVideoModelName,
+  activeVideoSb,
+  activeVideoShotIndexLabel,
+  videoFailMessage,
   getFirstFrame,
   getLastFrame,
   getRefs,
@@ -872,12 +750,6 @@ const productionPanelState = computed(() => ({
   isPendingShotFrame,
   gridCellLabel,
   gridCellTitle,
-  lockedVideoConfigLabel: lockedVideoConfigLabel.value,
-  shotVidCount: shotVidCount.value,
-  lockedVideoProvider: lockedVideoProvider.value,
-  lockedVideoModelName: lockedVideoModelName.value,
-  activeVideoSb: activeVideoSb.value,
-  activeVideoShotIndexLabel: activeVideoShotIndexLabel.value,
   hasVid,
   getVideoUrl,
   hasImg,
@@ -886,18 +758,12 @@ const productionPanelState = computed(() => ({
   getVideoStateText,
   getVideoReferenceSummary,
   isPendingVideo,
-  videoFailMessage,
   getVideoHistory,
   isVideoHistoryLoading,
   loadVideoHistory,
   videoHistoryUrl,
   getVideoGenerateActionLabel,
   buildDefaultVideoPrompt,
-}))
-
-const productionPanelHandlers = {
-  goScript: () => { panel.value = 'script' },
-  setProdTab: (value) => { prodTab.value = value },
   batchCharImages,
   genCharImg: handleCharacterGenerate,
   replaceCharImage,
@@ -922,17 +788,11 @@ const productionPanelHandlers = {
   handleShotFieldUpdate,
   handleShotFrameGenerate,
   handleShotFrameRestore,
-  setGridDialog: (value) => { gridDialog.value = value },
   handleGridModeChange,
-  setGridLayout: (value) => { gridLayout.value = value },
   gridSelectAll,
   handleGridShotToggle,
-  setGridSingleTarget: (value) => {
-    gridSingleTarget.value = value === null || value === undefined || value === '' ? null : Number(value)
-  },
   generateGridPrompt,
   startGridGen,
-  setGridStep: (value) => { gridStep.value = Number(value) || 0 },
   focusGridCell,
   handleGridAssignmentPageChange,
   handleGridAssignmentUpdate,
@@ -941,10 +801,9 @@ const productionPanelHandlers = {
   batchVideos,
   genVid,
   restoreVideoFromHistory,
-  openImageByPath: (path, title) => {
-    if (path) openImageViewer(assetUrl(path), title)
-  },
-}
+  openImageViewer,
+  resolveAssetUrl: assetUrl,
+})
 
 onMounted(() => {
   restoreShotImagePreferences()

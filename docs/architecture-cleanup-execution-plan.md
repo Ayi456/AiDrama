@@ -252,7 +252,7 @@ Verification:
 
 ### 8. Frontend Page Boundary Cleanup
 
-Status: in progress; first two slices completed on 2026-05-08.
+Status: completed on 2026-05-18.
 
 Purpose:
 
@@ -265,9 +265,11 @@ Files:
 
 - Create `frontend/src/composables/chapter/useChapterExportDesk.ts`.
 - Create `frontend/src/composables/chapter/useChapterStudioConfig.ts`.
+- Create `frontend/src/composables/chapter/useChapterShotImagePreferences.ts`.
+- Create `frontend/src/composables/chapter/useChapterScriptDesk.ts`.
+- Create `frontend/src/composables/chapter/useChapterStoryboardDesk.ts`.
+- Create `frontend/src/composables/chapter/useChapterProductionPanelBridge.ts`.
 - Modify `frontend/src/pages/ChapterStudioView.vue`.
-- Continue with shot image preferences, script desk, storyboard desk, and
-  production panel bridge slices.
 
 Current result:
 
@@ -276,18 +278,30 @@ Current result:
   handlers.
 - `useChapterStudioConfig.ts` now owns image/video config loading, locked config
   id selection, provider/model labels, and missing episode config id backfill.
-- `ChapterStudioView.vue` no longer owns the export selection watcher or direct
-  `aiConfigAPI` loading/backfill logic.
+- `useChapterShotImagePreferences.ts` now owns shot image frame mode, aspect
+  ratio/size presets, local preference persistence, visual character filtering, and
+  shot reference option presentation.
+- `useChapterScriptDesk.ts` now owns raw/script buffers, save actions, rewrite skip
+  behavior, and script agent dispatch.
+- `useChapterStoryboardDesk.ts` now owns storyboard field patching, character
+  selection, scene labels, shot selection/opening, and shot create/delete actions.
+- `useChapterProductionPanelBridge.ts` now owns `ChapterProductionPanel` state and
+  handler assembly.
+- `ChapterStudioView.vue` now reads as route data loading plus workflow composition
+  instead of production panel wiring or page-local workflow state.
 
 Verification:
 
 - `cd frontend && npm run typecheck`
 - `cd frontend && npm run build`
 - `cd frontend && npm run test:layout`
-- `rg -n "any|Record<string, any>|catch \\(.*: any\\)" frontend/src/composables/chapter/useChapterExportDesk.ts frontend/src/composables/chapter/useChapterStudioConfig.ts frontend/src/pages/ChapterStudioView.vue`
+- `rg -n "any|Record<string, any>|catch \\(.*: any\\)" frontend/src/composables/chapter/useChapterExportDesk.ts frontend/src/composables/chapter/useChapterStudioConfig.ts frontend/src/composables/chapter/useChapterShotImagePreferences.ts frontend/src/composables/chapter/useChapterScriptDesk.ts frontend/src/composables/chapter/useChapterStoryboardDesk.ts frontend/src/composables/chapter/useChapterProductionPanelBridge.ts frontend/src/pages/ChapterStudioView.vue`
 - `git diff --check`
 
 ### 9. Documentation And Ownership Closeout
+
+Status: in progress; technical page-boundary docs are aligned, owner decisions
+remain.
 
 Purpose:
 
@@ -317,3 +331,37 @@ Verification:
 
 - `git status --short --ignored`
 - Manual review of README, handoff docs, and deployment docs.
+
+### 10. Backend Route Boundary Cleanup
+
+Status: in progress.
+
+Purpose:
+
+- Keep the residual backend route body and error handling cleanup aligned with
+  the architecture plan.
+- Remove loose `any` from the simpler route handlers and helper middleware while
+  preserving route contracts.
+- Leave the larger grid, drama, episode, and adapter cleanup for a later batch
+  once the basic route helper boundaries are settled.
+
+Files:
+
+- Create `backend/src/utils/error.ts`.
+- Create `backend/src/routes/route-body.ts`.
+- Create `backend/src/routes/merge-route-policy.ts`.
+- Create tests under `backend/src/routes/__tests__/` and
+  `backend/src/utils/__tests__/`.
+- Modify `backend/src/routes/merge.ts`.
+- Modify `backend/src/routes/compose.ts`.
+- Modify `backend/src/routes/images.ts`.
+- Modify `backend/src/routes/characters.ts`.
+- Modify `backend/src/routes/scenes.ts`.
+- Modify `backend/src/middleware/logger.ts`.
+- Modify `backend/package.json`.
+
+Verification:
+
+- `cd backend && npm test`
+- `rg -n "\\bany\\b|catch \\(.*: any\\)|Record<string, any>" backend/src/routes/characters.ts backend/src/routes/scenes.ts backend/src/routes/images.ts backend/src/routes/merge.ts backend/src/routes/compose.ts backend/src/middleware/logger.ts backend/src/routes/route-body.ts backend/src/routes/merge-route-policy.ts backend/src/utils/error.ts`
+- `git diff --check`

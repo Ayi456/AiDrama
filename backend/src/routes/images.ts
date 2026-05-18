@@ -5,16 +5,19 @@ import { success, created, now, badRequest } from '../utils/response.js'
 import { generateImage } from '../services/generation/image-generation.js'
 import { logTaskError, logTaskPayload, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
 import { presentImageGenerationAsset, presentImageGenerationAssets } from '../utils/public-asset.js'
+import { errorMessageFromUnknown } from '../utils/error.js'
+import { readJsonBody } from './route-body.js'
 
 const app = new Hono()
 
 // POST /images — Generate image
 app.post('/', async (c) => {
-  const body = await c.req.json()
-  if (!body.prompt) return badRequest(c, 'prompt is required')
+  const body = await readJsonBody(c)
+  const prompt = typeof body.prompt === 'string' ? body.prompt : ''
+  if (!prompt) return badRequest(c, 'prompt is required')
 
   try {
-    let configId: number | undefined = body.config_id
+    let configId: number | undefined = typeof body.config_id === 'number' ? body.config_id : undefined
     if (body.storyboard_id) {
       const [sb] = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.id, Number(body.storyboard_id))).all())
       if (sb) {
@@ -32,15 +35,15 @@ app.post('/', async (c) => {
     })
     logTaskPayload('ImageAPI', 'request body', body)
     const id = await generateImage({
-      storyboardId: body.storyboard_id,
-      dramaId: body.drama_id,
-      sceneId: body.scene_id,
-      characterId: body.character_id,
-      prompt: body.prompt,
-      model: body.model,
-      size: body.size,
-      referenceImages: body.reference_images,
-      frameType: body.frame_type,
+      storyboardId: typeof body.storyboard_id === 'number' ? body.storyboard_id : undefined,
+      dramaId: typeof body.drama_id === 'number' ? body.drama_id : undefined,
+      sceneId: typeof body.scene_id === 'number' ? body.scene_id : undefined,
+      characterId: typeof body.character_id === 'number' ? body.character_id : undefined,
+      prompt,
+      model: typeof body.model === 'string' ? body.model : undefined,
+      size: typeof body.size === 'string' ? body.size : undefined,
+      referenceImages: Array.isArray(body.reference_images) ? body.reference_images as string[] : undefined,
+      frameType: typeof body.frame_type === 'string' ? body.frame_type : undefined,
       configId,
     })
 
@@ -48,9 +51,10 @@ app.post('/', async (c) => {
       .where(eq(schema.imageGenerations.id, id)).all())
     logTaskSuccess('ImageAPI', 'generate', { generationId: id, provider: record?.provider })
     return created(c, record ? presentImageGenerationAsset(record) : record)
-  } catch (err: any) {
-    logTaskError('ImageAPI', 'generate', { error: err.message })
-    return badRequest(c, err.message)
+  } catch (error: unknown) {
+    const message = errorMessageFromUnknown(error, 'Image generation failed')
+    logTaskError('ImageAPI', 'generate', { error: message })
+    return badRequest(c, message)
   }
 })
 

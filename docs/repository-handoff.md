@@ -72,9 +72,11 @@ Ignore:
 
 ## Next Cleanup Batch
 
-After repository ownership is settled, move to frontend type cleanup:
+The first frontend type cleanup and Chapter Studio page-boundary cleanup have been
+completed. The remaining handoff-critical work is owner controlled:
 
-- Add `npm run typecheck` in `frontend/package.json`.
-- Start with `frontend/src/composables/useApi.ts`.
-- Introduce response/domain types in small batches.
-- Keep frontend `strict: false` until the highest-risk composables are typed.
+- Confirm and add the correct license before public redistribution.
+- Replace or rename upstream remotes if this repository should stand on its own.
+- Rotate any credentials copied from imported or local development history.
+- Continue the slower identity pass across UI appearance, product language,
+  component names, API naming, and public docs after ownership is settled.

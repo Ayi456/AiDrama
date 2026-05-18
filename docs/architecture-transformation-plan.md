@@ -120,8 +120,9 @@ Target shape:
 
 ### Track C: Frontend Studio Workflow
 
-Current issue: the frontend has already started moving into chapter-specific
-components/composables, but the main studio page still owns too much orchestration.
+Current issue: the main studio page has been reduced to route loading and workflow
+composition, but the broader frontend still needs a slower product-language and UI
+identity pass so presentation components feel fully AiDrama-owned.
 
 Target shape:
 
@@ -280,3 +281,23 @@ where Docker and external provider access are available.
   panel selection state into `useChapterExportDesk.ts` and AI config loading,
   locked config labels, and episode config backfill into
   `useChapterStudioConfig.ts`.
+- 2026-05-18: Completed the Chapter Studio page-boundary pass by extracting shot
+  image preferences, script desk actions, storyboard desk actions, and production
+  panel state/handler assembly into AiDrama-named chapter composables. The route
+  page now acts as the studio shell plus workflow composition layer.
+- 2026-05-18: Continued non-UI frontend type cleanup by replacing loose
+  `useChapterStudioNavigation.ts` input arrays with shared chapter domain types and
+  adding a residual test that guards against reintroducing `any` in that workflow
+  boundary.
+- 2026-05-18: Extended the non-UI type cleanup to `useChapterGridTool.ts`, replacing
+  loose grid/history/cache `any` usage with local chapter grid types and a residual
+  scan test for that workflow boundary.
+- 2026-05-18: Continued the non-UI type cleanup into `useChapterImageViewer.ts`,
+  replacing the loose gallery viewer payload parameter with an explicit local type
+  and a residual scan test.
+- 2026-05-18: Extended the non-UI type cleanup to `useAgent.ts` and
+  `useImageGenerationMonitor.ts`, replacing loose API and poll result `any`
+  handling with typed responses and `unknown` error handling.
+- 2026-05-18: Added a backend route body and error cleanup batch for the simpler
+  route handlers and shared middleware, including typed merge selection helpers
+  and residual tests for the new route contracts.

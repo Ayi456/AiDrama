@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { toast } from 'vue-sonner'
-import { api } from './useApi'
+import { api, type ApiEntity } from './useApi'
 
 export function useAgent() {
   const running = ref(false)
@@ -11,15 +11,15 @@ export function useAgent() {
     running.value = true
     runningType.value = type
     try {
-      const data = await api.post<any>(`/agent/${type}/chat`, {
+      await api.post<ApiEntity>(`/agent/${type}/chat`, {
         message: msg,
         drama_id: dramaId,
         episode_id: episodeId,
       })
       toast.success('完成')
       onDone?.()
-    } catch (err: any) {
-      toast.error(err.message)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : '鎿嶄綔澶辫触')
     } finally {
       running.value = false
       runningType.value = null

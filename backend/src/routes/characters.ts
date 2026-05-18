@@ -6,20 +6,40 @@ import { generateImage } from '../services/generation/image-generation.js'
 import { resolveCharacterAssetReferenceImages } from '../services/assets/character-asset-generation.js'
 import { logTaskError, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
 import { buildCharacterPortraitGenerationPrompt } from '../agents/visual-prompt-policy.js'
+import { errorMessageFromUnknown } from '../utils/error.js'
+import { hasOwn, readJsonBody } from './route-body.js'
 
 const app = new Hono()
+
+type CharacterUpdatePatch = {
+  updatedAt: string
+  name?: string
+  role?: string | null
+  description?: string | null
+  appearance?: string | null
+  personality?: string | null
+  imageUrl?: string | null
+  localPath?: string | null
+  characterAssetId?: number | null
+}
 
 // PUT /characters/:id
 app.put('/:id', async (c) => {
   const id = Number(c.req.param('id'))
-  const body = await c.req.json()
-  const updates: Record<string, any> = { updatedAt: now() }
+  const body = await readJsonBody(c)
+  const updates: CharacterUpdatePatch = { updatedAt: now() }
 
-  for (const key of ['name', 'role', 'description', 'appearance', 'personality', 'imageUrl', 'localPath', 'characterAssetId']) {
-    const snakeKey = key.replace(/[A-Z]/g, (match) => `_${match.toLowerCase()}`)
-    if (snakeKey in body) updates[key] = body[snakeKey]
-    else if (key in body) updates[key] = body[key]
-  }
+  if (hasOwn(body, 'name')) updates.name = body.name as string
+  if (hasOwn(body, 'role')) updates.role = body.role as string | null
+  if (hasOwn(body, 'description')) updates.description = body.description as string | null
+  if (hasOwn(body, 'appearance')) updates.appearance = body.appearance as string | null
+  if (hasOwn(body, 'personality')) updates.personality = body.personality as string | null
+  if (hasOwn(body, 'image_url')) updates.imageUrl = body.image_url as string | null
+  if (hasOwn(body, 'imageUrl')) updates.imageUrl = body.imageUrl as string | null
+  if (hasOwn(body, 'local_path')) updates.localPath = body.local_path as string | null
+  if (hasOwn(body, 'localPath')) updates.localPath = body.localPath as string | null
+  if (hasOwn(body, 'character_asset_id')) updates.characterAssetId = Number(body.character_asset_id || body.characterAssetId || 0) || null
+  else if (hasOwn(body, 'characterAssetId')) updates.characterAssetId = Number(body.characterAssetId || 0) || null
 
   await db.update(schema.characters).set(updates).where(eq(schema.characters.id, id)).run()
   return success(c)
@@ -28,7 +48,7 @@ app.put('/:id', async (c) => {
 // POST /characters/:id/bind-asset
 app.post('/:id/bind-asset', async (c) => {
   const id = Number(c.req.param('id'))
-  const body = await c.req.json()
+  const body = await readJsonBody(c)
   const assetId = Number(body.character_asset_id || body.characterAssetId || 0)
   if (!assetId) return badRequest(c, '请选择角色形象')
 
@@ -62,7 +82,7 @@ app.delete('/:id', async (c) => {
 // POST /characters/:id/generate-image
 app.post('/:id/generate-image', async (c) => {
   const id = Number(c.req.param('id'))
-  const body = await c.req.json()
+  const body = await readJsonBody(c)
   const [char] = (await db.select().from(schema.characters).where(eq(schema.characters.id, id)).all())
   if (!char) return badRequest(c, 'Character not found')
   if (!body.episode_id) return badRequest(c, 'episode_id is required')
@@ -83,20 +103,21 @@ app.post('/:id/generate-image', async (c) => {
       dramaId: char.dramaId,
       prompt,
       referenceImages: referenceImages.length ? referenceImages : undefined,
-      configId: ep.imageConfigId ?? undefined,
+      configId: typeof ep.imageConfigId === 'number' ? ep.imageConfigId : undefined,
     })
     logTaskSuccess('CharacterImage', 'generate', { characterId: id, generationId: genId })
     return success(c, { image_generation_id: genId })
-  } catch (err: any) {
-    logTaskError('CharacterImage', 'generate', { characterId: id, error: err.message })
-    return badRequest(c, err.message)
+  } catch (error: unknown) {
+    const message = errorMessageFromUnknown(error, 'Character image generation failed')
+    logTaskError('CharacterImage', 'generate', { characterId: id, error: message })
+    return badRequest(c, message)
   }
 })
 
 // POST /characters/batch-generate-images
 app.post('/batch-generate-images', async (c) => {
-  const body = await c.req.json()
-  const ids: number[] = body.character_ids || []
+  const body = await readJsonBody(c)
+  const ids = Array.isArray(body.character_ids) ? body.character_ids as number[] : []
   if (!body.episode_id) return badRequest(c, 'episode_id is required')
 
   const [ep] = (await db.select().from(schema.episodes).where(eq(schema.episodes.id, Number(body.episode_id))).all())
@@ -118,10 +139,12 @@ app.post('/batch-generate-images', async (c) => {
         dramaId: char.dramaId,
         prompt,
         referenceImages: referenceImages.length ? referenceImages : undefined,
-        configId: ep.imageConfigId ?? undefined,
+        configId: typeof ep.imageConfigId === 'number' ? ep.imageConfigId : undefined,
       })
       results.push(genId)
-    } catch {}
+    } catch {
+      // Continue batch generation even if one character fails.
+    }
   }
 
   logTaskSuccess('CharacterImage', 'batch-generate', { episodeId: ep.id, requested: ids.length, started: results.length })

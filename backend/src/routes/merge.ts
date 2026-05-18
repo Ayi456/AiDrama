@@ -6,27 +6,11 @@ import { mergeEpisodeVideos } from '../services/merge/ffmpeg-merge.js'
 import { toSnakeCase } from '../utils/transform.js'
 import { logTaskError, logTaskStart, logTaskSuccess, logTaskWarn } from '../utils/task-logger.js'
 import { isStaleProcessingMerge, resolveStaleMergeTimeoutMs } from '../services/merge/merge-status.js'
+import { errorMessageFromUnknown } from '../utils/error.js'
+import { readJsonBody } from './route-body.js'
+import { selectedStoryboardIdsFromBody } from './merge-route-policy.js'
 
 const app = new Hono()
-
-async function readJsonBody(c: any) {
-  try {
-    return await c.req.json()
-  } catch {
-    return {}
-  }
-}
-
-function selectedStoryboardIdsFromBody(body: any): number[] | undefined {
-  const raw = body?.storyboard_ids ?? body?.storyboardIds
-  if (!Array.isArray(raw)) return undefined
-
-  return Array.from(new Set(
-    raw
-      .map(value => Number(value))
-      .filter(value => Number.isInteger(value) && value > 0),
-  ))
-}
 
 // POST /episodes/:id/merge — 拼接全集视频
 app.post('/episodes/:id/merge', async (c) => {
@@ -41,9 +25,10 @@ app.post('/episodes/:id/merge', async (c) => {
     const mergeId = await mergeEpisodeVideos(episodeId, ep.dramaId, { storyboardIds })
     logTaskSuccess('MergeAPI', 'episode-merge', { episodeId, mergeId, storyboardIds })
     return success(c, { merge_id: mergeId, status: 'processing' })
-  } catch (err: any) {
-    logTaskError('MergeAPI', 'episode-merge', { episodeId, error: err.message })
-    return badRequest(c, err.message)
+  } catch (error: unknown) {
+    const message = errorMessageFromUnknown(error, 'Merge failed')
+    logTaskError('MergeAPI', 'episode-merge', { episodeId, error: message })
+    return badRequest(c, message)
   }
 })
 

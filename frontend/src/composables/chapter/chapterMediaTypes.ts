@@ -1,6 +1,7 @@
 import type { DramaCharacter, Scene, Storyboard } from '@/composables/useApi'
 
 export type ChapterCharacter = DramaCharacter & {
+  role?: string
   image_url?: string
   imageUrl?: string
   local_path?: string
@@ -8,6 +9,7 @@ export type ChapterCharacter = DramaCharacter & {
 }
 
 export type ChapterScene = Scene & {
+  name?: string
   image_url?: string
   imageUrl?: string
   local_path?: string
@@ -35,6 +37,8 @@ export type ChapterStoryboard = Storyboard & {
   imagePrompt?: string
   video_prompt?: string
   videoPrompt?: string
+  character_ids?: number[]
+  characterIds?: number[]
   scene_id?: number
   sceneId?: number
   duration?: number | string

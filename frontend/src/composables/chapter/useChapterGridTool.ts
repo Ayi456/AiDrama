@@ -1,12 +1,53 @@
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { toast } from 'vue-sonner'
-import { gridAPI, imageAPI } from '@/composables/useApi'
+import { gridAPI, imageAPI, type GridPromptCell, type ImageGeneration } from '@/composables/useApi'
+import type { ChapterStoryboard } from './chapterMediaTypes'
+import { errorMessageFromUnknown } from './chapterMediaTypes'
+
+type GridLayoutShape = { rows: number; cols: number }
+type GridAssignment = { storyboard_id: number | null; frame_type: string }
+type GridHistoryItem = {
+  id?: number
+  localPath: string
+  layout?: GridLayoutShape
+  modeLabel?: string
+  createdAtLabel?: string
+}
+type GridCacheEntry = {
+  generationId?: number | null
+  layout?: GridLayoutShape
+  shotIds?: number[]
+  assignments?: GridAssignment[]
+  recoveredAt?: string
+  recoveredMode?: string
+  createdAtLabel?: string
+  modeLabel?: string
+}
+type GridCacheState = {
+  activeImagePath?: string
+  entries?: Record<string, GridCacheEntry>
+}
+type GridShotTogglePayload = {
+  id?: number | string
+  checked?: boolean
+}
+type GridAssignmentUpdatePayload = {
+  index?: number
+  field?: 'storyboard_id' | 'frame_type'
+  value?: number | string | null
+}
+type GridImageRow = ImageGeneration & {
+  frame_type?: string
+  frameType?: string
+  created_at?: string
+  createdAt?: string
+}
 
 interface UseChapterGridToolOptions {
   dramaId: number
   chapterNumber: number
   epId: ComputedRef<number>
-  sbs: Ref<any[]>
+  sbs: Ref<ChapterStoryboard[]>
   refresh: () => Promise<void>
 }
 
@@ -24,13 +65,13 @@ export function useChapterGridTool(options: UseChapterGridToolOptions) {
   const gridRecoveredAt = ref('')
   const gridRecoveredMode = ref('')
   const gridPromptText = ref('')
-  const gridCellPrompts = ref<any[]>([])
+  const gridCellPrompts = ref<GridPromptCell[]>([])
   const gridPromptSource = ref('')
   const gridPromptLoading = ref(false)
   const gridPromptStatus = ref('')
-  const gridAssignmentsState = ref<Array<{ storyboard_id: number | null; frame_type: string }>>([])
+  const gridAssignmentsState = ref<GridAssignment[]>([])
   const gridActiveShotIds = ref<number[]>([])
-  const gridHistory = ref<any[]>([])
+  const gridHistory = ref<GridHistoryItem[]>([])
   const showAllGridHistory = ref(false)
   const activeGridCell = ref(0)
   const gridAssignmentPage = ref(0)
@@ -72,7 +113,7 @@ export function useChapterGridTool(options: UseChapterGridToolOptions) {
     return `${count} 个镜头 -> ${rows}x${cols} 宫格（先生成宫格图，切分后再手动分配）`
   })
 
-  function createGridAssignments() {
+  function createGridAssignments(): GridAssignment[] {
     return Array.from({ length: gridActualLayout.value.rows * gridActualLayout.value.cols }, () => ({
       storyboard_id: null,
       frame_type: 'first_frame',
@@ -140,7 +181,7 @@ export function useChapterGridTool(options: UseChapterGridToolOptions) {
     gridAssignmentPage.value = 0
   }
 
-  function gridCellLabel(assignment: any) {
+  function gridCellLabel(assignment: GridAssignment | null | undefined) {
     if (!assignment?.storyboard_id) return '未分配'
     const index = options.sbs.value.findIndex(s => s.id === assignment.storyboard_id) + 1
     const suffix = { first_frame: '首', last_frame: '尾', reference: '参' }[assignment.frame_type] || ''
@@ -154,7 +195,7 @@ export function useChapterGridTool(options: UseChapterGridToolOptions) {
     return `#${String(index).padStart(2, '0')} ${storyboard?.title || storyboard?.description || '镜头'}`
   }
 
-  function updateGridAssignment(index: number, field: 'storyboard_id' | 'frame_type', value: any) {
+  function updateGridAssignment(index: number, field: 'storyboard_id' | 'frame_type', value: number | string | null) {
     const next = [...gridAssignmentsState.value]
     next[index] = { ...next[index], [field]: value }
     gridAssignmentsState.value = next
@@ -190,7 +231,7 @@ export function useChapterGridTool(options: UseChapterGridToolOptions) {
     gridAssignmentsState.value = []
   }
 
-  function handleGridShotToggle(payload: any) {
+  function handleGridShotToggle(payload: GridShotTogglePayload) {
     const id = Number(payload?.id || 0)
     if (!id) return
     const next = new Set(gridSelected.value)
@@ -204,7 +245,7 @@ export function useChapterGridTool(options: UseChapterGridToolOptions) {
     gridAssignmentPage.value = Math.min(nextPage, Math.max(0, gridAssignmentTotalPages.value - 1))
   }
 
-  function handleGridAssignmentUpdate(payload: any) {
+  function handleGridAssignmentUpdate(payload: GridAssignmentUpdatePayload) {
     if (payload?.index === undefined || !payload?.field) return
     updateGridAssignment(payload.index, payload.field, payload.value)
   }
@@ -235,12 +276,12 @@ export function useChapterGridTool(options: UseChapterGridToolOptions) {
     gridDialog.value = true
   }
 
-  function restoreGridState() {
+  function restoreGridState(): GridCacheState | null {
     if (typeof window === 'undefined') return null
     const raw = window.localStorage.getItem(gridStorageKey.value)
     if (!raw) return null
     try {
-      return JSON.parse(raw)
+      return JSON.parse(raw) as GridCacheState
     } catch {
       return { activeImagePath: raw, entries: { [raw]: {} } }
     }
@@ -268,7 +309,7 @@ export function useChapterGridTool(options: UseChapterGridToolOptions) {
     }))
   }
 
-  function applyGridState(imagePath: string, meta: any = {}) {
+  function applyGridState(imagePath: string, meta: GridCacheEntry & { id?: number } = {}) {
     gridImagePath.value = imagePath || ''
     gridGenId.value = meta.generationId || meta.id || null
     if (meta.layout?.rows && meta.layout?.cols) gridActualLayout.value = meta.layout
@@ -278,7 +319,7 @@ export function useChapterGridTool(options: UseChapterGridToolOptions) {
     gridRecoveredMode.value = meta.recoveredMode || meta.modeLabel || ''
   }
 
-  function selectGridHistory(item: any) {
+  function selectGridHistory(item: GridHistoryItem) {
     const cached = restoreGridState()
     const cachedEntry = cached?.entries?.[item.localPath] || {}
     applyGridState(item.localPath, {
@@ -308,7 +349,7 @@ export function useChapterGridTool(options: UseChapterGridToolOptions) {
     return { rows: Number(match[1]) || 3, cols: Number(match[2]) || 3 }
   }
 
-  function getGeneratedAssetPath(row: any) {
+  function getGeneratedAssetPath(row: GridImageRow | null | undefined) {
     return row?.minio_url || row?.minioUrl || row?.image_url || row?.imageUrl || row?.local_path || row?.localPath || ''
   }
 
@@ -364,9 +405,9 @@ export function useChapterGridTool(options: UseChapterGridToolOptions) {
 
       gridPromptStatus.value = ''
       toast.error('提示词生成失败')
-    } catch (error: any) {
+    } catch (error: unknown) {
       gridPromptStatus.value = ''
-      toast.error(error?.message || '生成提示词失败')
+      toast.error(errorMessageFromUnknown(error, '生成提示词失败'))
     } finally {
       gridPromptLoading.value = false
     }
@@ -407,8 +448,8 @@ export function useChapterGridTool(options: UseChapterGridToolOptions) {
       gridActualLayout.value = res.grid || { rows, cols }
       gridStatusText.value = '等待图片生成...'
       void pollGridStatus()
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch (error: unknown) {
+      toast.error(errorMessageFromUnknown(error))
       gridStep.value = 0
     }
   }
@@ -442,7 +483,7 @@ export function useChapterGridTool(options: UseChapterGridToolOptions) {
     try {
       const rows = await imageAPI.list({ drama_id: options.dramaId })
       const list = Array.isArray(rows) ? rows : []
-      const grids = list
+      const grids: GridHistoryItem[] = list
         .filter((row) => row?.status === 'completed' && String(row?.frame_type || row?.frameType || '').startsWith('grid_') && getGeneratedAssetPath(row))
         .sort((a, b) => Number(b?.id || 0) - Number(a?.id || 0))
         .map((row) => {
@@ -453,7 +494,7 @@ export function useChapterGridTool(options: UseChapterGridToolOptions) {
             localPath: getGeneratedAssetPath(row),
             layout: parsedLayout,
             modeLabel: frameType.replace(/^grid_/, '').replace(/_/g, ' · '),
-            createdAtLabel: row?.created_at || row?.createdAt || '',
+            createdAtLabel: String(row?.created_at || row?.createdAt || ''),
           }
         })
 
@@ -465,13 +506,13 @@ export function useChapterGridTool(options: UseChapterGridToolOptions) {
         : grids[0]?.localPath
       const current = grids.find(item => item.localPath === preferredPath)
       if (current) {
-        const cachedEntry = cached?.entries?.[current.localPath] || {}
+        const cachedEntry: GridCacheEntry = cached?.entries?.[current.localPath] || {}
         applyGridState(current.localPath, {
           ...current,
           ...cachedEntry,
           generationId: cachedEntry.generationId || current.id,
-          recoveredAt: cachedEntry.recoveredAt || current.createdAtLabel,
-          recoveredMode: cachedEntry.recoveredMode || current.modeLabel,
+          recoveredAt: String(cachedEntry.recoveredAt || current.createdAtLabel || ''),
+          recoveredMode: String(cachedEntry.recoveredMode || current.modeLabel || ''),
         })
         if (!gridAssignmentsState.value.length) resetGridAssignments()
         persistGridImagePath(current.localPath)
@@ -504,8 +545,8 @@ export function useChapterGridTool(options: UseChapterGridToolOptions) {
       persistGridImagePath(gridImagePath.value)
       gridStep.value = 4
       toast.success('切分分配完成')
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch (error: unknown) {
+      toast.error(errorMessageFromUnknown(error))
     }
   }
 

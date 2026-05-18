@@ -5,19 +5,31 @@ import { success, created, badRequest, now } from '../utils/response.js'
 import { generateImage } from '../services/generation/image-generation.js'
 import { logTaskError, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
 import { buildSceneImagePrompt } from '../agents/visual-prompt-policy.js'
+import { errorMessageFromUnknown } from '../utils/error.js'
+import { hasOwn, readJsonBody } from './route-body.js'
 
 const app = new Hono()
 
+type SceneUpdatePatch = {
+  updatedAt: string
+  location?: string
+  time?: string
+  prompt?: string
+  imageUrl?: string | null
+  localPath?: string | null
+  status?: string | null
+}
+
 // POST /scenes
 app.post('/', async (c) => {
-  const body = await c.req.json()
+  const body = await readJsonBody(c)
   const ts = now()
   const res = (await db.insert(schema.scenes).values({
-    dramaId: body.drama_id,
-    episodeId: body.episode_id,
-    location: body.location,
-    time: body.time || '',
-    prompt: body.prompt || body.location,
+    dramaId: Number(body.drama_id),
+    episodeId: body.episode_id == null ? null : Number(body.episode_id),
+    location: typeof body.location === 'string' ? body.location : '',
+    time: typeof body.time === 'string' ? body.time : '',
+    prompt: typeof body.prompt === 'string' ? body.prompt : (typeof body.location === 'string' ? body.location : ''),
     createdAt: ts,
     updatedAt: ts,
   }).run())
@@ -29,16 +41,16 @@ app.post('/', async (c) => {
 // PUT /scenes/:id
 app.put('/:id', async (c) => {
   const id = Number(c.req.param('id'))
-  const body = await c.req.json()
-  const updates: Record<string, any> = { updatedAt: now() }
-  if (body.location !== undefined) updates.location = body.location
-  if (body.time !== undefined) updates.time = body.time
-  if (body.prompt !== undefined) updates.prompt = body.prompt
-  if (body.image_url !== undefined) updates.imageUrl = body.image_url
-  if (body.imageUrl !== undefined) updates.imageUrl = body.imageUrl
-  if (body.local_path !== undefined) updates.localPath = body.local_path
-  if (body.localPath !== undefined) updates.localPath = body.localPath
-  if (body.status !== undefined) updates.status = body.status
+  const body = await readJsonBody(c)
+  const updates: SceneUpdatePatch = { updatedAt: now() }
+  if (hasOwn(body, 'location')) updates.location = body.location as string
+  if (hasOwn(body, 'time')) updates.time = body.time as string
+  if (hasOwn(body, 'prompt')) updates.prompt = body.prompt as string
+  if (hasOwn(body, 'image_url')) updates.imageUrl = body.image_url as string | null
+  if (hasOwn(body, 'imageUrl')) updates.imageUrl = body.imageUrl as string | null
+  if (hasOwn(body, 'local_path')) updates.localPath = body.local_path as string | null
+  if (hasOwn(body, 'localPath')) updates.localPath = body.localPath as string | null
+  if (hasOwn(body, 'status')) updates.status = body.status as string | null
   await db.update(schema.scenes).set(updates).where(eq(schema.scenes.id, id)).run()
   return success(c)
 })
@@ -46,7 +58,7 @@ app.put('/:id', async (c) => {
 // POST /scenes/:id/generate-image
 app.post('/:id/generate-image', async (c) => {
   const id = Number(c.req.param('id'))
-  const body = await c.req.json()
+  const body = await readJsonBody(c)
   const [scene] = (await db.select().from(schema.scenes).where(eq(schema.scenes.id, id)).all())
   if (!scene) return badRequest(c, 'Scene not found')
   if (!body.episode_id) return badRequest(c, 'episode_id is required')
@@ -61,10 +73,11 @@ app.post('/:id/generate-image', async (c) => {
     const genId = await generateImage({ sceneId: id, dramaId: scene.dramaId, prompt, configId: ep.imageConfigId ?? undefined })
     logTaskSuccess('SceneImage', 'generate', { sceneId: id, generationId: genId })
     return success(c, { image_generation_id: genId })
-  } catch (err: any) {
-    logTaskError('SceneImage', 'generate', { sceneId: id, error: err.message })
+  } catch (error: unknown) {
+    const message = errorMessageFromUnknown(error, 'Scene image generation failed')
+    logTaskError('SceneImage', 'generate', { sceneId: id, error: message })
     await db.update(schema.scenes).set({ status: 'failed', updatedAt: now() }).where(eq(schema.scenes.id, id)).run()
-    return badRequest(c, err.message)
+    return badRequest(c, message)
   }
 })
 

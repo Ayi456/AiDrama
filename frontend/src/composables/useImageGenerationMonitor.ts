@@ -1,4 +1,4 @@
-import { imageAPI } from '@/composables/useApi'
+import { imageAPI, type ImageGeneration } from '@/composables/useApi'
 
 export function useImageGenerationMonitor(refresh: () => Promise<void>) {
   function sleep(ms: number) {
@@ -23,10 +23,10 @@ export function useImageGenerationMonitor(refresh: () => Promise<void>) {
   async function waitForImageGeneration(generationId: number) {
     for (let i = 0; i < 120; i++) {
       await sleep(3000)
-      let res: any = null
+      let res: ImageGeneration | null = null
       try {
         res = await imageAPI.get(generationId)
-      } catch (e) {
+      } catch (e: unknown) {
         if (i === 119) throw e
         continue
       }

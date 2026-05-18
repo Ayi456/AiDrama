@@ -1,5 +1,10 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 
+type GalleryViewerPayload = {
+  src?: string
+  title?: string
+}
+
 export function useChapterImageViewer() {
   const imageViewer = ref({
     open: false,
@@ -16,7 +21,7 @@ export function useChapterImageViewer() {
     imageViewer.value = { open: false, src: '', title: '' }
   }
 
-  function handleGalleryViewerOpen(payload: any) {
+  function handleGalleryViewerOpen(payload: GalleryViewerPayload | null | undefined) {
     if (!payload?.src) return
     openImageViewer(payload.src, payload.title || '')
   }

@@ -2,16 +2,22 @@ import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import {
   Users, MapPin, Video, ImageIcon, FileText, FolderKanban, Clapperboard, Download,
 } from 'lucide-vue-next'
+import type {
+  ChapterCharacter,
+  ChapterScene,
+  ChapterStoryboard,
+} from './chapterMediaTypes'
 
 interface UseChapterStudioNavigationOptions {
+  scriptStep?: Ref<number>
   rawContent: ComputedRef<string>
   scriptContent: ComputedRef<string>
   localRaw: Ref<string>
   localScript: Ref<string>
-  chars: Ref<any[]>
-  scenes: Ref<any[]>
-  sbs: Ref<any[]>
-  visualChars: ComputedRef<any[]>
+  chars: Ref<ChapterCharacter[]>
+  scenes: Ref<ChapterScene[]>
+  sbs: Ref<ChapterStoryboard[]>
+  visualChars: ComputedRef<ChapterCharacter[]>
   mergeClipCount: ComputedRef<number>
   mergeUrl: ComputedRef<string | null>
   saveRaw: () => void
@@ -20,7 +26,7 @@ interface UseChapterStudioNavigationOptions {
 
 export function useChapterStudioNavigation(options: UseChapterStudioNavigationOptions) {
   const panel = ref('script')
-  const scriptStep = ref(0)
+  const scriptStep = options.scriptStep || ref(0)
   const prodTab = ref('chars')
 
   const charImgCount = computed(() => options.visualChars.value.filter(c => c.image_url || c.imageUrl).length)

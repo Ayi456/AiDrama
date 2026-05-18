@@ -1,5 +1,7 @@
 import type { MiddlewareHandler } from 'hono'
 
+import { errorMessageFromUnknown } from '../utils/error.js'
+
 const colors = {
   reset: '\x1b[0m',
   dim: '\x1b[2m',
@@ -59,10 +61,10 @@ export const requestLogger: MiddlewareHandler = async (c, next) => {
 export const errorHandler: MiddlewareHandler = async (c, next) => {
   try {
     await next()
-  } catch (err: any) {
-    const status = err.status || 500
+  } catch (error: unknown) {
+    const status = (error as { status?: number }).status || 500
     console.error(`${colors.red}[ERROR]${colors.reset} ${c.req.method} ${c.req.path}`)
-    console.error(err.stack || err.message || err)
-    return c.json({ code: status, message: err.message || 'Internal Server Error' }, status)
+    console.error(error instanceof Error ? (error.stack || error.message) : error)
+    return c.json({ code: status, message: errorMessageFromUnknown(error, 'Internal Server Error') }, status as never)
   }
 }
