@@ -1,10 +1,10 @@
 import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
-import { db, schema } from '../db/index.js'
-import { success, notFound, created, badRequest, now } from '../utils/response.js'
-import { toSnakeCase } from '../utils/transform.js'
-import { joinProviderUrl } from '../services/adapters/url.js'
-import { redactUrl, logTaskError, logTaskProgress, logTaskSuccess } from '../utils/task-logger.js'
+import { db, schema } from '../../db/index.js'
+import { success, notFound, created, badRequest, now } from '../../utils/response.js'
+import { toSnakeCase } from '../../utils/transform.js'
+import { joinProviderUrl } from '../../services/adapters/url.js'
+import { redactUrl, logTaskError, logTaskProgress, logTaskSuccess } from '../../utils/task-logger.js'
 import {
   buildAiConfigCreateValues,
   buildAiConfigProbePayload,
@@ -17,7 +17,7 @@ import {
   type AiConfigCreateBody,
   type AiConfigProbeBody,
   type AiConfigUpdateBody,
-} from './ai-config-route-policy.js'
+} from '../policies/ai-config-route-policy.js'
 
 const app = new Hono()
 

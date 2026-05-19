@@ -1,9 +1,9 @@
 import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
-import { db, schema } from '../db/index.js'
-import { success, created, now, badRequest } from '../utils/response.js'
-import { toSnakeCase } from '../utils/transform.js'
-import { logTaskPayload, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
+import { db, schema } from '../../db/index.js'
+import { success, created, now, badRequest } from '../../utils/response.js'
+import { toSnakeCase } from '../../utils/transform.js'
+import { logTaskPayload, logTaskStart, logTaskSuccess } from '../../utils/task-logger.js'
 import {
   buildStoryboardCreateLogContext,
   buildStoryboardCreateValues,
@@ -11,7 +11,7 @@ import {
   resolveStoryboardBindingInput,
   type StoryboardCreateBody,
   type StoryboardUpdateBody,
-} from './storyboard-route-policy.js'
+} from '../policies/storyboard-route-policy.js'
 
 const app = new Hono()
 

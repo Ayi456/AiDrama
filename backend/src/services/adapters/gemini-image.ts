@@ -1,11 +1,3 @@
-/**
- * Gemini 图片生成 Adapter
- * 认证: 同时兼容两种方式
- * 1. URL Query 参数 ?key=
- * 2. Header 认证（x-goog-api-key / Authorization: Bearer）
- * 请求: Google REST 风格的 contents[].parts[] 结构
- * 响应: base64 编码在 inlineData.data 中，无 URL
- */
 import type {
   ImageProviderAdapter,
   ProviderRequest,
@@ -15,33 +7,27 @@ import type {
   ImagePollResponse,
 } from './types.js'
 import { joinProviderUrl } from './url.js'
+import { isRecord, parseJsonStringArray } from './adapter-utils.js'
 import { parseDataUrl } from '../../utils/storage.js'
 
 export class GeminiImageAdapter implements ImageProviderAdapter {
   provider = 'gemini'
 
   buildGenerateRequest(config: AIConfig, record: ImageGenerationRecord): ProviderRequest {
-    // Gemini 模型名格式: "models/gemini-2.5-flash-image" 或直接 "gemini-2.5-flash-image"
     const modelName = record.model || config.model || 'gemini-2.5-flash-image'
     const model = modelName.startsWith('models/') ? modelName : `models/${modelName}`
 
-    // Google REST 风格请求体
-    const parts: any[] = []
-    if (record.referenceImages) {
-      try {
-        const refs = JSON.parse(record.referenceImages)
-        for (const ref of refs) {
-          const parsed = parseDataUrl(String(ref || ''))
-          if (parsed) {
-            parts.push({
-              inline_data: {
-                mime_type: parsed.mimeType,
-                data: parsed.data,
-              },
-            })
-          }
-        }
-      } catch {}
+    const parts: Array<Record<string, unknown>> = []
+    for (const ref of parseJsonStringArray(record.referenceImages)) {
+      const parsed = parseDataUrl(ref)
+      if (parsed) {
+        parts.push({
+          inline_data: {
+            mime_type: parsed.mimeType,
+            data: parsed.data,
+          },
+        })
+      }
     }
     parts.push({ text: record.prompt || 'Generate an image' })
 
@@ -52,7 +38,6 @@ export class GeminiImageAdapter implements ImageProviderAdapter {
       generationConfig: {
         responseModalities: ['IMAGE', 'TEXT'],
         imageConfig: {
-          // 解析 size 如 "1920x1080" -> aspectRatio
           aspectRatio: this.parseAspectRatio(record.size),
           imageSize: this.parseImageSize(record.size),
         },
@@ -74,40 +59,41 @@ export class GeminiImageAdapter implements ImageProviderAdapter {
     }
   }
 
-  parseGenerateResponse(result: any): ImageGenResponse {
-    const firstCandidate = result?.candidates?.[0]
-    const finishReason = firstCandidate?.finishReason || firstCandidate?.finish_reason
-    const finishMessage = firstCandidate?.finishMessage || firstCandidate?.finish_message
+  parseGenerateResponse(result: unknown): ImageGenResponse {
+    const record = isRecord(result) ? result : {}
+    const firstCandidate = this.firstRecordValue(record.candidates)
+    const finishReason = this.readString(firstCandidate?.finishReason) || this.readString(firstCandidate?.finish_reason)
+    const finishMessage = this.readString(firstCandidate?.finishMessage) || this.readString(firstCandidate?.finish_message)
 
     if (finishReason && finishReason !== 'STOP' && finishReason !== 'MAX_TOKENS') {
       throw new Error(finishMessage || `Gemini generation stopped: ${finishReason}`)
     }
 
-    if (this.extractImageUrl(result)) {
-      return { isAsync: false, imageUrl: this.extractImageUrl(result) || undefined }
+    const imageUrl = this.extractImageUrl(record)
+    if (imageUrl) {
+      return { isAsync: false, imageUrl }
     }
 
-    if (this.extractImageBase64(result)) {
+    if (this.extractImageBase64(record)) {
       return { isAsync: false, imageUrl: undefined }
     }
 
-    if (result.task_id || result.id) {
-      return { isAsync: true, taskId: result.task_id || result.id }
+    const taskId = this.readTaskId(record)
+    if (taskId) {
+      return { isAsync: true, taskId }
     }
 
-    if (result.error) {
-      throw new Error(result.error.message || 'Gemini generation failed')
+    if (isRecord(record.error)) {
+      throw new Error(this.readString(record.error.message) || 'Gemini generation failed')
     }
     throw new Error('No image data in Gemini response')
   }
 
-  parsePollResponse(result: any): ImagePollResponse {
-    // Gemini 是同步的，通常不会走到这里
+  parsePollResponse(_result: unknown): ImagePollResponse {
     return { status: 'completed' }
   }
 
   buildPollRequest(config: AIConfig, taskId: string): ProviderRequest {
-    // Gemini 不需要轮询，但实现接口以保持一致
     const url = new URL(joinProviderUrl(config.baseUrl, '/v1beta', `/${taskId}`))
     url.searchParams.set('key', config.apiKey)
     return {
@@ -121,30 +107,60 @@ export class GeminiImageAdapter implements ImageProviderAdapter {
     }
   }
 
-  extractImageUrl(result: any): string | null {
-    return result?.data?.[0]?.url
-      || result?.image_url
-      || result?.url
-      || null
+  extractImageUrl(result: unknown): string | null {
+    const record = isRecord(result) ? result : {}
+    const data = this.firstRecordValue(record.data)
+    return this.readString(data?.url) || this.readString(record.image_url) || this.readString(record.url) || null
   }
 
-  extractImageBase64(result: any): { data: string; mimeType: string } | null {
-    const b64 = result?.data?.[0]?.b64_json
-    if (b64) {
-      return { data: b64, mimeType: 'image/png' }
+  extractImageBase64(result: unknown): { data: string; mimeType: string } | null {
+    const record = isRecord(result) ? result : {}
+    const data = this.firstRecordValue(record.data)
+    const dataUrl = this.readString(data?.b64_json)
+    if (dataUrl) {
+      return { data: dataUrl, mimeType: 'image/png' }
     }
 
-    const parts = result.candidates?.[0]?.content?.parts || []
+    const firstCandidate = this.firstRecordValue(record.candidates)
+    let candidateContent: Record<string, unknown> | null = null
+    if (firstCandidate && isRecord(firstCandidate.content)) {
+      candidateContent = firstCandidate.content
+    }
+
+    const parts = this.readArray(candidateContent?.parts)
     for (const part of parts) {
-      if (part.inlineData || part.inline_data) {
-        const inline = part.inlineData || part.inline_data
-        return {
-          data: inline.data,
-          mimeType: inline.mimeType || inline.mime_type || 'image/png',
-        }
+      if (!isRecord(part)) continue
+      const inline = isRecord(part.inlineData)
+        ? part.inlineData
+        : isRecord(part.inline_data)
+          ? part.inline_data
+          : null
+      if (!inline) continue
+      return {
+        data: this.readString(inline.data) || '',
+        mimeType: this.readString(inline.mimeType) || this.readString(inline.mime_type) || 'image/png',
       }
     }
     return null
+  }
+
+  private firstRecordValue(value: unknown): Record<string, unknown> | null {
+    if (!Array.isArray(value) || !value.length) return null
+    const first = value[0]
+    return isRecord(first) ? first : null
+  }
+
+  private readArray(value: unknown): unknown[] {
+    return Array.isArray(value) ? value : []
+  }
+
+  private readTaskId(record: Record<string, unknown>): string | null {
+    const id = this.readString(record.task_id) || this.readString(record.id)
+    return id || null
+  }
+
+  private readString(value: unknown): string | undefined {
+    return typeof value === 'string' ? value : typeof value === 'number' ? String(value) : undefined
   }
 
   private parseAspectRatio(size?: string | null): string {

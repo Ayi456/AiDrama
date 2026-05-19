@@ -14,3 +14,30 @@ export async function readJsonBody(c: Pick<Context, 'req'>): Promise<RouteBody> 
 export function hasOwn(body: RouteBody, key: string) {
   return Object.prototype.hasOwnProperty.call(body, key)
 }
+
+export function readBodyString(body: RouteBody, key: string): string | undefined {
+  const value = body[key]
+  return typeof value === 'string' ? value : undefined
+}
+
+export function readBodyNumber(body: RouteBody, key: string): number | undefined {
+  const value = body[key]
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+  return undefined
+}
+
+export function readBodyStringArray(body: RouteBody, key: string): string[] {
+  const value = body[key]
+  if (!Array.isArray(value)) return []
+  return value.map((item) => String(item || '').trim()).filter(Boolean)
+}
+
+export function readBodyObjectArray(body: RouteBody, key: string): RouteBody[] {
+  const value = body[key]
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is RouteBody => !!item && typeof item === 'object' && !Array.isArray(item))
+}

@@ -1,7 +1,3 @@
-/**
- * MiniMax 图片生成 Adapter
- * API 风格与 OpenAI 兼容，零改动
- */
 import type {
   ImageProviderAdapter,
   ProviderRequest,
@@ -11,34 +7,28 @@ import type {
   ImagePollResponse,
 } from './types.js'
 import { joinProviderUrl } from './url.js'
+import { isRecord, parseJsonStringArray } from './adapter-utils.js'
 
 export class MiniMaxImageAdapter implements ImageProviderAdapter {
   provider = 'minimax'
 
   buildGenerateRequest(config: AIConfig, record: ImageGenerationRecord): ProviderRequest {
-    const body: any = {
+    const body: Record<string, unknown> = {
       model: record.model || config.model,
       prompt: record.prompt,
       size: record.size || '1920x1080',
       n: 1,
     }
 
-    // MiniMax 支持 reference_images（参考图）
-    if (record.referenceImages) {
-      try {
-        const refs = JSON.parse(record.referenceImages)
-        if (refs.length > 0) {
-          body.image = refs // 支持多张参考图
-        }
-      } catch {}
+    const refs = parseJsonStringArray(record.referenceImages)
+    if (refs.length > 0) {
+      body.image = refs
     }
 
-    // aspect_ratio 参数（MiniMax 支持）
     if (record.size) {
       const [w, h] = record.size.split('x')
       if (w && h) {
-        const ratio = `${w}/${h}`
-        body.aspect_ratio = ratio
+        body.aspect_ratio = `${w}/${h}`
       }
     }
 
@@ -53,16 +43,18 @@ export class MiniMaxImageAdapter implements ImageProviderAdapter {
     }
   }
 
-  parseGenerateResponse(result: any): ImageGenResponse {
-    // 异步模式：返回 task_id
-    if (result.task_id || result.id) {
-      return { isAsync: true, taskId: result.task_id || result.id }
+  parseGenerateResponse(result: unknown): ImageGenResponse {
+    const record = isRecord(result) ? result : {}
+    const taskId = this.readTaskId(record)
+    if (taskId) {
+      return { isAsync: true, taskId }
     }
-    // 同步模式：直接返回图片 URL
-    const imageUrl = result.data?.[0]?.url || result.url
+
+    const imageUrl = this.extractImageUrl(record)
     if (imageUrl) {
       return { isAsync: false, imageUrl }
     }
+
     throw new Error('No image URL or task_id in response')
   }
 
@@ -77,23 +69,46 @@ export class MiniMaxImageAdapter implements ImageProviderAdapter {
     }
   }
 
-  parsePollResponse(result: any): ImagePollResponse {
-    const status = result.status || result.state
+  parsePollResponse(result: unknown): ImagePollResponse {
+    const record = isRecord(result) ? result : {}
+    const status = typeof record.status === 'string' ? record.status : typeof record.state === 'string' ? record.state : undefined
     if (status === 'completed' || status === 'succeeded') {
-      return { status: 'completed', imageUrl: result.image_url || result.data?.image_url || result.url || result.data?.url }
+      return {
+        status: 'completed',
+        imageUrl: this.extractImageUrl(record) || undefined,
+      }
     }
     if (status === 'failed' || status === 'error') {
-      return { status: 'failed', error: result.error_msg || result.error || 'Generation failed' }
+      return { status: 'failed', error: this.readString(record.error_msg) || this.readString(record.error) || 'Generation failed' }
     }
-    return { status: status || 'processing' }
+    if (status === 'pending' || status === 'processing') {
+      return { status }
+    }
+    return { status: 'processing' }
   }
 
-  extractImageUrl(result: any): string | null {
-    return result.image_url || result.data?.image_url || result.url || result.data?.url || null
+  extractImageUrl(result: unknown): string | null {
+    const record = isRecord(result) ? result : {}
+    const data = this.firstRecordValue(record.data)
+    return this.readString(data?.url) || this.readString(record.image_url) || this.readString(record.url) || null
   }
 
-  extractImageBase64(result: any): { data: string; mimeType: string } | null {
-    // MiniMax 通常返回 URL，不返回 base64
+  extractImageBase64(_result: unknown): { data: string; mimeType: string } | null {
     return null
+  }
+
+  private firstRecordValue(value: unknown): Record<string, unknown> | null {
+    if (!Array.isArray(value) || !value.length) return null
+    const first = value[0]
+    return isRecord(first) ? first : null
+  }
+
+  private readTaskId(record: Record<string, unknown>): string | null {
+    const id = this.readString(record.task_id) || this.readString(record.id)
+    return id || null
+  }
+
+  private readString(value: unknown): string | undefined {
+    return typeof value === 'string' ? value : typeof value === 'number' ? String(value) : undefined
   }
 }

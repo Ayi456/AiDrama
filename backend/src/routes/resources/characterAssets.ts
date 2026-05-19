@@ -1,14 +1,14 @@
 import { Hono } from 'hono'
 import { eq, isNull } from 'drizzle-orm'
-import { db, schema } from '../db/index.js'
-import { success, created, badRequest, notFound, now } from '../utils/response.js'
+import { db, schema } from '../../db/index.js'
+import { success, created, badRequest, notFound, now } from '../../utils/response.js'
 import {
   buildCharacterAssetCreateValues,
   buildCharacterAssetPublicPayload,
   buildCharacterAssetUpdatePatch,
   validateCharacterAssetCreateBody,
   type CharacterAssetBody,
-} from './character-asset-route-policy.js'
+} from '../policies/character-asset-route-policy.js'
 
 const app = new Hono()
 

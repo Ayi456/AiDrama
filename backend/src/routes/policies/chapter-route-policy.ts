@@ -1,5 +1,5 @@
-import type { RouteBody } from './route-body.js'
-import { hasOwn, readBodyNumber, readBodyString } from './route-body.js'
+import type { RouteBody } from '../shared/route-body.js'
+import { hasOwn, readBodyNumber, readBodyString } from '../shared/route-body.js'
 
 export type ChapterCreateBody = RouteBody & {
   drama_id?: number | string

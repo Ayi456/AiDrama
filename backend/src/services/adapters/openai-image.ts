@@ -1,8 +1,3 @@
-/**
- * OpenAI DALL-E 图片生成 Adapter
- * 端点: /v1/images/generations (注意 /v1 前缀)
- * 响应格式: { data: [{ url: "..." }] } 或 { data: [{ b64_json: "..." }] }
- */
 import type {
   ImageProviderAdapter,
   ProviderRequest,
@@ -12,20 +7,18 @@ import type {
   ImagePollResponse,
 } from './types.js'
 import { joinProviderUrl } from './url.js'
+import { isRecord } from './adapter-utils.js'
 
 export class OpenAIImageAdapter implements ImageProviderAdapter {
   provider = 'openai'
 
   buildGenerateRequest(config: AIConfig, record: ImageGenerationRecord): ProviderRequest {
-    // OpenAI 使用 size 字段，格式为 "1024x1024"
-    const size = record.size || '1024x1024'
-
-    const body: any = {
+    const body: Record<string, unknown> = {
       model: record.model || 'dall-e-3',
       prompt: record.prompt,
-      size,
+      size: record.size || '1024x1024',
       n: 1,
-      response_format: 'url', // 默认返回 URL，可选 'b64_json'
+      response_format: 'url',
     }
 
     return {
@@ -39,21 +32,22 @@ export class OpenAIImageAdapter implements ImageProviderAdapter {
     }
   }
 
-  parseGenerateResponse(result: any): ImageGenResponse {
-    // OpenAI DALL-E 3 目前是同步返回，但规范上也有异步 task 模式
-    if (result.task_id || result.id) {
-      return { isAsync: true, taskId: result.task_id || result.id }
+  parseGenerateResponse(result: unknown): ImageGenResponse {
+    const record = isRecord(result) ? result : {}
+    const taskId = this.readTaskId(record)
+    if (taskId) {
+      return { isAsync: true, taskId }
     }
-    const imageUrl = result.data?.[0]?.url || result.url
+
+    const imageUrl = this.extractImageUrl(record)
     if (imageUrl) {
       return { isAsync: false, imageUrl }
     }
-    // b64_json 模式
-    const b64 = result.data?.[0]?.b64_json
-    if (b64) {
-      // 对于 base64，返回特殊标记，实际处理在 extractImageBase64
+
+    if (this.extractImageBase64(record)) {
       return { isAsync: false, imageUrl: undefined }
     }
+
     throw new Error('No image URL in response')
   }
 
@@ -68,28 +62,53 @@ export class OpenAIImageAdapter implements ImageProviderAdapter {
     }
   }
 
-  parsePollResponse(result: any): ImagePollResponse {
-    if (result.status === 'completed') {
+  parsePollResponse(result: unknown): ImagePollResponse {
+    const record = isRecord(result) ? result : {}
+    const status = typeof record.status === 'string' ? record.status : undefined
+    if (status === 'completed') {
       return {
         status: 'completed',
-        imageUrl: result.image_url || result.data?.[0]?.url || null,
+        imageUrl: this.extractImageUrl(record) || undefined,
       }
     }
-    if (result.status === 'failed') {
-      return { status: 'failed', error: result.error?.message || 'Generation failed' }
+    if (status === 'failed') {
+      const error = isRecord(record.error) ? record.error : null
+      return { status: 'failed', error: this.readString(error?.message) || 'Generation failed' }
     }
-    return { status: result.status || 'processing' }
+    if (status === 'pending' || status === 'processing') {
+      return { status }
+    }
+    return { status: 'processing' }
   }
 
-  extractImageUrl(result: any): string | null {
-    return result.data?.[0]?.url || result.image_url || null
+  extractImageUrl(result: unknown): string | null {
+    const record = isRecord(result) ? result : {}
+    const data = this.firstRecordValue(record.data)
+    return this.readString(data?.url) || this.readString(record.image_url) || null
   }
 
-  extractImageBase64(result: any): { data: string; mimeType: string } | null {
-    const b64 = result.data?.[0]?.b64_json
+  extractImageBase64(result: unknown): { data: string; mimeType: string } | null {
+    const record = isRecord(result) ? result : {}
+    const data = this.firstRecordValue(record.data)
+    const b64 = this.readString(data?.b64_json)
     if (b64) {
       return { data: b64, mimeType: 'image/png' }
     }
     return null
+  }
+
+  private firstRecordValue(value: unknown): Record<string, unknown> | null {
+    if (!Array.isArray(value) || !value.length) return null
+    const first = value[0]
+    return isRecord(first) ? first : null
+  }
+
+  private readTaskId(record: Record<string, unknown>): string | null {
+    const id = this.readString(record.task_id) || this.readString(record.id)
+    return id || null
+  }
+
+  private readString(value: unknown): string | undefined {
+    return typeof value === 'string' ? value : typeof value === 'number' ? String(value) : undefined
   }
 }

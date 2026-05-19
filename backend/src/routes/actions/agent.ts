@@ -1,17 +1,17 @@
 import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
-import { createAgent, isValidAgentType } from '../agents/index.js'
-import { runDirectAgentIfNeeded } from '../agents/direct-mode.js'
-import { splitScriptIntoStoryboardChunks } from '../agents/storyboard-chunks.js'
-import { db, schema } from '../db/index.js'
-import { success, badRequest } from '../utils/response.js'
-import { logTaskError, logTaskPayload, logTaskProgress, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
+import { createAgent, isValidAgentType } from '../../agents/index.js'
+import { runDirectAgentIfNeeded } from '../../agents/direct-mode.js'
+import { splitScriptIntoStoryboardChunks } from '../../agents/storyboard-chunks.js'
+import { db, schema } from '../../db/index.js'
+import { success, badRequest } from '../../utils/response.js'
+import { logTaskError, logTaskPayload, logTaskProgress, logTaskStart, logTaskSuccess } from '../../utils/task-logger.js'
 import {
   normalizeAgentResult,
   wasToolUsed,
   type NormalizedToolCall,
   type NormalizedToolResult,
-} from '../agents/result-normalizer.js'
+} from '../../agents/result-normalizer.js'
 
 const app = new Hono()
 

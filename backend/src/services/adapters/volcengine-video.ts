@@ -1,8 +1,3 @@
-/**
- * 火山引擎 Seedance 视频生成 Adapter
- * 端点: /api/v3/contents/generations/tasks (注意 /api/v3 前缀)
- * 响应: { id: "task-xxx" } -> 轮询获取状态
- */
 import type {
   VideoProviderAdapter,
   ProviderRequest,
@@ -12,6 +7,7 @@ import type {
   VideoPollResponse,
 } from './types.js'
 import { joinProviderUrl } from './url.js'
+import { isRecord } from './adapter-utils.js'
 
 export class VolcEngineVideoAdapter implements VideoProviderAdapter {
   provider = 'volcengine'
@@ -21,7 +17,7 @@ export class VolcEngineVideoAdapter implements VideoProviderAdapter {
     const spec = record.normalizedSpec || null
     const volcOptions = this.getVolcengineOptions(spec?.providerOptions)
 
-    const content: any[] = []
+    const content: Array<Record<string, unknown>> = []
     if (spec?.prompt || record.prompt) {
       content.push({ type: 'text', text: spec?.prompt || record.prompt || '' })
     }
@@ -32,9 +28,7 @@ export class VolcEngineVideoAdapter implements VideoProviderAdapter {
           content.push({ type: 'image_url', image_url: { url: input.url } })
           continue
         }
-        const role = input.role === 'reference'
-          ? 'reference_image'
-          : input.role
+        const role = input.role === 'reference' ? 'reference_image' : input.role
         content.push({ type: 'image_url', image_url: { url: input.url }, role })
       }
       if (input.type === 'video' && input.url) {
@@ -45,7 +39,7 @@ export class VolcEngineVideoAdapter implements VideoProviderAdapter {
       }
     }
 
-    const body: any = {
+    const body: Record<string, unknown> = {
       model,
       content,
       generate_audio: spec?.control?.generateAudio ?? true,
@@ -73,15 +67,18 @@ export class VolcEngineVideoAdapter implements VideoProviderAdapter {
     }
   }
 
-  parseGenerateResponse(result: any): VideoGenResponse {
-    if (result.id) {
-      return { isAsync: true, taskId: result.id }
+  parseGenerateResponse(result: unknown): VideoGenResponse {
+    const record = isRecord(result) ? result : {}
+    const taskId = this.readTaskId(record)
+    if (taskId) {
+      return { isAsync: true, taskId }
     }
-    // 同步返回
-    const videoUrl = result.video_url || result.content?.video_url || result.data?.video_url
+
+    const videoUrl = this.extractVideoUrl(record)
     if (videoUrl) {
       return { isAsync: false, videoUrl }
     }
+
     throw new Error('No task_id or video_url in response')
   }
 
@@ -96,23 +93,32 @@ export class VolcEngineVideoAdapter implements VideoProviderAdapter {
     }
   }
 
-  parsePollResponse(result: any): VideoPollResponse {
-    const status = result.status
+  parsePollResponse(result: unknown): VideoPollResponse {
+    const record = isRecord(result) ? result : {}
+    const status = typeof record.status === 'string' ? record.status : undefined
     if (status === 'succeeded') {
-      const videoUrl = result.video_url || result.content?.video_url || result.data?.video_url
       return {
         status: 'completed',
-        videoUrl,
+        videoUrl: this.extractVideoUrl(record) || undefined,
       }
     }
     if (status === 'failed') {
-      return { status: 'failed', error: result.error || 'Video generation failed' }
+      return { status: 'failed', error: this.readString(record.error) || 'Video generation failed' }
     }
-    return { status: status || 'processing' }
+    if (status === 'pending' || status === 'processing') {
+      return { status }
+    }
+    return { status: 'processing' }
   }
 
-  extractVideoUrl(result: any): string | null {
-    return result.video_url || result.content?.video_url || result.data?.video_url || null
+  extractVideoUrl(result: unknown): string | null {
+    const record = isRecord(result) ? result : {}
+    const content = isRecord(record.content) ? record.content : null
+    const data = isRecord(record.data) ? record.data : null
+    return this.readString(record.video_url)
+      || this.readString(content?.video_url)
+      || this.readString(data?.video_url)
+      || null
   }
 
   private normalizeDuration(duration?: number | null): number {
@@ -123,7 +129,16 @@ export class VolcEngineVideoAdapter implements VideoProviderAdapter {
   }
 
   private getVolcengineOptions(options?: Record<string, Record<string, unknown>>) {
-    const raw = options && typeof options === 'object' ? options.volcengine : null
-    return raw && typeof raw === 'object' ? raw as Record<string, any> : {}
+    const raw = options?.volcengine
+    return isRecord(raw) ? raw : {}
+  }
+
+  private readTaskId(record: Record<string, unknown>): string | null {
+    const id = this.readString(record.id) || this.readString(record.task_id)
+    return id || null
+  }
+
+  private readString(value: unknown): string | undefined {
+    return typeof value === 'string' ? value : typeof value === 'number' ? String(value) : undefined
   }
 }

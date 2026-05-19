@@ -1,8 +1,3 @@
-/**
- * 火山引擎 veImageX 图片生成 Adapter
- * 端点: /api/v3/images/generations (注意 /api/v3 前缀)
- * 响应格式: { data: [{ url: "..." }] }
- */
 import type {
   ImageProviderAdapter,
   ProviderRequest,
@@ -12,6 +7,7 @@ import type {
   ImagePollResponse,
 } from './types.js'
 import { joinProviderUrl } from './url.js'
+import { isRecord, readRecord } from './adapter-utils.js'
 
 export class VolcEngineImageAdapter implements ImageProviderAdapter {
   provider = 'volcengine'
@@ -21,7 +17,7 @@ export class VolcEngineImageAdapter implements ImageProviderAdapter {
     const spec = record.normalizedSpec || null
     const volcOptions = this.getVolcengineOptions(spec?.providerOptions)
 
-    const body: any = {
+    const body: Record<string, unknown> = {
       model,
       prompt: spec?.prompt || record.prompt,
     }
@@ -73,14 +69,18 @@ export class VolcEngineImageAdapter implements ImageProviderAdapter {
     }
   }
 
-  parseGenerateResponse(result: any): ImageGenResponse {
-    const imageUrl = result.data?.[0]?.url || result.url
+  parseGenerateResponse(result: unknown): ImageGenResponse {
+    const record = isRecord(result) ? result : {}
+    const imageUrl = this.extractImageUrl(record)
     if (imageUrl) {
       return { isAsync: false, imageUrl }
     }
-    if (result.task_id || result.id) {
-      return { isAsync: true, taskId: result.task_id || result.id }
+
+    const taskId = this.readTaskId(record)
+    if (taskId) {
+      return { isAsync: true, taskId }
     }
+
     throw new Error('No image URL in response')
   }
 
@@ -95,30 +95,51 @@ export class VolcEngineImageAdapter implements ImageProviderAdapter {
     }
   }
 
-  parsePollResponse(result: any): ImagePollResponse {
-    const status = result.status
+  parsePollResponse(result: unknown): ImagePollResponse {
+    const record = isRecord(result) ? result : {}
+    const status = typeof record.status === 'string' ? record.status : undefined
     if (status === 'succeeded') {
       return {
         status: 'completed',
-        imageUrl: result.data?.[0]?.url || result.image_url,
+        imageUrl: this.extractImageUrl(record) || undefined,
       }
     }
     if (status === 'failed') {
-      return { status: 'failed', error: result.error || 'Generation failed' }
+      return { status: 'failed', error: this.readString(record.error) || 'Generation failed' }
     }
-    return { status: status || 'processing' }
+    if (status === 'pending' || status === 'processing') {
+      return { status }
+    }
+    return { status: 'processing' }
   }
 
-  extractImageUrl(result: any): string | null {
-    return result.data?.[0]?.url || result.image_url || null
+  extractImageUrl(result: unknown): string | null {
+    const record = isRecord(result) ? result : {}
+    const first = this.firstRecordValue(record.data)
+    return this.readString(first?.url) || this.readString(record.url) || null
   }
 
-  extractImageBase64(result: any): { data: string; mimeType: string } | null {
+  extractImageBase64(_result: unknown): { data: string; mimeType: string } | null {
     return null
   }
 
   private getVolcengineOptions(options?: Record<string, Record<string, unknown>>) {
-    const raw = options && typeof options === 'object' ? options.volcengine : null
-    return raw && typeof raw === 'object' ? raw as Record<string, any> : {}
+    const raw = options?.volcengine
+    return isRecord(raw) ? raw : {}
+  }
+
+  private firstRecordValue(value: unknown): Record<string, unknown> | null {
+    if (!Array.isArray(value) || !value.length) return null
+    const first = value[0]
+    return isRecord(first) ? first : null
+  }
+
+  private readTaskId(record: Record<string, unknown>): string | null {
+    const taskId = this.readString(record.task_id) || this.readString(record.id)
+    return taskId || null
+  }
+
+  private readString(value: unknown): string | undefined {
+    return typeof value === 'string' ? value : typeof value === 'number' ? String(value) : undefined
   }
 }

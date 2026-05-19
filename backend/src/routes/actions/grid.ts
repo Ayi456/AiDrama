@@ -1,15 +1,42 @@
 import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
-import { db, schema } from '../db/index.js'
-import { success, badRequest, now } from '../utils/response.js'
-import { generateImage } from '../services/generation/image-generation.js'
-import { splitGridImage } from '../services/image/grid-split.js'
-import { createAgent } from '../agents/index.js'
-import { logTaskError, logTaskPayload, logTaskProgress } from '../utils/task-logger.js'
-import { uploadStaticAssetToCos } from '../utils/cos.js'
-import { presentImageGenerationAsset } from '../utils/public-asset.js'
+import { db, schema } from '../../db/index.js'
+import { success, badRequest, now } from '../../utils/response.js'
+import { generateImage } from '../../services/generation/image-generation.js'
+import { splitGridImage } from '../../services/image/grid-split.js'
+import { createAgent } from '../../agents/index.js'
+import { logTaskError, logTaskPayload, logTaskProgress } from '../../utils/task-logger.js'
+import { uploadStaticAssetToCos } from '../../utils/cos.js'
+import { presentImageGenerationAsset } from '../../utils/public-asset.js'
+import { errorMessageFromUnknown } from '../../utils/error.js'
+import { readJsonBody, readBodyNumber, readBodyObjectArray } from '../shared/route-body.js'
+import { normalizeGridAssignments } from '../policies/grid-route-policy.js'
 
 const app = new Hono()
+
+type GridStoryboardsRow = typeof schema.storyboards.$inferSelect
+
+type GridReferenceAsset = {
+  path: string
+  label: string
+  kind: 'scene' | 'character' | 'storyboard'
+  sceneId?: number
+  characterId?: number
+  storyboardId?: number
+  imageIndex?: number
+  imageLabel?: string
+}
+
+type GridCellPrompt = {
+  shot_number: number
+  frame_type: string
+  prompt: string
+}
+
+type GridPayload = {
+  grid_prompt: string
+  cell_prompts: GridCellPrompt[]
+}
 
 const POSITIONS = [
   'top-left', 'top-right', 'top-center',
@@ -26,8 +53,8 @@ function cellLabel(i: number, rows: number, cols: number) {
   return `格${i + 1}（${posLabel(i, rows, cols)}）`
 }
 
-function safeParseJsonArray(value: any): string[] {
-  if (!value) return []
+function safeParseJsonArray(value: unknown): string[] {
+  if (typeof value !== 'string' || !value.trim()) return []
   try {
     const parsed = JSON.parse(value)
     return Array.isArray(parsed) ? parsed.filter(Boolean) : []
@@ -49,7 +76,7 @@ async function getStoryboardCharacterIds(storyboardIds: number[]) {
   return map
 }
 
-async function collectGridReferenceAssets(storyboards: any[]) {
+async function collectGridReferenceAssets(storyboards: GridStoryboardsRow[]) {
   const storyboardIds = storyboards.map((sb) => sb.id)
   const storyboardCharacterIds = await getStoryboardCharacterIds(storyboardIds)
   const sceneIds = [...new Set(storyboards.map((sb) => sb.sceneId).filter(Boolean))]
@@ -104,14 +131,14 @@ async function collectGridReferenceAssets(storyboards: any[]) {
   }))
 }
 
-function buildReferenceLegend(referenceAssets: Array<{ imageLabel: string; label: string }>) {
+function buildReferenceLegend(referenceAssets: GridReferenceAsset[]) {
   if (!referenceAssets.length) return ''
   return referenceAssets.map((asset) => `${asset.imageLabel}=${asset.label}`).join('；')
 }
 
 function buildStoryboardReferenceHints(
-  sb: any,
-  referenceAssets: Array<{ path: string; label: string; kind: string; imageLabel: string; sceneId?: number; characterId?: number; storyboardId?: number }>,
+  sb: GridStoryboardsRow,
+  referenceAssets: GridReferenceAsset[],
   storyboardCharacterIds: Map<number, number[]>,
 ) {
   const hints: string[] = []
@@ -137,11 +164,11 @@ function buildStoryboardReferenceHints(
 // Build prompt based on mode
 async function buildGridPrompt(
   mode: string,
-  storyboards: any[],
+  storyboards: GridStoryboardsRow[],
   rows: number,
   cols: number,
   dramaStyle: string,
-  referenceAssets: Array<{ path: string; label: string; kind: string; imageLabel: string }>,
+  referenceAssets: GridReferenceAsset[],
 ): Promise<string> {
   const style = dramaStyle || 'cinematic'
   const storyboardCharacterIds = await getStoryboardCharacterIds(storyboards.map((sb) => sb.id))
@@ -218,10 +245,10 @@ async function buildGridPrompt(
 
 async function buildGridCellPrompts(
   mode: string,
-  storyboards: any[],
+  storyboards: GridStoryboardsRow[],
   rows: number,
   cols: number,
-  referenceAssets: Array<{ path: string; label: string; kind: string; imageLabel: string }>,
+  referenceAssets: GridReferenceAsset[],
 ) {
   if (!storyboards.length) return []
   const storyboardCharacterIds = await getStoryboardCharacterIds(storyboards.map((sb) => sb.id))
@@ -283,29 +310,33 @@ function extractJsonCandidate(text: string) {
   return plain?.[0]?.trim() || ''
 }
 
-function normalizeGridPayload(payload: any) {
-  if (!payload || typeof payload !== 'object') return null
-  const gridPrompt = typeof payload.grid_prompt === 'string'
-    ? payload.grid_prompt.trim()
-    : typeof payload.gridPrompt === 'string'
-      ? payload.gridPrompt.trim()
+function normalizeGridPayload(payload: unknown): GridPayload | null {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
+  const record = payload as Record<string, unknown>
+  const gridPrompt = typeof record.grid_prompt === 'string'
+    ? record.grid_prompt.trim()
+    : typeof record.gridPrompt === 'string'
+      ? record.gridPrompt.trim()
       : ''
-  const rawCells = Array.isArray(payload.cell_prompts)
-    ? payload.cell_prompts
-    : Array.isArray(payload.cellPrompts)
-      ? payload.cellPrompts
+  const rawCells = Array.isArray(record.cell_prompts)
+    ? record.cell_prompts
+    : Array.isArray(record.cellPrompts)
+      ? record.cellPrompts
       : []
-  const cellPrompts = rawCells.map((cell: any) => ({
-    shot_number: Number(cell?.shot_number ?? cell?.shotNumber ?? 0) || 0,
-    frame_type: String(cell?.frame_type ?? cell?.frameType ?? 'first_frame'),
-    prompt: String(cell?.prompt ?? '').trim(),
-  })).filter((cell: any) => cell.prompt)
+  const cellPrompts = rawCells
+    .filter((cell): cell is Record<string, unknown> => !!cell && typeof cell === 'object' && !Array.isArray(cell))
+    .map((cell) => ({
+      shot_number: Number(cell.shot_number ?? cell.shotNumber ?? 0) || 0,
+      frame_type: String(cell.frame_type ?? cell.frameType ?? 'first_frame'),
+      prompt: String(cell.prompt ?? '').trim(),
+    }))
+    .filter((cell) => cell.prompt)
 
   if (!gridPrompt) return null
   return { grid_prompt: gridPrompt, cell_prompts: cellPrompts }
 }
 
-function findGridPayload(value: any): { grid_prompt: string; cell_prompts: any[] } | null {
+function findGridPayload(value: unknown): GridPayload | null {
   if (!value) return null
 
   const normalized = normalizeGridPayload(value)
@@ -387,35 +418,35 @@ async function tryAgentGridPrompt(
 
 // POST /grid/prompt
 app.post('/prompt', async (c) => {
-  const body = await c.req.json()
-  const {
-    storyboard_ids,
-    drama_id,
-    episode_id,
-    rows,
-    cols,
-    mode = 'first_frame',
-  } = body
+  const body = await readJsonBody(c)
+  const storyboardIds = Array.isArray(body.storyboard_ids)
+    ? body.storyboard_ids.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0)
+    : []
+  const dramaId = readBodyNumber(body, 'drama_id')
+  const episodeId = readBodyNumber(body, 'episode_id')
+  const rows = readBodyNumber(body, 'rows')
+  const cols = readBodyNumber(body, 'cols')
+  const mode = typeof body.mode === 'string' ? body.mode : 'first_frame'
 
-  if (!storyboard_ids?.length) return badRequest(c, 'storyboard_ids required')
+  if (!storyboardIds.length) return badRequest(c, 'storyboard_ids required')
   if (!rows || !cols) return badRequest(c, 'rows and cols required')
 
-  const storyboards = (await Promise.all(storyboard_ids.map(async (id: number) => {
+  const storyboards = (await Promise.all(storyboardIds.map(async (id: number) => {
     const [sb] = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.id, id)).all())
     return sb
-  }))).filter(Boolean)
+  }))).filter((sb): sb is GridStoryboardsRow => Boolean(sb))
 
   if (!storyboards.length) return badRequest(c, 'No storyboards found')
 
   let dramaStyle = ''
-  if (drama_id) {
-    const [drama] = (await db.select().from(schema.dramas).where(eq(schema.dramas.id, drama_id)).all())
+  if (dramaId) {
+    const [drama] = (await db.select().from(schema.dramas).where(eq(schema.dramas.id, dramaId)).all())
     dramaStyle = drama?.style || ''
   }
 
   const actualCols = cols
   const actualRows = rows
-  const resolvedEpisodeId = Number(episode_id || storyboards[0]?.episodeId || 0)
+  const resolvedEpisodeId = Number(episodeId || storyboards[0]?.episodeId || 0)
   const referenceAssets = await collectGridReferenceAssets(storyboards)
   const referenceLegend = buildReferenceLegend(referenceAssets)
 
@@ -426,8 +457,8 @@ app.post('/prompt', async (c) => {
   try {
     const agentPayload = await tryAgentGridPrompt(
       resolvedEpisodeId,
-      Number(drama_id || 0),
-      storyboard_ids,
+      Number(dramaId || 0),
+      storyboardIds,
       actualRows,
       actualCols,
       mode,
@@ -437,26 +468,26 @@ app.post('/prompt', async (c) => {
     if (agentPayload?.grid_prompt) {
       logTaskProgress('GridPrompt', 'agent-success', {
         episodeId: resolvedEpisodeId,
-        dramaId: drama_id,
+        dramaId,
         mode,
         rows: actualRows,
         cols: actualCols,
-        storyboardCount: storyboard_ids.length,
+        storyboardCount: storyboardIds.length,
       })
       logTaskPayload('GridPrompt', 'agent-result', agentPayload)
       return success(c, {
         ...agentPayload,
         source: 'agent',
         grid: { rows: actualRows, cols: actualCols },
-        storyboard_ids,
+        storyboard_ids: storyboardIds,
         mode,
       })
     }
-  } catch (err: any) {
+  } catch (error: unknown) {
     logTaskError('GridPrompt', 'agent-failed', {
       episodeId: resolvedEpisodeId,
-      dramaId: drama_id,
-      error: err.message,
+      dramaId,
+      error: errorMessageFromUnknown(error, 'Grid prompt generation failed'),
     })
   }
 
@@ -464,11 +495,11 @@ app.post('/prompt', async (c) => {
   const cellPrompts = await buildGridCellPrompts(mode, storyboards, actualRows, actualCols, referenceAssets)
   logTaskProgress('GridPrompt', 'fallback-used', {
     episodeId: resolvedEpisodeId,
-    dramaId: drama_id,
+    dramaId,
     mode,
     rows: actualRows,
     cols: actualCols,
-    storyboardCount: storyboard_ids.length,
+    storyboardCount: storyboardIds.length,
   })
 
   return success(c, {
@@ -476,42 +507,42 @@ app.post('/prompt', async (c) => {
     cell_prompts: cellPrompts,
     source: 'fallback',
     grid: { rows: actualRows, cols: actualCols },
-    storyboard_ids,
+    storyboard_ids: storyboardIds,
     mode,
   })
 })
 
 // POST /grid/generate
 app.post('/generate', async (c) => {
-  const body = await c.req.json()
-  const {
-    storyboard_ids,
-    drama_id,
-    rows,
-    cols,
-    mode = 'first_frame', // first_frame | first_last | multi_ref
-    custom_prompt,
-  } = body
+  const body = await readJsonBody(c)
+  const storyboardIds = Array.isArray(body.storyboard_ids)
+    ? body.storyboard_ids.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0)
+    : []
+  const dramaId = readBodyNumber(body, 'drama_id')
+  const rows = readBodyNumber(body, 'rows')
+  const cols = readBodyNumber(body, 'cols')
+  const mode = typeof body.mode === 'string' ? body.mode : 'first_frame'
+  const customPrompt = typeof body.custom_prompt === 'string' ? body.custom_prompt : undefined
 
-  if (!storyboard_ids?.length) return badRequest(c, 'storyboard_ids required')
+  if (!storyboardIds.length) return badRequest(c, 'storyboard_ids required')
   if (!rows || !cols) return badRequest(c, 'rows and cols required')
 
-  const storyboards = (await Promise.all(storyboard_ids.map(async (id: number) => {
+  const storyboards = (await Promise.all(storyboardIds.map(async (id: number) => {
     const [sb] = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.id, id)).all())
     return sb
-  }))).filter(Boolean)
+  }))).filter((sb): sb is GridStoryboardsRow => Boolean(sb))
 
   if (!storyboards.length) return badRequest(c, 'No storyboards found')
 
   // Get drama style
   let dramaStyle = ''
-  if (drama_id) {
-    const [drama] = (await db.select().from(schema.dramas).where(eq(schema.dramas.id, drama_id)).all())
+  if (dramaId) {
+    const [drama] = (await db.select().from(schema.dramas).where(eq(schema.dramas.id, dramaId)).all())
     dramaStyle = drama?.style || ''
   }
 
   const referenceAssets = await collectGridReferenceAssets(storyboards)
-  const prompt = custom_prompt || await buildGridPrompt(mode, storyboards, rows, cols, dramaStyle, referenceAssets)
+  const prompt = customPrompt || await buildGridPrompt(mode, storyboards, rows, cols, dramaStyle, referenceAssets)
   const referenceImages = referenceAssets.map((asset) => asset.path)
 
   // Size: first_last mode uses Nx2 layout
@@ -522,7 +553,7 @@ app.post('/generate', async (c) => {
 
   try {
     const genId = await generateImage({
-      dramaId: drama_id,
+      dramaId,
       prompt,
       size,
       frameType: `grid_${mode}_${actualRows}x${actualCols}`,
@@ -530,7 +561,7 @@ app.post('/generate', async (c) => {
     })
 
     logTaskProgress('GridGenerate', 'reference-images', {
-      dramaId: drama_id,
+      dramaId,
       mode,
       rows: actualRows,
       cols: actualCols,
@@ -541,31 +572,29 @@ app.post('/generate', async (c) => {
       image_generation_id: genId,
       grid: { rows: actualRows, cols: actualCols },
       mode,
-      storyboard_ids,
+      storyboard_ids: storyboardIds,
       prompt,
       reference_images: referenceImages,
     })
-  } catch (err: any) {
-    return badRequest(c, err.message)
+  } catch (error: unknown) {
+    return badRequest(c, errorMessageFromUnknown(error, 'Grid generation failed'))
   }
 })
 
 // POST /grid/split
 app.post('/split', async (c) => {
-  const body = await c.req.json()
-  const {
-    image_generation_id,
-    rows,
-    cols,
-    assignments, // [{storyboard_id, frame_type: 'first_frame'|'last_frame'|'reference'}]
-  } = body
+  const body = await readJsonBody(c)
+  const imageGenerationId = readBodyNumber(body, 'image_generation_id')
+  const rows = readBodyNumber(body, 'rows')
+  const cols = readBodyNumber(body, 'cols')
+  const assignments = normalizeGridAssignments(readBodyObjectArray(body, 'assignments'))
 
-  if (!image_generation_id) return badRequest(c, 'image_generation_id required')
+  if (!imageGenerationId) return badRequest(c, 'image_generation_id required')
   if (!rows || !cols) return badRequest(c, 'rows and cols required')
-  if (!assignments?.length) return badRequest(c, 'assignments required')
+  if (!assignments.length) return badRequest(c, 'assignments required')
 
   const [imgRecord] = (await db.select().from(schema.imageGenerations)
-    .where(eq(schema.imageGenerations.id, image_generation_id)).all())
+    .where(eq(schema.imageGenerations.id, imageGenerationId)).all())
 
   if (!imgRecord) return badRequest(c, 'Image generation not found')
   if (imgRecord.status !== 'completed') return badRequest(c, `Image status: ${imgRecord.status}`)
@@ -574,30 +603,49 @@ app.post('/split', async (c) => {
   try {
     const cells = await splitGridImage(imgRecord.localPath, rows, cols)
 
-    const results: any[] = []
+    const results: Array<{
+      storyboardId: number
+      frameType: string
+      localPath: string
+      publicUrl: string
+    }> = []
     for (let i = 0; i < assignments.length && i < cells.length; i++) {
-      const { storyboard_id, frame_type } = assignments[i]
+      const assignment = assignments[i]
+      const storyboardId = assignment.storyboardId
+      const frameType = assignment.frameType
       const cell = cells[i]
-      if (!storyboard_id) continue
+      if (!storyboardId || !frameType) continue
       const publicPath = await uploadStaticAssetToCos(cell.localPath) || cell.localPath
 
-      const update: Record<string, any> = { updatedAt: now() }
-      if (frame_type === 'first_frame') update.firstFrameImage = publicPath
-      else if (frame_type === 'last_frame') update.lastFrameImage = publicPath
-      else if (frame_type === 'reference') {
-        const [sb] = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.id, storyboard_id)).all())
-        const existing = sb?.referenceImages ? JSON.parse(sb.referenceImages) : []
+      const update: {
+        updatedAt: string
+        firstFrameImage?: string
+        lastFrameImage?: string
+        referenceImages?: string
+      } = { updatedAt: now() }
+      if (frameType === 'first_frame') update.firstFrameImage = publicPath
+      else if (frameType === 'last_frame') update.lastFrameImage = publicPath
+      else if (frameType === 'reference') {
+        const [sb] = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.id, storyboardId)).all())
+        const existing = safeParseJsonArray(sb?.referenceImages).slice()
         existing.push(publicPath)
         update.referenceImages = JSON.stringify(existing)
       }
 
-      await db.update(schema.storyboards).set(update).where(eq(schema.storyboards.id, storyboard_id)).run()
-      results.push({ storyboard_id, frame_type, local_path: cell.localPath, public_url: publicPath })
+      await db.update(schema.storyboards).set(update).where(eq(schema.storyboards.id, storyboardId)).run()
+      results.push({ storyboardId, frameType, localPath: cell.localPath, publicUrl: publicPath })
     }
 
-    return success(c, { cells: results })
-  } catch (err: any) {
-    return badRequest(c, err.message)
+    return success(c, {
+      cells: results.map((cell) => ({
+        storyboard_id: cell.storyboardId,
+        frame_type: cell.frameType,
+        local_path: cell.localPath,
+        public_url: cell.publicUrl,
+      })),
+    })
+  } catch (error: unknown) {
+    return badRequest(c, errorMessageFromUnknown(error, 'Grid split failed'))
   }
 })
 

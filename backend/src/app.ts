@@ -5,24 +5,25 @@ import { cors } from 'hono/cors'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
-import dramas from './routes/dramas.js'
-import episodes from './routes/episodes.js'
-import storyboards from './routes/storyboards.js'
-import scenes from './routes/scenes.js'
-import characters from './routes/characters.js'
-import images from './routes/images.js'
-import videos from './routes/videos.js'
-import upload from './routes/upload.js'
-import aiConfigs, { aiProviders } from './routes/aiConfigs.js'
-import agentConfigs from './routes/agentConfigs.js'
-import agent from './routes/agent.js'
-import compose from './routes/compose.js'
-import merge from './routes/merge.js'
-import grid from './routes/grid.js'
-import skills from './routes/skills.js'
-import assets from './routes/assets.js'
-import characterAssets from './routes/characterAssets.js'
-import webhooks from './routes/webhooks.js'
+import dramas from './routes/resources/dramas.js'
+import chapters from './routes/resources/episodes.js'
+import { chapterRoutePath } from './routes/policies/chapter-route-path.js'
+import storyboards from './routes/resources/storyboards.js'
+import scenes from './routes/resources/scenes.js'
+import characters from './routes/resources/characters.js'
+import images from './routes/resources/images.js'
+import videos from './routes/resources/videos.js'
+import upload from './routes/actions/upload.js'
+import aiConfigs, { aiProviders } from './routes/configs/aiConfigs.js'
+import agentConfigs from './routes/configs/agentConfigs.js'
+import agent from './routes/actions/agent.js'
+import compose from './routes/actions/compose.js'
+import merge from './routes/actions/merge.js'
+import grid from './routes/actions/grid.js'
+import skills from './routes/configs/skills.js'
+import assets from './routes/resources/assets.js'
+import characterAssets from './routes/resources/characterAssets.js'
+import webhooks from './routes/webhooks/webhooks.js'
 import { requestLogger, errorHandler } from './middleware/logger.js'
 import { externalAssetRedirectUrl } from './utils/external-asset-redirect.js'
 import { resolveDataRoot, resolveFrontendPublicPath } from './utils/runtime-paths.js'
@@ -55,8 +56,7 @@ export function createApp() {
 
   const api = new Hono()
   api.route('/dramas', dramas)
-  api.route('/episodes', episodes)
-  api.route('/chapters', episodes)
+  api.route(chapterRoutePath, chapters)
   api.route('/storyboards', storyboards)
   api.route('/scenes', scenes)
   api.route('/characters', characters)

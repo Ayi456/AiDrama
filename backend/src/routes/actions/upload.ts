@@ -1,19 +1,19 @@
 import { Hono, type Context } from 'hono'
 import { v4 as uuid } from 'uuid'
-import { success, badRequest } from '../utils/response.js'
+import { success, badRequest } from '../../utils/response.js'
 import {
   buildCosObjectUrl,
   createCosPresignedObjectUrl,
   getCosConfig,
   staticAssetToCosObjectKey,
   uploadStaticAssetToCos,
-} from '../utils/cos.js'
-import { saveUploadedFile } from '../utils/storage.js'
+} from '../../utils/cos.js'
+import { saveUploadedFile } from '../../utils/storage.js'
 import {
   buildDirectUploadResponsePayload,
   buildUploadedStaticPath,
   buildUploadResponsePayload,
-} from './upload-route-policy.js'
+} from '../policies/upload-route-policy.js'
 
 const app = new Hono()
 

@@ -33,6 +33,27 @@ runTest('cleaned provider adapter files use ASCII source text', () => {
   }
 })
 
+runTest('volcengine, openai, minimax, and gemini adapter files are cleaned up', () => {
+  const files = [
+    'src/services/adapters/volcengine-image.ts',
+    'src/services/adapters/volcengine-video.ts',
+    'src/services/adapters/openai-image.ts',
+    'src/services/adapters/minimax-image.ts',
+    'src/services/adapters/minimax-video.ts',
+    'src/services/adapters/gemini-image.ts',
+  ]
+
+  for (const file of files) {
+    const source = fs.readFileSync(path.resolve(file), 'utf8')
+    assert.equal(/[^\x00-\x7F]/.test(source), false, `${file} still contains non-ASCII source text`)
+    assert.equal(
+      /(:\s*any\b|as\s+any\b|Record<string,\s*any>|catch\s*\(\s*[A-Za-z_$][\w$]*\s*:\s*any\s*\))/u.test(source),
+      false,
+      `${file} still contains any-typed payloads`,
+    )
+  }
+})
+
 runTest('Vidu callback state parser maps callback states into video outcomes', () => {
   assert.deepEqual(
     ViduVideoAdapter.parseCallbackState({ state: 'success', video_url: 'https://cdn.example.com/video.mp4' }),

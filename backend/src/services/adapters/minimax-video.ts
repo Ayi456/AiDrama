@@ -1,7 +1,3 @@
-/**
- * MiniMax 视频生成 Adapter
- * API 风格：OpenAI Chat Completions content 数组格式
- */
 import type {
   VideoProviderAdapter,
   ProviderRequest,
@@ -11,6 +7,7 @@ import type {
   VideoPollResponse,
 } from './types.js'
 import { joinProviderUrl } from './url.js'
+import { isRecord, parseJsonStringArray } from './adapter-utils.js'
 
 export class MiniMaxVideoAdapter implements VideoProviderAdapter {
   provider = 'minimax'
@@ -19,7 +16,7 @@ export class MiniMaxVideoAdapter implements VideoProviderAdapter {
     let promptText = record.prompt || ''
     promptText += `  --ratio ${record.aspectRatio || '16:9'}  --dur ${record.duration || 5}`
 
-    const content: any[] = [{ type: 'text', text: promptText }]
+    const content: Array<Record<string, unknown>> = [{ type: 'text', text: promptText }]
 
     if (record.referenceMode === 'single' && record.imageUrl) {
       content.push({ type: 'image_url', image_url: { url: record.imageUrl }, role: 'reference_image' })
@@ -31,12 +28,9 @@ export class MiniMaxVideoAdapter implements VideoProviderAdapter {
         content.push({ type: 'image_url', image_url: { url: record.lastFrameUrl }, role: 'last_frame' })
       }
     } else if (record.referenceMode === 'multiple' && record.referenceImageUrls) {
-      try {
-        const refs = JSON.parse(record.referenceImageUrls)
-        for (const url of refs) {
-          content.push({ type: 'image_url', image_url: { url }, role: 'reference_image' })
-        }
-      } catch {}
+      for (const url of parseJsonStringArray(record.referenceImageUrls)) {
+        content.push({ type: 'image_url', image_url: { url }, role: 'reference_image' })
+      }
     }
 
     return {
@@ -50,11 +44,11 @@ export class MiniMaxVideoAdapter implements VideoProviderAdapter {
     }
   }
 
-  parseGenerateResponse(result: any): VideoGenResponse {
-    const taskId = result.task_id || result.id || result.data?.id
+  parseGenerateResponse(result: unknown): VideoGenResponse {
+    const record = isRecord(result) ? result : {}
+    const taskId = this.readTaskId(record)
     if (!taskId) {
-      // 同步返回
-      const videoUrl = result.video_url || result.data?.video_url || result.content?.video_url
+      const videoUrl = this.extractVideoUrl(record)
       if (videoUrl) {
         return { isAsync: false, videoUrl }
       }
@@ -74,21 +68,47 @@ export class MiniMaxVideoAdapter implements VideoProviderAdapter {
     }
   }
 
-  parsePollResponse(result: any): VideoPollResponse {
-    const status = result.status || result.state || result.data?.status
+  parsePollResponse(result: unknown): VideoPollResponse {
+    const record = isRecord(result) ? result : {}
+    const status = typeof record.status === 'string'
+      ? record.status
+      : typeof record.state === 'string'
+        ? record.state
+        : typeof record.data === 'object' && isRecord(record.data)
+          ? this.readString(record.data.status)
+          : undefined
+
     if (status === 'completed' || status === 'succeeded') {
       return {
         status: 'completed',
-        videoUrl: result.video_url || result.data?.video_url || result.content?.video_url,
+        videoUrl: this.extractVideoUrl(record) || undefined,
       }
     }
     if (status === 'failed' || status === 'error') {
-      return { status: 'failed', error: result.error_msg || result.error || 'Video generation failed' }
+      return { status: 'failed', error: this.readString(record.error_msg) || this.readString(record.error) || 'Video generation failed' }
     }
-    return { status: status || 'processing' }
+    if (status === 'pending' || status === 'processing') {
+      return { status }
+    }
+    return { status: 'processing' }
   }
 
-  extractVideoUrl(result: any): string | null {
-    return result.video_url || result.data?.video_url || result.content?.video_url || null
+  extractVideoUrl(result: unknown): string | null {
+    const record = isRecord(result) ? result : {}
+    const data = isRecord(record.data) ? record.data : null
+    const content = isRecord(record.content) ? record.content : null
+    return this.readString(record.video_url)
+      || this.readString(data?.video_url)
+      || this.readString(content?.video_url)
+      || null
+  }
+
+  private readTaskId(record: Record<string, unknown>): string | null {
+    const id = this.readString(record.task_id) || this.readString(record.id) || this.readString(isRecord(record.data) ? record.data.id : undefined)
+    return id || null
+  }
+
+  private readString(value: unknown): string | undefined {
+    return typeof value === 'string' ? value : typeof value === 'number' ? String(value) : undefined
   }
 }

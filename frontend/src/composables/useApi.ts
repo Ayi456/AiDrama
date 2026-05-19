@@ -255,15 +255,6 @@ export const dramaAPI = {
   del: (id: number) => api.del(`/dramas/${id}`),
 }
 
-export const episodeAPI = {
-  create: (data: ApiRequestBody) => api.post<Episode>('/episodes', data),
-  update: (id: number, data: ApiRequestBody) => api.put<Episode>(`/episodes/${id}`, data),
-  characters: (id: number) => api.get<DramaCharacter[]>(`/episodes/${id}/characters`),
-  scenes: (id: number) => api.get<Scene[]>(`/episodes/${id}/scenes`),
-  storyboards: (id: number) => api.get<Storyboard[]>(`/episodes/${id}/storyboards`),
-  pipelineStatus: (id: number) => api.get(`/episodes/${id}/pipeline-status`),
-}
-
 export const chapterAPI = {
   create: (data: ApiRequestBody) => api.post<Episode>('/chapters', data),
   update: (id: number, data: ApiRequestBody) => api.put<Episode>(`/chapters/${id}`, data),
@@ -272,6 +263,8 @@ export const chapterAPI = {
   storyboards: (id: number) => api.get<Storyboard[]>(`/chapters/${id}/storyboards`),
   pipelineStatus: (id: number) => api.get(`/chapters/${id}/pipeline-status`),
 }
+
+export const episodeAPI = chapterAPI
 
 export const storyboardAPI = {
   create: (data: ApiRequestBody) => api.post<Storyboard>('/storyboards', data),
@@ -328,15 +321,15 @@ export const videoAPI = {
 }
 export const composeAPI = {
   shot: (id: number) => api.post(`/compose/storyboards/${id}/compose`),
-  all: (epId: number) => api.post(`/compose/episodes/${epId}/compose-all`),
-  status: (epId: number) => api.get(`/compose/episodes/${epId}/compose-status`),
+  all: (epId: number) => api.post(`/compose/chapters/${epId}/compose-all`),
+  status: (epId: number) => api.get(`/compose/chapters/${epId}/compose-status`),
 }
 export const mergeAPI = {
   merge: (epId: number, storyboardIds?: number[]) => api.post(
-    `/merge/episodes/${epId}/merge`,
+    `/merge/chapters/${epId}/merge`,
     Array.isArray(storyboardIds) ? { storyboard_ids: storyboardIds } : undefined,
   ),
-  status: (epId: number) => api.get(`/merge/episodes/${epId}/merge`),
+  status: (epId: number) => api.get(`/merge/chapters/${epId}/merge`),
 }
 export const aiConfigAPI = {
   list: (t?: string) => api.get<AiConfig[]>(`/ai-configs${t ? `?service_type=${t}` : ''}`),

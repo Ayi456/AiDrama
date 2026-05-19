@@ -1,12 +1,12 @@
 import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
-import { db, schema } from '../db/index.js'
-import { success, created, badRequest, now } from '../utils/response.js'
-import { generateImage } from '../services/generation/image-generation.js'
-import { logTaskError, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
-import { buildSceneImagePrompt } from '../agents/visual-prompt-policy.js'
-import { errorMessageFromUnknown } from '../utils/error.js'
-import { hasOwn, readJsonBody } from './route-body.js'
+import { db, schema } from '../../db/index.js'
+import { success, created, badRequest, now } from '../../utils/response.js'
+import { generateImage } from '../../services/generation/image-generation.js'
+import { logTaskError, logTaskStart, logTaskSuccess } from '../../utils/task-logger.js'
+import { buildSceneImagePrompt } from '../../agents/visual-prompt-policy.js'
+import { errorMessageFromUnknown } from '../../utils/error.js'
+import { hasOwn, readJsonBody } from '../shared/route-body.js'
 
 const app = new Hono()
 

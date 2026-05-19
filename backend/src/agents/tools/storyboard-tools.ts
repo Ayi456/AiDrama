@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { db, schema } from '../../db/index.js'
 import { now } from '../../utils/response.js'
 import { logTaskProgress, logTaskSuccess } from '../../utils/task-logger.js'
-import { appendDialogueToVideoPrompt } from '../../routes/storyboard-route-policy.js'
+import { appendDialogueToVideoPrompt } from '../../routes/policies/storyboard-route-policy.js'
 import {
   getNextStoryboardNumber,
   renumberStoryboardsForAppend,

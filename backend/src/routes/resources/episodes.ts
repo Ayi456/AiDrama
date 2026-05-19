@@ -1,8 +1,15 @@
 import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
-import { db, schema } from '../db/index.js'
-import { success, notFound, badRequest, now } from '../utils/response.js'
-import { toSnakeCaseArray, toSnakeCase } from '../utils/transform.js'
+import { db, schema } from '../../db/index.js'
+import { success, notFound, badRequest, now } from '../../utils/response.js'
+import { toSnakeCaseArray, toSnakeCase } from '../../utils/transform.js'
+import { readJsonBody } from '../shared/route-body.js'
+import {
+  buildChapterCreateValues,
+  buildChapterUpdatePatch,
+  readChapterConfigId,
+  readChapterDramaId,
+} from '../policies/chapter-route-policy.js'
 
 const app = new Hono()
 
@@ -10,12 +17,12 @@ type CharacterRow = typeof schema.characters.$inferSelect
 type CharacterAssetRow = typeof schema.characterAssets.$inferSelect
 
 async function loadCharacterAssetMap(characters: CharacterRow[]) {
-  const assetIds = [...new Set(characters.map(character => character.characterAssetId).filter((id): id is number => Boolean(id)))]
+  const assetIds = [...new Set(characters.map((character) => character.characterAssetId).filter((id): id is number => Boolean(id)))]
   if (!assetIds.length) return new Map<number, CharacterAssetRow>()
 
   const assets = (await db.select().from(schema.characterAssets).all())
-    .filter(asset => assetIds.includes(asset.id) && !asset.deletedAt && asset.isActive !== false)
-  return new Map(assets.map(asset => [asset.id, asset]))
+    .filter((asset) => assetIds.includes(asset.id) && !asset.deletedAt && asset.isActive !== false)
+  return new Map(assets.map((asset) => [asset.id, asset]))
 }
 
 function presentCharacterWithAsset(character: CharacterRow, assetMap: Map<number, CharacterAssetRow>) {
@@ -34,34 +41,32 @@ function presentCharacterWithAsset(character: CharacterRow, assetMap: Map<number
   }
 }
 
-// POST /episodes - Create a new episode
+// POST /chapters - Create a new chapter
 app.post('/', async (c) => {
-  const body = await c.req.json()
-  if (!body.drama_id) return badRequest(c, 'drama_id required')
-  if (!body.image_config_id || !body.video_config_id) {
+  const body = await readJsonBody(c)
+  const dramaId = readChapterDramaId(body)
+  if (!dramaId) return badRequest(c, 'drama_id required')
+
+  const imageConfigId = readChapterConfigId(body, 'image_config_id')
+  const videoConfigId = readChapterConfigId(body, 'video_config_id')
+  if (!imageConfigId || !videoConfigId) {
     return badRequest(c, 'image_config_id and video_config_id are required')
   }
 
   const ts = now()
-  const existing = (await db.select().from(schema.episodes)
-    .where(eq(schema.episodes.dramaId, body.drama_id))
+  const existing = await db.select().from(schema.episodes)
+    .where(eq(schema.episodes.dramaId, dramaId))
     .orderBy(schema.episodes.episodeNumber)
-    .all())
+    .all()
   const nextNum = existing.length ? Math.max(...existing.map((episode) => episode.episodeNumber)) + 1 : 1
 
-  const res = (await db.insert(schema.episodes).values({
-    dramaId: body.drama_id,
-    episodeNumber: nextNum,
-    title: body.title || `第${nextNum}集`,
-    imageConfigId: body.image_config_id,
-    videoConfigId: body.video_config_id,
-    createdAt: ts,
-    updatedAt: ts,
-  }).run())
+  const res = await db.insert(schema.episodes).values(
+    buildChapterCreateValues(body, nextNum, ts, imageConfigId, videoConfigId),
+  ).run()
 
-  const [ep] = (await db.select().from(schema.episodes)
+  const [ep] = await db.select().from(schema.episodes)
     .where(eq(schema.episodes.id, Number(res.lastInsertRowid)))
-    .all())
+    .all()
 
   return success(c, {
     id: ep.id,
@@ -72,69 +77,56 @@ app.post('/', async (c) => {
   })
 })
 
-// PUT /episodes/:id - Update episode fields
+// PUT /chapters/:id - Update chapter fields
 app.put('/:id', async (c) => {
   const id = Number(c.req.param('id'))
-  const body = await c.req.json()
+  const body = await readJsonBody(c)
 
-  const allowed = ['content', 'script_content', 'title', 'description', 'status', 'image_config_id', 'video_config_id']
-  const updates: Record<string, any> = {}
-  for (const key of allowed) {
-    if (key in body) updates[key] = body[key]
-  }
-  if (Object.keys(updates).length === 0) return badRequest(c, 'no valid fields')
+  const updates = buildChapterUpdatePatch(body, now())
+  if (Object.keys(updates).length === 1) return badRequest(c, 'no valid fields')
 
-  const drizzleUpdates: Record<string, any> = { updatedAt: now() }
-  if ('content' in updates) drizzleUpdates.content = updates.content
-  if ('script_content' in updates) drizzleUpdates.scriptContent = updates.script_content
-  if ('title' in updates) drizzleUpdates.title = updates.title
-  if ('description' in updates) drizzleUpdates.description = updates.description
-  if ('status' in updates) drizzleUpdates.status = updates.status
-  if ('image_config_id' in updates) drizzleUpdates.imageConfigId = Number(updates.image_config_id || 0) || null
-  if ('video_config_id' in updates) drizzleUpdates.videoConfigId = Number(updates.video_config_id || 0) || null
-
-  await db.update(schema.episodes).set(drizzleUpdates).where(eq(schema.episodes.id, id)).run()
+  await db.update(schema.episodes).set(updates).where(eq(schema.episodes.id, id)).run()
   return success(c)
 })
 
-// GET /episodes/:id/characters - characters linked to this episode
+// GET /chapters/:id/characters - characters linked to this chapter
 app.get('/:id/characters', async (c) => {
   const episodeId = Number(c.req.param('id'))
-  const links = (await db.select().from(schema.episodeCharacters)
+  const links = await db.select().from(schema.episodeCharacters)
     .where(eq(schema.episodeCharacters.episodeId, episodeId))
-    .all())
+    .all()
   const charIds = links.map((link) => link.characterId)
   if (!charIds.length) return success(c, [])
 
-  const allChars = (await db.select().from(schema.characters).all())
+  const allChars = await db.select().from(schema.characters).all()
   const result = allChars.filter((character) => charIds.includes(character.id) && !character.deletedAt)
   const assetMap = await loadCharacterAssetMap(result)
-  return success(c, result.map(character => presentCharacterWithAsset(character, assetMap)))
+  return success(c, result.map((character) => presentCharacterWithAsset(character, assetMap)))
 })
 
-// GET /episodes/:id/scenes - scenes linked to this episode
+// GET /chapters/:id/scenes - scenes linked to this chapter
 app.get('/:id/scenes', async (c) => {
   const episodeId = Number(c.req.param('id'))
-  const links = (await db.select().from(schema.episodeScenes)
+  const links = await db.select().from(schema.episodeScenes)
     .where(eq(schema.episodeScenes.episodeId, episodeId))
-    .all())
+    .all()
   const sceneIds = links.map((link) => link.sceneId)
   if (!sceneIds.length) return success(c, [])
 
-  const allScenes = (await db.select().from(schema.scenes).all())
+  const allScenes = await db.select().from(schema.scenes).all()
   const result = allScenes.filter((scene) => sceneIds.includes(scene.id) && !scene.deletedAt)
   return success(c, toSnakeCaseArray(result))
 })
 
-// GET /episodes/:episode_id/storyboards
+// GET /chapters/:episode_id/storyboards
 app.get('/:episode_id/storyboards', async (c) => {
   const episodeId = Number(c.req.param('episode_id'))
-  const rows = (await db.select().from(schema.storyboards)
+  const rows = await db.select().from(schema.storyboards)
     .where(eq(schema.storyboards.episodeId, episodeId))
     .orderBy(schema.storyboards.storyboardNumber)
-    .all())
+    .all()
 
-  const links = (await db.select().from(schema.storyboardCharacters).all())
+  const links = await db.select().from(schema.storyboardCharacters).all()
   const charIdsByStoryboard = new Map<number, number[]>()
   for (const link of links) {
     const arr = charIdsByStoryboard.get(link.storyboardId) || []
@@ -159,16 +151,16 @@ app.get('/:episode_id/storyboards', async (c) => {
   })))
 })
 
-// GET /episodes/:id/pipeline-status - production pipeline progress
+// GET /chapters/:id/pipeline-status - production pipeline progress
 app.get('/:id/pipeline-status', async (c) => {
   const episodeId = Number(c.req.param('id'))
-  const [ep] = (await db.select().from(schema.episodes).where(eq(schema.episodes.id, episodeId)).all())
-  if (!ep) return notFound(c, 'Episode not found')
+  const [ep] = await db.select().from(schema.episodes).where(eq(schema.episodes.id, episodeId)).all()
+  if (!ep) return notFound(c, 'Chapter not found')
 
-  const chars = (await db.select().from(schema.characters).where(eq(schema.characters.dramaId, ep.dramaId)).all())
-  const scenes = (await db.select().from(schema.scenes).where(eq(schema.scenes.dramaId, ep.dramaId)).all())
-  const storyboards = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.episodeId, episodeId)).all())
-  const merges = (await db.select().from(schema.videoMerges).where(eq(schema.videoMerges.episodeId, episodeId)).all())
+  const chars = await db.select().from(schema.characters).where(eq(schema.characters.dramaId, ep.dramaId)).all()
+  const scenes = await db.select().from(schema.scenes).where(eq(schema.scenes.dramaId, ep.dramaId)).all()
+  const storyboards = await db.select().from(schema.storyboards).where(eq(schema.storyboards.episodeId, episodeId)).all()
+  const merges = await db.select().from(schema.videoMerges).where(eq(schema.videoMerges.episodeId, episodeId)).all()
 
   const storyboardsWithImage = storyboards.filter((storyboard) => storyboard.composedImage)
   const storyboardsWithVideo = storyboards.filter((storyboard) => storyboard.videoUrl)

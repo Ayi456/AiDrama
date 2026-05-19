@@ -4,8 +4,8 @@ import {
   parseAssetProxyTarget,
   redirectAssetProxyTarget,
   shouldRedirectAssetProxyTarget,
-} from '../utils/asset-proxy.js'
-import { createCosRequestAuthorization } from '../utils/cos.js'
+} from '../../utils/asset-proxy.js'
+import { createCosRequestAuthorization } from '../../utils/cos.js'
 
 const app = new Hono()
 

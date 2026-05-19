@@ -1,4 +1,4 @@
-import type { RouteBody } from './route-body.js'
+import type { RouteBody } from '../shared/route-body.js'
 
 export function selectedStoryboardIdsFromBody(body: RouteBody): number[] | undefined {
   const raw = body.storyboard_ids ?? body.storyboardIds

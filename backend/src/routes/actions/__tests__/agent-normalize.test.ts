@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import {
   normalizeAgentResult,
   wasToolUsed,
-} from '../../agents/result-normalizer.js'
+} from '../../../agents/result-normalizer.js'
 
 function runTest(name: string, fn: () => void) {
   try {

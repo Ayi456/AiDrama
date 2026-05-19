@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { success, badRequest } from '../utils/response.js'
+import { success, badRequest } from '../../utils/response.js'
 
 const app = new Hono()
 const __dirname = path.dirname(fileURLToPath(import.meta.url))

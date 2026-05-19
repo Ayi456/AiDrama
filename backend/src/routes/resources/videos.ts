@@ -1,17 +1,17 @@
 import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
-import { db, schema } from '../db/index.js'
-import { success, created, badRequest } from '../utils/response.js'
-import { generateVideo } from '../services/generation/video-generation.js'
-import { logTaskError, logTaskPayload, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
-import { presentVideoGenerationAsset, presentVideoGenerationAssets } from '../utils/public-asset.js'
+import { db, schema } from '../../db/index.js'
+import { success, created, badRequest } from '../../utils/response.js'
+import { generateVideo } from '../../services/generation/video-generation.js'
+import { logTaskError, logTaskPayload, logTaskStart, logTaskSuccess } from '../../utils/task-logger.js'
+import { presentVideoGenerationAsset, presentVideoGenerationAssets } from '../../utils/public-asset.js'
 import {
   buildVideoGenerationInput,
   buildVideoRouteLogContext,
   errorMessageFromUnknown,
   validateVideoGenerateBody,
   type VideoGenerateBody,
-} from './video-route-policy.js'
+} from '../policies/video-route-policy.js'
 
 const app = new Hono()
 
