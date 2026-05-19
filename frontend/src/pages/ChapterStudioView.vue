@@ -303,28 +303,17 @@ function mergeCharDesc(char) {
   return [char.description, char.appearance, char.personality].filter(Boolean).join('\n')
 }
 
-const generationGuideLine = '三视图，白色背景，无文字标签'
 const characterDescriptionSavePromises = new Map()
 
-function stripCharacterPromptGuide(value) {
-  const text = String(value || '').trim()
-  if (!text) return ''
-  if (text.endsWith(generationGuideLine)) {
-    return text.slice(0, -generationGuideLine.length).trimEnd()
-  }
-  return text
-}
-
-async function saveMergedCharDesc(char, value) {
-  const cleaned = stripCharacterPromptGuide(value)
-  const old = mergeCharDesc(char)
+async function saveCharImagePrompt(char, value) {
+  const next = String(value || '')
+  const old = char.image_prompt || char.imagePrompt || ''
   const key = Number(char?.id || 0)
-  if (old === cleaned) return key ? characterDescriptionSavePromises.get(key) : undefined
-  char.description = cleaned
-  char.appearance = ''
-  char.personality = ''
+  if (old === next) return key ? characterDescriptionSavePromises.get(key) : undefined
+  char.image_prompt = next
+  char.imagePrompt = next
   const savePromise = characterAPI
-    .update(char.id, { description: cleaned, appearance: '', personality: '' })
+    .update(char.id, { image_prompt: next })
     .finally(() => {
       if (key && characterDescriptionSavePromises.get(key) === savePromise) {
         characterDescriptionSavePromises.delete(key)
@@ -344,7 +333,7 @@ function updateSceneField(scene, field, value) {
 async function handleCharacterDescriptionUpdate(payload) {
   if (!payload?.character) return
   try {
-    await saveMergedCharDesc(payload.character, payload.value || '')
+    await saveCharImagePrompt(payload.character, payload.value || '')
   } catch (error) {
     toast.error(error?.message || '角色描述词保存失败')
   }
@@ -358,7 +347,7 @@ async function handleCharacterGenerate(payload) {
   if (!id) return
   try {
     if (character && typeof payload === 'object' && 'value' in payload) {
-      await saveMergedCharDesc(character, payload.value || '')
+      await saveCharImagePrompt(character, payload.value || '')
     }
     await genCharImg(id)
   } catch (error) {

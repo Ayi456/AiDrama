@@ -39,7 +39,11 @@ app.get('/proxy', async (c) => {
     return new Response('Invalid asset proxy target', { status: 400 })
   }
   if (shouldRedirectAssetProxyTarget(target)) {
-    return redirectAssetProxyTarget(target)
+    const auth = createCosRequestAuthorization('GET', target)
+    const location = auth
+      ? new URL(`${target.href}${target.search ? '&' : '?'}${auth}`)
+      : target
+    return redirectAssetProxyTarget(location)
   }
 
   const headers: Record<string, string> = {

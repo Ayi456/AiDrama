@@ -95,7 +95,7 @@ await runTest('production bridge unwraps state and owns small page handlers', ()
     lockedVideoModelName: computed(() => 'vidu2'),
     activeVideoSb: computed(() => null),
     activeVideoShotIndexLabel: computed(() => '01'),
-    videoFailMessage: computed(() => ''),
+    videoFailMessage: noop,
     getFirstFrame: noop,
     getLastFrame: noop,
     getRefs: noop,

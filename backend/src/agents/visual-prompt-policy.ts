@@ -248,6 +248,18 @@ export function buildCharacterPortraitGenerationPrompt(source: CharacterPromptSo
   ])
 }
 
+type CharacterImagePromptSource = CharacterPromptSource & {
+  imagePrompt?: string | null
+}
+
+export function resolveCharacterImagePrompt(source: CharacterImagePromptSource): string {
+  const override = source.imagePrompt?.trim()
+  if (override) return override
+  const built = buildCharacterPortraitGenerationPrompt(source)
+  if (built) return built
+  return compactPromptParts([source.name, '人物立绘', '高清质感', '三张并排的全身图', '纯白背景', '无文字标签'])
+}
+
 export function buildSceneImagePrompt(source: ScenePromptSource) {
   const style = getStyleText(source.style, true)
   return compactPromptParts([

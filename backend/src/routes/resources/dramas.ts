@@ -4,6 +4,7 @@ import { db, schema } from '../../db/index.js'
 import { success, badRequest, notFound, created, now } from '../../utils/response.js'
 import { toSnakeCase, toSnakeCaseArray } from '../../utils/transform.js'
 import { readJsonBody } from '../shared/route-body.js'
+import { resolveCharacterImagePrompt } from '../../agents/visual-prompt-policy.js'
 import {
   buildDramaCreateValues,
   buildDramaEpisodeValues,
@@ -13,6 +14,15 @@ import {
 } from '../policies/drama-route-policy.js'
 
 const app = new Hono()
+
+type CharacterRow = typeof schema.characters.$inferSelect
+
+function enrichCharactersWithImagePrompt(chars: CharacterRow[], dramaStyle: string | null | undefined) {
+  return chars.map((char) => ({
+    ...char,
+    imagePrompt: resolveCharacterImagePrompt({ ...char, style: dramaStyle || '' }),
+  }))
+}
 
 // GET /dramas - List dramas
 app.get('/', async (c) => {
@@ -40,7 +50,7 @@ app.get('/', async (c) => {
       tags: drama.tags ? JSON.parse(drama.tags) : [],
       total_episodes: eps.length,
       episodes: toSnakeCaseArray(eps),
-      characters: toSnakeCaseArray(chars),
+      characters: toSnakeCaseArray(enrichCharactersWithImagePrompt(chars, drama.style)),
       scenes: toSnakeCaseArray(scns),
     }
   }))
@@ -106,7 +116,7 @@ app.get('/:id', async (c) => {
     ...toSnakeCase(drama),
     tags: drama.tags ? JSON.parse(drama.tags) : [],
     episodes: toSnakeCaseArray(eps),
-    characters: toSnakeCaseArray(chars),
+    characters: toSnakeCaseArray(enrichCharactersWithImagePrompt(chars, drama.style)),
     scenes: toSnakeCaseArray(scns),
     props: toSnakeCaseArray(prps),
   })

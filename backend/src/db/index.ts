@@ -170,6 +170,7 @@ const tableStatements = [
     description TEXT,
     appearance TEXT,
     personality TEXT,
+    image_prompt TEXT,
     image_url TEXT,
     reference_images TEXT,
     character_asset_id INT,
@@ -481,6 +482,7 @@ async function initializeDatabase(pool: Pool, database: string) {
   await ensureColumn(pool, database, 'dramas', 'image_config_id', 'INT')
   await ensureColumn(pool, database, 'dramas', 'video_config_id', 'INT')
   await ensureColumn(pool, database, 'characters', 'character_asset_id', 'INT')
+  await ensureColumn(pool, database, 'characters', 'image_prompt', 'TEXT')
   await ensureColumn(pool, database, 'image_generations', 'normalized_request', 'TEXT')
   await ensureColumn(pool, database, 'image_generations', 'provider_request', 'TEXT')
   await ensureColumn(pool, database, 'image_generations', 'provider_response', 'TEXT')

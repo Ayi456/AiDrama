@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+.claude/
 
 # Build output
 dist/
@@ -46,3 +47,5 @@ temp/
 
 # Prompt
 prompt/
+
+

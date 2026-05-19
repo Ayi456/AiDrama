@@ -5,7 +5,7 @@ import { success, badRequest, now } from '../../utils/response.js'
 import { generateImage } from '../../services/generation/image-generation.js'
 import { resolveCharacterAssetReferenceImages } from '../../services/assets/character-asset-generation.js'
 import { logTaskError, logTaskStart, logTaskSuccess } from '../../utils/task-logger.js'
-import { buildCharacterPortraitGenerationPrompt } from '../../agents/visual-prompt-policy.js'
+import { resolveCharacterImagePrompt } from '../../agents/visual-prompt-policy.js'
 import { errorMessageFromUnknown } from '../../utils/error.js'
 import { hasOwn, readJsonBody } from '../shared/route-body.js'
 
@@ -18,6 +18,7 @@ type CharacterUpdatePatch = {
   description?: string | null
   appearance?: string | null
   personality?: string | null
+  imagePrompt?: string | null
   imageUrl?: string | null
   localPath?: string | null
   characterAssetId?: number | null
@@ -34,6 +35,8 @@ app.put('/:id', async (c) => {
   if (hasOwn(body, 'description')) updates.description = body.description as string | null
   if (hasOwn(body, 'appearance')) updates.appearance = body.appearance as string | null
   if (hasOwn(body, 'personality')) updates.personality = body.personality as string | null
+  if (hasOwn(body, 'image_prompt')) updates.imagePrompt = body.image_prompt as string | null
+  else if (hasOwn(body, 'imagePrompt')) updates.imagePrompt = body.imagePrompt as string | null
   if (hasOwn(body, 'image_url')) updates.imageUrl = body.image_url as string | null
   if (hasOwn(body, 'imageUrl')) updates.imageUrl = body.imageUrl as string | null
   if (hasOwn(body, 'local_path')) updates.localPath = body.local_path as string | null
@@ -91,7 +94,7 @@ app.post('/:id/generate-image', async (c) => {
   if (!ep) return badRequest(c, 'Episode not found')
   const [drama] = (await db.select().from(schema.dramas).where(eq(schema.dramas.id, char.dramaId)).all())
 
-  const prompt = buildCharacterPortraitGenerationPrompt({ ...char, style: drama?.style || '' }) || `${char.name}, 人物立绘, 高清质感, 三张并排的全身图, 纯白背景, 无文字标签`
+  const prompt = resolveCharacterImagePrompt({ ...char, style: drama?.style || '' })
   try {
     const [asset] = char.characterAssetId
       ? await db.select().from(schema.characterAssets).where(eq(schema.characterAssets.id, char.characterAssetId)).all()
@@ -128,7 +131,7 @@ app.post('/batch-generate-images', async (c) => {
     const [char] = (await db.select().from(schema.characters).where(eq(schema.characters.id, charId)).all())
     if (!char) continue
     const [drama] = (await db.select().from(schema.dramas).where(eq(schema.dramas.id, char.dramaId)).all())
-    const prompt = buildCharacterPortraitGenerationPrompt({ ...char, style: drama?.style || '' }) || `${char.name}, 人物立绘, 高清质感, 三张并排的全身图, 纯白背景, 无文字标签`
+    const prompt = resolveCharacterImagePrompt({ ...char, style: drama?.style || '' })
     try {
       const [asset] = char.characterAssetId
         ? await db.select().from(schema.characterAssets).where(eq(schema.characterAssets.id, char.characterAssetId)).all()

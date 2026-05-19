@@ -47,6 +47,7 @@ export const characters = mysqlTable('characters', {
   description: text('description'),
   appearance: text('appearance'),
   personality: text('personality'),
+  imagePrompt: text('image_prompt'),
   imageUrl: text('image_url'),
   referenceImages: text('reference_images'),
   characterAssetId: int('character_asset_id'),

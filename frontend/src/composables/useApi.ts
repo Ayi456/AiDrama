@@ -35,6 +35,8 @@ export type DramaCharacter = ApiEntity & {
   name?: string
   image_url?: string
   imageUrl?: string
+  image_prompt?: string | null
+  imagePrompt?: string | null
   character_asset_id?: number | null
   characterAssetId?: number | null
   character_asset?: CharacterAsset | null

@@ -73,7 +73,7 @@ type ProductionPanelBridgeOptions = {
   lockedVideoModelName: ValueRef<string>
   activeVideoSb: ValueRef<unknown>
   activeVideoShotIndexLabel: ValueRef<string>
-  videoFailMessage: ValueRef<string>
+  videoFailMessage: BridgeHandler
   getFirstFrame: BridgeHandler
   getLastFrame: BridgeHandler
   getRefs: BridgeHandler
@@ -223,7 +223,7 @@ export function useChapterProductionPanelBridge(options: ProductionPanelBridgeOp
     getVideoStateText: options.getVideoStateText,
     getVideoReferenceSummary: options.getVideoReferenceSummary,
     isPendingVideo: options.isPendingVideo,
-    videoFailMessage: options.videoFailMessage.value,
+    videoFailMessage: options.videoFailMessage,
     getVideoHistory: options.getVideoHistory,
     isVideoHistoryLoading: options.isVideoHistoryLoading,
     loadVideoHistory: options.loadVideoHistory,

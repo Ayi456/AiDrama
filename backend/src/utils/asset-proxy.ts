@@ -65,6 +65,7 @@ export function redirectAssetProxyTarget(target: URL) {
     headers: {
       location: target.href,
       'referrer-policy': 'no-referrer',
+      'cache-control': 'no-store',
     },
   })
 }

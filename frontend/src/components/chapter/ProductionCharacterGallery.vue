@@ -127,7 +127,7 @@
               class="character-gallery__prompt-input"
               :value="getCharacterDescriptionValue(character)"
               rows="5"
-              placeholder="这里的内容会直接用于角色形象生成"
+              placeholder="此处即生图所用的完整 prompt，留空将使用系统兜底"
               @input="updateCharacterDescriptionDraft(character, $event.target.value)"
               @blur="commitCharacterDescription(character)"
             />
@@ -211,7 +211,6 @@ function getCharacterImage(character) {
   return character?.image_url || character?.imageUrl || ''
 }
 
-const generationGuideLine = '三视图，白色背景，无文字标签'
 const descriptionDrafts = ref({})
 
 function characterDraftKey(character) {
@@ -219,13 +218,7 @@ function characterDraftKey(character) {
 }
 
 function getCharacterDescription(character) {
-  const raw = [character?.description, character?.appearance, character?.personality]
-    .filter(Boolean)
-    .join('\n')
-    .replace(new RegExp(`\\n?${generationGuideLine.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`), '')
-    .trim()
-
-  return raw ? `${raw}\n${generationGuideLine}` : generationGuideLine
+  return character?.image_prompt || character?.imagePrompt || ''
 }
 
 function getCharacterDescriptionValue(character) {

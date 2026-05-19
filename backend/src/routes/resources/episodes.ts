@@ -4,6 +4,7 @@ import { db, schema } from '../../db/index.js'
 import { success, notFound, badRequest, now } from '../../utils/response.js'
 import { toSnakeCaseArray, toSnakeCase } from '../../utils/transform.js'
 import { readJsonBody } from '../shared/route-body.js'
+import { resolveCharacterImagePrompt } from '../../agents/visual-prompt-policy.js'
 import {
   buildChapterCreateValues,
   buildChapterUpdatePatch,
@@ -25,10 +26,12 @@ async function loadCharacterAssetMap(characters: CharacterRow[]) {
   return new Map(assets.map((asset) => [asset.id, asset]))
 }
 
-function presentCharacterWithAsset(character: CharacterRow, assetMap: Map<number, CharacterAssetRow>) {
+function presentCharacterWithAsset(character: CharacterRow, assetMap: Map<number, CharacterAssetRow>, dramaStyle?: string | null) {
   const asset = character.characterAssetId ? assetMap.get(character.characterAssetId) : null
+  const snake = toSnakeCase(character) as Record<string, unknown>
+  snake.image_prompt = resolveCharacterImagePrompt({ ...character, style: dramaStyle || '' })
   return {
-    ...toSnakeCase(character),
+    ...snake,
     character_asset: asset
       ? {
         id: asset.id,
@@ -39,6 +42,13 @@ function presentCharacterWithAsset(character: CharacterRow, assetMap: Map<number
       : null,
     character_asset_image_url: asset?.imageUrl || null,
   }
+}
+
+async function loadEpisodeDramaStyle(episodeId: number): Promise<string> {
+  const [ep] = await db.select().from(schema.episodes).where(eq(schema.episodes.id, episodeId)).all()
+  if (!ep) return ''
+  const [drama] = await db.select().from(schema.dramas).where(eq(schema.dramas.id, ep.dramaId)).all()
+  return drama?.style || ''
 }
 
 // POST /chapters - Create a new chapter
@@ -101,7 +111,8 @@ app.get('/:id/characters', async (c) => {
   const allChars = await db.select().from(schema.characters).all()
   const result = allChars.filter((character) => charIds.includes(character.id) && !character.deletedAt)
   const assetMap = await loadCharacterAssetMap(result)
-  return success(c, result.map((character) => presentCharacterWithAsset(character, assetMap)))
+  const dramaStyle = await loadEpisodeDramaStyle(episodeId)
+  return success(c, result.map((character) => presentCharacterWithAsset(character, assetMap, dramaStyle)))
 })
 
 // GET /chapters/:id/scenes - scenes linked to this chapter
@@ -141,13 +152,14 @@ app.get('/:episode_id/storyboards', async (c) => {
   const allChars = (await db.select().from(schema.characters).all())
     .filter((character) => episodeCharIds.includes(character.id) && !character.deletedAt)
   const assetMap = await loadCharacterAssetMap(allChars)
+  const dramaStyle = await loadEpisodeDramaStyle(episodeId)
 
   return success(c, rows.map((row) => ({
     ...toSnakeCase(row),
     character_ids: charIdsByStoryboard.get(row.id) || [],
     characters: allChars
       .filter((character) => (charIdsByStoryboard.get(row.id) || []).includes(character.id))
-      .map((character) => presentCharacterWithAsset(character, assetMap)),
+      .map((character) => presentCharacterWithAsset(character, assetMap, dramaStyle)),
   })))
 })
 
