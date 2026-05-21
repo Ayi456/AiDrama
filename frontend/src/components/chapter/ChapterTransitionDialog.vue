@@ -189,7 +189,7 @@ function onSave() {
 .trans-modal-mask {
   position: fixed;
   inset: 0;
-  background: rgba(8, 10, 18, 0.62);
+  background: rgba(20, 24, 36, 0.45);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -198,15 +198,15 @@ function onSave() {
   padding: 20px;
 }
 .trans-modal {
-  background: linear-gradient(180deg, #1f2433 0%, #181c28 100%);
-  color: #e6e8ef;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: #ffffff;
+  color: #1f2433;
+  border: 1px solid rgba(31, 36, 51, 0.08);
   border-radius: 12px;
   width: 100%;
   max-width: 460px;
   max-height: calc(100vh - 40px);
   overflow-y: auto;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
   padding: 18px 20px 16px;
 }
 
@@ -217,7 +217,7 @@ function onSave() {
   gap: 12px;
   padding-bottom: 14px;
   margin-bottom: 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(31, 36, 51, 0.08);
 }
 .trans-modal__title-wrap {
   display: flex;
@@ -226,17 +226,18 @@ function onSave() {
 }
 .trans-modal__title-icon {
   margin-top: 2px;
-  color: #7a92ff;
+  color: #4f7cff;
   flex-shrink: 0;
 }
 .trans-modal__title {
   font-size: 15px;
   font-weight: 600;
   letter-spacing: 0.2px;
+  color: #1f2433;
 }
 .trans-modal__desc {
   font-size: 11.5px;
-  opacity: 0.55;
+  color: #6b7280;
   margin-top: 3px;
   line-height: 1.5;
 }
@@ -245,8 +246,8 @@ function onSave() {
   height: 26px;
   border-radius: 50%;
   border: none;
-  background: rgba(255, 255, 255, 0.05);
-  color: inherit;
+  background: rgba(31, 36, 51, 0.06);
+  color: #4b5563;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -255,7 +256,8 @@ function onSave() {
   transition: background 0.15s;
 }
 .trans-modal__close:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(31, 36, 51, 0.12);
+  color: #1f2433;
 }
 
 .trans-modal__section {
@@ -263,7 +265,7 @@ function onSave() {
   transition: opacity 0.2s;
 }
 .trans-modal__section.is-dim {
-  opacity: 0.4;
+  opacity: 0.45;
   pointer-events: none;
 }
 .trans-modal__section-head {
@@ -276,17 +278,18 @@ function onSave() {
   font-size: 12.5px;
   font-weight: 600;
   letter-spacing: 0.3px;
+  color: #1f2433;
 }
 .trans-modal__section-value {
   font-size: 11.5px;
-  opacity: 0.7;
+  color: #6b7280;
   font-weight: normal;
   margin-left: 6px;
   font-variant-numeric: tabular-nums;
 }
 .trans-modal__section-hint {
   font-size: 11px;
-  opacity: 0.45;
+  color: #9ca3af;
   margin: 0;
   line-height: 1.5;
 }
@@ -306,7 +309,7 @@ function onSave() {
 .trans-toggle__track {
   position: absolute;
   inset: 0;
-  background: rgba(255, 255, 255, 0.12);
+  background: #d1d5db;
   border-radius: 999px;
   transition: background 0.2s;
 }
@@ -317,7 +320,8 @@ function onSave() {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #e6e8ef;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   transition: transform 0.2s, background 0.2s;
 }
 .trans-toggle input:checked + .trans-toggle__track {
@@ -325,7 +329,6 @@ function onSave() {
 }
 .trans-toggle input:checked + .trans-toggle__track .trans-toggle__thumb {
   transform: translateX(16px);
-  background: #fff;
 }
 
 .trans-group {
@@ -334,10 +337,11 @@ function onSave() {
 .trans-group:first-child { margin-top: 0; }
 .trans-group__label {
   font-size: 10.5px;
-  opacity: 0.5;
+  color: #9ca3af;
   margin-bottom: 6px;
   letter-spacing: 0.5px;
   text-transform: uppercase;
+  font-weight: 600;
 }
 .trans-group__options {
   display: grid;
@@ -351,17 +355,18 @@ function onSave() {
   align-items: center;
   gap: 4px;
   padding: 8px 4px 6px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.02);
-  color: inherit;
+  border: 1px solid rgba(31, 36, 51, 0.12);
+  background: #ffffff;
+  color: #4b5563;
   border-radius: 6px;
   cursor: pointer;
   font-size: 11px;
   transition: all 0.15s;
 }
 .trans-card:hover:not(:disabled) {
-  border-color: rgba(122, 146, 255, 0.5);
-  background: rgba(122, 146, 255, 0.08);
+  border-color: rgba(79, 124, 255, 0.5);
+  background: rgba(79, 124, 255, 0.06);
+  color: #1f2433;
 }
 .trans-card:disabled {
   cursor: not-allowed;
@@ -369,8 +374,8 @@ function onSave() {
 }
 .trans-card.selected {
   border-color: #4f7cff;
-  background: rgba(79, 124, 255, 0.18);
-  color: #fff;
+  background: rgba(79, 124, 255, 0.1);
+  color: #2649c0;
   box-shadow: 0 0 0 1px rgba(79, 124, 255, 0.3);
 }
 .trans-card__icon {
@@ -379,7 +384,7 @@ function onSave() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  opacity: 0.85;
+  opacity: 0.9;
 }
 .trans-card__icon :deep(svg) {
   width: 100%;
@@ -395,7 +400,7 @@ function onSave() {
   margin: 4px 0 8px;
   appearance: none;
   height: 4px;
-  background: rgba(255, 255, 255, 0.12);
+  background: #e5e7eb;
   border-radius: 999px;
   outline: none;
 }
@@ -409,7 +414,8 @@ function onSave() {
   border-radius: 50%;
   background: #4f7cff;
   cursor: pointer;
-  border: 2px solid #1f2433;
+  border: 2px solid #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 .trans-slider::-moz-range-thumb {
   width: 12px;
@@ -417,7 +423,8 @@ function onSave() {
   border-radius: 50%;
   background: #4f7cff;
   cursor: pointer;
-  border: 2px solid #1f2433;
+  border: 2px solid #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .trans-preset-row {
@@ -429,9 +436,9 @@ function onSave() {
   flex: 1;
   min-width: 60px;
   padding: 4px 6px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: transparent;
-  color: inherit;
+  border: 1px solid rgba(31, 36, 51, 0.12);
+  background: #ffffff;
+  color: #4b5563;
   border-radius: 4px;
   cursor: pointer;
   font-size: 10.5px;
@@ -439,7 +446,8 @@ function onSave() {
   transition: all 0.15s;
 }
 .trans-preset:hover:not(:disabled) {
-  border-color: rgba(122, 146, 255, 0.5);
+  border-color: rgba(79, 124, 255, 0.5);
+  color: #1f2433;
 }
 .trans-preset:disabled {
   cursor: not-allowed;
@@ -447,8 +455,8 @@ function onSave() {
 }
 .trans-preset.selected {
   border-color: #4f7cff;
-  background: rgba(79, 124, 255, 0.15);
-  color: #fff;
+  background: rgba(79, 124, 255, 0.08);
+  color: #2649c0;
 }
 
 .trans-modal__actions {
@@ -456,7 +464,7 @@ function onSave() {
   justify-content: flex-end;
   gap: 8px;
   padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid rgba(31, 36, 51, 0.08);
   margin-top: 4px;
 }
 
