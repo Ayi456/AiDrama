@@ -1,4 +1,15 @@
-export const TRANSITION_TYPE_WHITELIST = ['fade', 'fadeblack', 'fadewhite'] as const
+export const TRANSITION_TYPE_WHITELIST = [
+  'fade',
+  'fadeblack',
+  'fadewhite',
+  'slideleft',
+  'slideright',
+  'slideup',
+  'circleopen',
+  'circleclose',
+  'wipeleft',
+  'pixelize',
+] as const
 export type TransitionType = typeof TRANSITION_TYPE_WHITELIST[number]
 
 export const DEFAULT_TRANSITION_TYPE: TransitionType = 'fade'

@@ -27,7 +27,7 @@ await runTest('normalizeTransitionType accepts whitelisted values only', () => {
   for (const ok of TRANSITION_TYPE_WHITELIST) {
     assert.equal(normalizeTransitionType(ok), ok)
   }
-  assert.equal(normalizeTransitionType('slideleft'), null)
+  assert.equal(normalizeTransitionType('directionalwarp'), null)
   assert.equal(normalizeTransitionType(''), null)
   assert.equal(normalizeTransitionType(null), null)
   assert.equal(normalizeTransitionType(undefined), null)
