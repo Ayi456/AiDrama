@@ -1,4 +1,5 @@
 import ffmpeg from 'fluent-ffmpeg'
+import { execFile } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -113,6 +114,23 @@ export function hasAudioStream(filePath: string): Promise<boolean> {
       resolve(streams.some(stream => String(stream.codec_type || '').toLowerCase() === 'audio'))
     })
   })
+}
+
+let xfadeSupportCache: Promise<boolean> | null = null
+
+export function ffmpegSupportsXfade(): Promise<boolean> {
+  if (xfadeSupportCache) return xfadeSupportCache
+  xfadeSupportCache = new Promise<boolean>(resolve => {
+    execFile(FFMPEG_PATH, ['-hide_banner', '-filters'], { maxBuffer: 4 * 1024 * 1024 }, (error, stdout) => {
+      if (error) { resolve(false); return }
+      resolve(/\bxfade\b/.test(stdout))
+    })
+  })
+  return xfadeSupportCache
+}
+
+export function resetXfadeSupportCache() {
+  xfadeSupportCache = null
 }
 
 export { ffmpeg }

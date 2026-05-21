@@ -1,5 +1,5 @@
 import fs from 'fs'
-import { ffmpeg, getVideoDurationPrecise } from '../ffmpeg/ffmpeg.js'
+import { ffmpeg, ffmpegSupportsXfade, getVideoDurationPrecise } from '../ffmpeg/ffmpeg.js'
 import {
   type FfmpegMergeStrategy,
   ffmpegMergeOutputOptions,
@@ -62,7 +62,18 @@ export async function runFfmpegMergeStrategies(
   },
 ) {
   let lastError: Error | null = null
-  const strategies = resolveStrategiesForInput(input)
+  let strategies = resolveStrategiesForInput(input)
+
+  if (strategies.includes('xfade')) {
+    const supportsXfade = await ffmpegSupportsXfade()
+    if (!supportsXfade) {
+      deps.logWarn('MergeTask', 'ffmpeg-xfade-unsupported', {
+        mergeId: input.mergeId,
+        episodeId: input.episodeId,
+      })
+      strategies = ffmpegMergeStrategies
+    }
+  }
 
   for (const strategy of strategies) {
     if (deps.outputExists(input.outputPath)) deps.removeOutput(input.outputPath)
