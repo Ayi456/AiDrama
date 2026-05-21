@@ -196,8 +196,12 @@ async function runFfmpegXfade(input: RunFfmpegConcatInput) {
     clips: input.clipCount,
     transitionType: input.transition.type,
     transitionDurationMs: input.transition.durationMs,
+    clipDurations: clipDurations.map(value => Math.round(value * 1000) / 1000),
+    filter: built.filter,
     timeoutSeconds: Math.round(timeoutMs / 1000),
   })
+
+  let stderrTail = ''
 
   await new Promise<void>((resolve, reject) => {
     const command = ffmpeg()
@@ -220,8 +224,10 @@ async function runFfmpegXfade(input: RunFfmpegConcatInput) {
       if (settled) return
       settled = true
       clearTimeout(timeout)
-      if (error) reject(error)
-      else resolve()
+      if (error) {
+        if (stderrTail) error.message = `${error.message}\nffmpeg stderr tail:\n${stderrTail}`
+        reject(error)
+      } else resolve()
     }
 
     const timeout = setTimeout(() => {
@@ -230,6 +236,9 @@ async function runFfmpegXfade(input: RunFfmpegConcatInput) {
     }, timeoutMs)
 
     command
+      .on('stderr', line => {
+        stderrTail = `${stderrTail}${line}\n`.slice(-4000)
+      })
       .on('progress', progress => {
         const nowMs = Date.now()
         if (nowMs - lastProgressAt < MERGE_PROGRESS_LOG_INTERVAL_MS) return

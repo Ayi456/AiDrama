@@ -104,17 +104,32 @@ export function buildXfadeFilter(
   const { seamDurations, seamOffsets } = computeSeamDurations(clipDurationsSeconds, configDurationMs)
   if (seamDurations.every(seam => seam <= 0)) return null
 
+  // xfade / acrossfade require all inputs to share fps / pixel format / sample rate / channel layout
+  // and start at PTS=0. Normalize every video and audio stream before feeding the transition chain.
+  const normSteps: string[] = []
+  const normalizedVideoLabels: string[] = []
+  const normalizedAudioLabels: string[] = []
+
+  for (let k = 0; k < n; k++) {
+    const vLabel = `[v${k}n]`
+    const aLabel = `[a${k}n]`
+    normSteps.push(`[${k}:v]fps=30,format=yuv420p,setpts=PTS-STARTPTS${vLabel}`)
+    normSteps.push(`${audioLabels[k]}aformat=sample_rates=48000:channel_layouts=stereo,asetpts=PTS-STARTPTS${aLabel}`)
+    normalizedVideoLabels.push(vLabel)
+    normalizedAudioLabels.push(aLabel)
+  }
+
   const videoSteps: string[] = []
   const audioSteps: string[] = []
 
-  let prevV = '[0:v]'
-  let prevA = audioLabels[0]
+  let prevV = normalizedVideoLabels[0]
+  let prevA = normalizedAudioLabels[0]
 
   for (let k = 0; k < n - 1; k++) {
     const seamD = seamDurations[k]
     const offset = seamOffsets[k]
-    const inputV = `[${k + 1}:v]`
-    const inputA = audioLabels[k + 1]
+    const inputV = normalizedVideoLabels[k + 1]
+    const inputA = normalizedAudioLabels[k + 1]
     const vLabel = k === n - 2 ? '[vout]' : `[v${k}]`
     const aLabel = k === n - 2 ? '[aout]' : `[a${k}]`
 
@@ -132,7 +147,7 @@ export function buildXfadeFilter(
   }
 
   return {
-    filter: [...videoSteps, ...audioSteps].join(';'),
+    filter: [...normSteps, ...videoSteps, ...audioSteps].join(';'),
     videoOutLabel: 'vout',
     audioOutLabel: 'aout',
   }
