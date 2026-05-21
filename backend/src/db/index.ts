@@ -157,6 +157,8 @@ const tableStatements = [
     thumbnail TEXT,
     image_config_id INT,
     video_config_id INT,
+    transition_type VARCHAR(32),
+    transition_duration_ms INT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT
@@ -407,6 +409,8 @@ const tableStatements = [
     duration INT,
     task_id TEXT,
     error_msg TEXT,
+    transition_type VARCHAR(32),
+    transition_duration_ms INT,
     created_at TEXT NOT NULL,
     completed_at TEXT,
     deleted_at TEXT
@@ -479,6 +483,10 @@ async function initializeDatabase(pool: Pool, database: string) {
 
   await ensureColumn(pool, database, 'episodes', 'image_config_id', 'INT')
   await ensureColumn(pool, database, 'episodes', 'video_config_id', 'INT')
+  await ensureColumn(pool, database, 'episodes', 'transition_type', 'VARCHAR(32)')
+  await ensureColumn(pool, database, 'episodes', 'transition_duration_ms', 'INT')
+  await ensureColumn(pool, database, 'video_merges', 'transition_type', 'VARCHAR(32)')
+  await ensureColumn(pool, database, 'video_merges', 'transition_duration_ms', 'INT')
   await ensureColumn(pool, database, 'dramas', 'image_config_id', 'INT')
   await ensureColumn(pool, database, 'dramas', 'video_config_id', 'INT')
   await ensureColumn(pool, database, 'characters', 'character_asset_id', 'INT')

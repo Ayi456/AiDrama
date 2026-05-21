@@ -1,6 +1,7 @@
 export const ffmpegMergeStrategies = ['copy', 'transcode'] as const
+export const ffmpegMergeStrategiesWithXfade = ['xfade', 'transcode', 'copy'] as const
 
-export type FfmpegMergeStrategy = typeof ffmpegMergeStrategies[number]
+export type FfmpegMergeStrategy = typeof ffmpegMergeStrategiesWithXfade[number]
 
 const DEFAULT_FFMPEG_MERGE_TIMEOUT_MS = 14 * 60 * 1000
 
@@ -20,6 +21,7 @@ export function ffmpegMergeOutputOptions(strategy: FfmpegMergeStrategy) {
     ]
   }
 
+  // xfade and transcode share the same encode params
   return [
     '-fflags', '+genpts',
     '-c:v', 'libx264',
@@ -31,4 +33,8 @@ export function ffmpegMergeOutputOptions(strategy: FfmpegMergeStrategy) {
     '-b:a', '192k',
     '-movflags', '+faststart',
   ]
+}
+
+export function resolveStrategyChain(transitionEnabled: boolean): readonly FfmpegMergeStrategy[] {
+  return transitionEnabled ? ffmpegMergeStrategiesWithXfade : ffmpegMergeStrategies
 }

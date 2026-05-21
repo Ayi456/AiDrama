@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm'
 import type * as dbSchema from '../../db/schema.js'
+import type { TransitionConfig } from './merge-transition-policy.js'
 
 export type MergeStoryboardForRecord = {
   id: number
@@ -14,6 +15,7 @@ export type BuildEpisodeMergeRecordInput = {
   dramaId: number
   createdAt: string
   storyboards: MergeStoryboardForRecord[]
+  transition?: TransitionConfig | null
 }
 
 export type MergeCompletionPatchInput = {
@@ -63,6 +65,8 @@ export function buildEpisodeMergeRecord(input: BuildEpisodeMergeRecordInput) {
       videoUrl: storyboard.mergeVideoUrl,
       source: storyboard.videoUrl ? 'storyboard' : 'composed',
     }))),
+    transitionType: input.transition?.type ?? null,
+    transitionDurationMs: input.transition?.durationMs ?? null,
     createdAt: input.createdAt,
   }
 }

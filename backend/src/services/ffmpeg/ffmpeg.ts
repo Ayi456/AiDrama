@@ -96,6 +96,15 @@ export function getVideoDuration(filePath: string): Promise<number> {
   })
 }
 
+export function getVideoDurationPrecise(filePath: string): Promise<number> {
+  return new Promise((resolve) => {
+    ffmpeg.ffprobe(filePath, (err, metadata) => {
+      if (err) { resolve(0); return }
+      resolve(Number(metadata.format.duration) || 0)
+    })
+  })
+}
+
 export function hasAudioStream(filePath: string): Promise<boolean> {
   return new Promise((resolve) => {
     ffmpeg.ffprobe(filePath, (err, metadata) => {

@@ -119,9 +119,13 @@
         :has-clip="hasMergeClip"
         :selected-storyboard-ids="selectedMergeStoryboardIds"
         :is-merging="mergeBusy"
+        :transition-type="transitionType"
+        :transition-duration-ms="transitionDurationMs"
+        :transition-saving="transitionSaving"
         @go-script="panel = 'script'"
         @update:selected-storyboard-ids="handleMergeSelectionUpdate"
         @merge="handleMergeSelected"
+        @save-transition="handleSaveTransition"
       />
 
       <ChapterBottomBubble
@@ -536,6 +540,33 @@ const {
   isMerging,
   doMerge,
 })
+
+const transitionType = computed(() => episode.value?.transition_type || '')
+const transitionDurationMs = computed(() => {
+  const value = episode.value?.transition_duration_ms
+  return value == null ? null : Number(value)
+})
+const transitionSaving = ref(false)
+
+async function handleSaveTransition(payload) {
+  if (!epId.value) return
+  transitionSaving.value = true
+  try {
+    await chapterAPI.update(epId.value, {
+      transition_type: payload.type,
+      transition_duration_ms: payload.durationMs,
+    })
+    if (episode.value) {
+      episode.value.transition_type = payload.type
+      episode.value.transition_duration_ms = payload.durationMs
+    }
+    toast.success('过渡设置已保存')
+  } catch (error) {
+    toast.error(error?.message || '保存过渡设置失败')
+  } finally {
+    transitionSaving.value = false
+  }
+}
 
 function goDramaDetail() {
   stopMergePolling()

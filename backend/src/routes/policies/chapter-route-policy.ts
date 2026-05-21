@@ -1,5 +1,9 @@
 import type { RouteBody } from '../shared/route-body.js'
 import { hasOwn, readBodyNumber, readBodyString } from '../shared/route-body.js'
+import {
+  normalizeTransitionDurationMs,
+  normalizeTransitionType,
+} from '../../services/merge/merge-transition-policy.js'
 
 export type ChapterCreateBody = RouteBody & {
   drama_id?: number | string
@@ -16,6 +20,8 @@ export type ChapterUpdateBody = RouteBody & {
   status?: string | null
   image_config_id?: number | string | null
   video_config_id?: number | string | null
+  transition_type?: string | null
+  transition_duration_ms?: number | string | null
 }
 
 export type ChapterCreateValues = {
@@ -37,6 +43,8 @@ export type ChapterUpdatePatch = {
   status?: string | null
   imageConfigId?: number | null
   videoConfigId?: number | null
+  transitionType?: string | null
+  transitionDurationMs?: number | null
 }
 
 function normalizeConfigId(value: unknown) {
@@ -75,6 +83,16 @@ export function buildChapterUpdatePatch(body: ChapterUpdateBody, timestamp: stri
   if (hasOwn(body, 'status')) patch.status = body.status ?? null
   if (hasOwn(body, 'image_config_id')) patch.imageConfigId = normalizeConfigId(body.image_config_id)
   if (hasOwn(body, 'video_config_id')) patch.videoConfigId = normalizeConfigId(body.video_config_id)
+  if (hasOwn(body, 'transition_type')) {
+    patch.transitionType = body.transition_type == null
+      ? null
+      : normalizeTransitionType(body.transition_type)
+  }
+  if (hasOwn(body, 'transition_duration_ms')) {
+    patch.transitionDurationMs = body.transition_duration_ms == null
+      ? null
+      : normalizeTransitionDurationMs(body.transition_duration_ms)
+  }
   return patch
 }
 

@@ -42,8 +42,22 @@ await runTest('buildEpisodeMergeRecord captures selected storyboard clips as AiD
       { storyboardId: 11, storyboardNumber: 1, videoUrl: 'static/videos/a.mp4', source: 'storyboard' },
       { storyboardId: 12, storyboardNumber: 2, videoUrl: 'static/composed/b.mp4', source: 'composed' },
     ]),
+    transitionType: null,
+    transitionDurationMs: null,
     createdAt: 't1',
   })
+})
+
+await runTest('buildEpisodeMergeRecord captures transition snapshot when provided', () => {
+  const record = buildEpisodeMergeRecord({
+    episodeId: 7,
+    dramaId: 2,
+    createdAt: 't1',
+    storyboards: [],
+    transition: { type: 'fade', durationMs: 500 },
+  })
+  assert.equal(record.transitionType, 'fade')
+  assert.equal(record.transitionDurationMs, 500)
 })
 
 await runTest('merge state patch builders preserve episode export lifecycle fields', () => {
@@ -137,6 +151,8 @@ await runTest('createMergeJobPersistence forwards merge state through injected d
         scenes: JSON.stringify([
           { storyboardId: 3, storyboardNumber: 3, videoUrl: 'static/videos/c.mp4', source: 'storyboard' },
         ]),
+        transitionType: null,
+        transitionDurationMs: null,
         createdAt: 't8',
       },
     },

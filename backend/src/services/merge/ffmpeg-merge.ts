@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { v4 as uuid } from 'uuid'
+import { eq } from 'drizzle-orm'
 import { now } from '../../utils/response.js'
 import { logTaskError, logTaskProgress, logTaskStart, logTaskSuccess } from '../../utils/task-logger.js'
 import { resolveDataRoot, resolveStorageRoot } from '../../utils/runtime-paths.js'
@@ -11,6 +12,12 @@ import { ensureMergeInputFiles } from './merge-inputs.js'
 import { selectMergeClipStoryboards } from './merge-clips.js'
 import { createMergeJobDbPersistence, normalizeMergeErrorMessage } from './merge-job-state.js'
 import { runFfmpegMergeStrategies } from './merge-ffmpeg-execution.js'
+import {
+  isTransitionEnabled,
+  resolveTransitionConfig,
+  type TransitionConfig,
+} from './merge-transition-policy.js'
+import { db, schema } from '../../db/index.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PROJECT_ROOT = path.resolve(__dirname, '../../../..')
@@ -63,6 +70,13 @@ export async function mergeEpisodeVideos(
     throw new Error(options.storyboardIds ? 'No selected videos to merge' : 'No videos to merge')
   }
 
+  const [episodeRow] = await db.select().from(schema.episodes).where(eq(schema.episodes.id, episodeId)).all()
+  const transition = resolveTransitionConfig({
+    type: episodeRow?.transitionType ?? null,
+    durationMs: episodeRow?.transitionDurationMs ?? null,
+  })
+  const transitionForSnapshot = isTransitionEnabled(transition, videos.length) ? transition : null
+
   logTaskStart('MergeTask', 'episode-merge', {
     episodeId,
     dramaId,
@@ -70,6 +84,8 @@ export async function mergeEpisodeVideos(
     storyboardIds: options.storyboardIds,
     ffmpegPath: FFMPEG_PATH,
     ffprobePath: FFPROBE_PATH,
+    transitionType: transitionForSnapshot?.type ?? null,
+    transitionDurationMs: transitionForSnapshot?.durationMs ?? null,
   })
 
   await clearPreviousEpisodeMerge(episodeId, mergeState)
@@ -80,9 +96,10 @@ export async function mergeEpisodeVideos(
     dramaId,
     storyboards: mergeStoryboards,
     createdAt,
+    transition: transitionForSnapshot,
   })
 
-  doMerge(mergeId, episodeId, videos, mergeState).catch(async (error: unknown) => {
+  doMerge(mergeId, episodeId, videos, mergeState, transitionForSnapshot).catch(async (error: unknown) => {
     const message = normalizeMergeErrorMessage(error)
     logTaskError('MergeTask', 'episode-merge', { mergeId, episodeId, error: message })
     console.error('[Merge] Failed:', error)
@@ -97,6 +114,7 @@ async function doMerge(
   episodeId: number,
   videos: string[],
   mergeState: MergeJobPersistence,
+  transition: TransitionConfig | null,
 ) {
   const listDir = path.join(STORAGE_ROOT, 'temp')
   fs.mkdirSync(listDir, { recursive: true })
@@ -142,6 +160,8 @@ async function doMerge(
       listPath,
       outputPath,
       clipCount: videos.length,
+      clipPaths: inputFiles,
+      transition: transition ?? undefined,
     })
   } finally {
     if (fs.existsSync(listPath)) fs.unlinkSync(listPath)

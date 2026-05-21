@@ -20,7 +20,16 @@
           <div class="export-bar">
             <span class="tag tag-success">拼接完成</span>
             <span class="dim" style="font-size:12px">选中 {{ selectedCount }}/{{ clipCount }} 个可用镜头</span>
-            <button class="btn btn-ghost ml-auto" :disabled="mergeDisabled" @click="emitMerge">
+            <button
+              class="btn btn-ghost ml-auto"
+              type="button"
+              :title="transitionSummary"
+              @click="openTransitionDialog"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              过渡
+            </button>
+            <button class="btn btn-ghost" :disabled="mergeDisabled" @click="emitMerge">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>
               重新拼接选中
             </button>
@@ -37,10 +46,16 @@
             </div>
             <div class="empty-title">拼接选中镜头</div>
             <div class="empty-desc">将 {{ selectedCount }}/{{ clipCount }} 个已生成镜头视频拼接为完整视频</div>
-            <button class="btn btn-primary" :disabled="mergeDisabled" @click="emitMerge" style="margin-top:12px">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-              拼接选中 {{ selectedCount }} 个
-            </button>
+            <div class="empty-actions">
+              <button class="btn btn-ghost" type="button" @click="openTransitionDialog">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                过渡 <span class="dim">{{ transitionSummary }}</span>
+              </button>
+              <button class="btn btn-primary" :disabled="mergeDisabled" @click="emitMerge">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                拼接选中 {{ selectedCount }} 个
+              </button>
+            </div>
           </div>
         </template>
       </div>
@@ -73,13 +88,22 @@
         </div>
       </div>
     </div>
+    <ChapterTransitionDialog
+      :open="transitionDialogOpen"
+      :type="transitionType || 'fade'"
+      :duration-ms="transitionDurationMs ?? 500"
+      :saving="transitionSaving"
+      @close="transitionDialogOpen = false"
+      @save="onTransitionSave"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Check, Loader2 } from 'lucide-vue-next'
 import { assetUrl } from '@/utils/asset-url'
+import ChapterTransitionDialog from './ChapterTransitionDialog.vue'
 
 const props = defineProps({
   sbs: {
@@ -110,15 +134,56 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  transitionType: {
+    type: String,
+    default: '',
+  },
+  transitionDurationMs: {
+    type: Number,
+    default: null,
+  },
+  transitionSaving: {
+    type: Boolean,
+    default: false,
+  },
 })
 
-const emit = defineEmits(['go-script', 'merge', 'update:selected-storyboard-ids'])
+const emit = defineEmits([
+  'go-script',
+  'merge',
+  'update:selected-storyboard-ids',
+  'save-transition',
+])
 
 const selectedSet = computed(() => new Set(props.selectedStoryboardIds.map(Number)))
 const availableIds = computed(() => props.sbs.filter(sb => props.hasClip(sb)).map(sb => Number(sb.id)))
 const selectedIds = computed(() => availableIds.value.filter(id => selectedSet.value.has(id)))
 const selectedCount = computed(() => selectedIds.value.length)
 const mergeDisabled = computed(() => props.isMerging || selectedCount.value === 0)
+
+const transitionDialogOpen = ref(false)
+
+const TYPE_LABELS = {
+  fade: '淡入淡出',
+  fadeblack: '淡入黑场',
+  fadewhite: '淡入白场',
+}
+
+const transitionSummary = computed(() => {
+  const dur = Number(props.transitionDurationMs)
+  if (!Number.isFinite(dur) || dur <= 0) return '关闭'
+  const label = TYPE_LABELS[props.transitionType] || '淡入淡出'
+  return `${label} · ${dur}ms`
+})
+
+function openTransitionDialog() {
+  transitionDialogOpen.value = true
+}
+
+function onTransitionSave(payload) {
+  emit('save-transition', payload)
+  transitionDialogOpen.value = false
+}
 
 function setSelected(ids) {
   emit('update:selected-storyboard-ids', ids)
@@ -150,3 +215,13 @@ function emitMerge() {
   emit('merge', { storyboardIds: selectedIds.value })
 }
 </script>
+
+<style scoped>
+.empty-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+</style>
