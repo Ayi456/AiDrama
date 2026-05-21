@@ -1,5 +1,5 @@
 import fs from 'fs'
-import { ffmpeg, getVideoDurationPrecise, hasAudioStream } from '../ffmpeg/ffmpeg.js'
+import { ffmpeg, getVideoDurationPrecise } from '../ffmpeg/ffmpeg.js'
 import {
   type FfmpegMergeStrategy,
   ffmpegMergeOutputOptions,
@@ -172,23 +172,12 @@ async function runFfmpegXfade(input: RunFfmpegConcatInput) {
   const startedAt = Date.now()
   let lastProgressAt = 0
 
-  // Probe per-clip duration + audio presence
-  const probes = await Promise.all(input.clipPaths.map(async clipPath => ({
-    path: clipPath,
-    duration: await getVideoDurationPrecise(clipPath),
-    hasAudio: await hasAudioStream(clipPath),
-  })))
-
-  const clipDurations = probes.map(probe => probe.duration)
+  const clipDurations = await Promise.all(input.clipPaths.map(getVideoDurationPrecise))
   if (clipDurations.some(duration => !(duration > 0))) {
     throw new Error('xfade strategy requires positive duration for every clip')
   }
 
-  // Audio labels: real audio → [k:a]; missing audio → [aN] from anullsrc
-  const audioLabels = probes.map((probe, index) => probe.hasAudio ? `[${index}:a]` : `[anull${index}]`)
-  const missingAudio = probes
-    .map((probe, index) => probe.hasAudio ? null : index)
-    .filter((index): index is number => index !== null)
+  const audioLabels = clipDurations.map((_, index) => `[${index}:a]`)
 
   const built = buildXfadeFilter(
     clipDurations,
@@ -201,24 +190,14 @@ async function runFfmpegXfade(input: RunFfmpegConcatInput) {
     throw new Error('xfade not applicable: no valid seams (clips too short)')
   }
 
-  // anullsrc inputs for clips without audio. Built into the filter graph
-  // ahead of the xfade/acrossfade chain so labels like [anull2] exist.
   logTaskStart('MergeTask', 'ffmpeg-xfade', {
     mergeId: input.mergeId,
     episodeId: input.episodeId,
     clips: input.clipCount,
     transitionType: input.transition.type,
     transitionDurationMs: input.transition.durationMs,
-    missingAudioClips: missingAudio.length,
     timeoutSeconds: Math.round(timeoutMs / 1000),
   })
-
-  // Construct filter graph including anullsrc generators
-  const anullsrcFilters = missingAudio.map((clipIndex) => {
-    const seconds = clipDurations[clipIndex]
-    return `anullsrc=channel_layout=stereo:sample_rate=48000:d=${seconds.toFixed(3)}[anull${clipIndex}]`
-  })
-  const fullFilter = [...anullsrcFilters, built.filter].filter(Boolean).join(';')
 
   await new Promise<void>((resolve, reject) => {
     const command = ffmpeg()
@@ -228,7 +207,7 @@ async function runFfmpegXfade(input: RunFfmpegConcatInput) {
     }
 
     command
-      .complexFilter(fullFilter)
+      .complexFilter(built.filter)
       .outputOptions([
         '-map', `[${built.videoOutLabel}]`,
         '-map', `[${built.audioOutLabel}]`,
