@@ -3,6 +3,9 @@ import { execFile } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { ensureProjectEnvLoaded } from '../../utils/project-env.js'
+
+ensureProjectEnvLoaded()
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PROJECT_ROOT = path.resolve(__dirname, '../../../..')
