@@ -1,0 +1,88 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import {
+  buildRegenPrompt,
+  stripPreviousDefectHint,
+  enqueueDefectRegeneration,
+  type VideoRecordForRegen,
+} from '../generation/video-regeneration.js'
+
+const baseRecord: VideoRecordForRegen = {
+  id: 42,
+  prompt: '一名剑客出鞘并跃下',
+  model: 'wanx-v1',
+  configId: 7,
+  storyboardId: 99,
+  imageUrl: 'https://x/a.png',
+  firstFrameUrl: 'https://x/f.png',
+  lastFrameUrl: null,
+  duration: 5,
+  fps: 24,
+  resolution: '1280x720',
+  aspectRatio: '16:9',
+  defectCheckAttempt: 0,
+}
+
+test('stripPreviousDefectHint: removes prior defect block', () => {
+  const withHint = '原始内容\n\n【上次生成存在动作链断裂，请确保以下动作被完整拍到】\n- 拔剑'
+  assert.equal(stripPreviousDefectHint(withHint), '原始内容')
+})
+
+test('stripPreviousDefectHint: idempotent on plain prompt', () => {
+  assert.equal(stripPreviousDefectHint('普通内容'), '普通内容')
+})
+
+test('buildRegenPrompt: appends bullet list of missing actions', () => {
+  const r = buildRegenPrompt('原始 prompt', ['拔剑', '推门'])
+  assert.match(r, /^原始 prompt\n\n【上次生成/)
+  assert.match(r, /- 拔剑\n- 推门$/)
+})
+
+test('buildRegenPrompt: empty missingActions falls back to generic line', () => {
+  const r = buildRegenPrompt('原始', [])
+  assert.match(r, /上次生成动作链不完整/)
+})
+
+test('buildRegenPrompt: does not stack hints across regenerations', () => {
+  const once = buildRegenPrompt('原始', ['拔剑'])
+  const twice = buildRegenPrompt(once, ['推门'])
+  // 只应有一段【上次生成...】前缀
+  const occurrences = twice.split('【上次生成存在动作链断裂').length - 1
+  assert.equal(occurrences, 1)
+  assert.match(twice, /- 推门$/)
+})
+
+test('enqueueDefectRegeneration: forwards params and increments attempt + parent id', async () => {
+  let captured: any = null
+  const enqueue = async (params: any) => {
+    captured = params
+    return 88
+  }
+  const newId = await enqueueDefectRegeneration({
+    originalRecord: baseRecord,
+    missingActions: ['拔剑'],
+    enqueue,
+  })
+  assert.equal(newId, 88)
+  assert.equal(captured.defectCheckParentId, 42)
+  assert.equal(captured.defectCheckAttempt, 1)
+  assert.equal(captured.model, 'wanx-v1')
+  assert.equal(captured.configId, 7)
+  assert.equal(captured.storyboardId, 99)
+  assert.equal(captured.imageUrl, 'https://x/a.png')
+  assert.equal(captured.firstFrameUrl, 'https://x/f.png')
+  assert.equal(captured.duration, 5)
+  assert.equal(captured.aspectRatio, '16:9')
+  assert.match(captured.prompt, /- 拔剑$/)
+})
+
+test('enqueueDefectRegeneration: handles null prompt with empty string', async () => {
+  let captured: any = null
+  const enqueue = async (params: any) => { captured = params; return 1 }
+  await enqueueDefectRegeneration({
+    originalRecord: { ...baseRecord, prompt: null },
+    missingActions: ['x'],
+    enqueue,
+  })
+  assert.match(captured.prompt, /\n- x$/)
+})
