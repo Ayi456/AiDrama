@@ -275,6 +275,9 @@ export const videoGenerations = mysqlTable('video_generations', {
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
   completedAt: text('completed_at'),
+  defectCheckAttempt: int('defect_check_attempt').default(0),
+  defectCheckParentId: int('defect_check_parent_id'),
+  defectCheckResult: text('defect_check_result'),
   deletedAt: text('deleted_at'),
 })
 
