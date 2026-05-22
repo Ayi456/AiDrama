@@ -86,3 +86,25 @@ test('enqueueDefectRegeneration: handles null prompt with empty string', async (
   })
   assert.match(captured.prompt, /\n- x$/)
 })
+
+test('enqueueDefectRegeneration: forwards referenceMode and reference URL columns', async () => {
+  let captured: any = null
+  const enqueue = async (params: any) => { captured = params; return 7 }
+  await enqueueDefectRegeneration({
+    originalRecord: {
+      ...baseRecord,
+      dramaId: 11,
+      referenceMode: 'last_frame',
+      referenceImageUrls: '["https://x/r1.png"]',
+      referenceVideoUrls: null,
+      referenceAudioUrls: '["https://x/a1.mp3"]',
+    },
+    missingActions: ['x'],
+    enqueue,
+  })
+  assert.equal(captured.dramaId, 11)
+  assert.equal(captured.referenceMode, 'last_frame')
+  assert.equal(captured.referenceImageUrls, '["https://x/r1.png"]')
+  assert.equal(captured.referenceVideoUrls, null)
+  assert.equal(captured.referenceAudioUrls, '["https://x/a1.mp3"]')
+})

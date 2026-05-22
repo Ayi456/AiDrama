@@ -12,6 +12,11 @@ export interface VideoRecordForRegen {
   resolution?: string | null
   aspectRatio?: string | null
   defectCheckAttempt?: number | null
+  dramaId?: number | null
+  referenceMode?: string | null
+  referenceImageUrls?: string | null
+  referenceVideoUrls?: string | null
+  referenceAudioUrls?: string | null
 }
 
 export interface RegenEnqueueParams {
@@ -28,6 +33,11 @@ export interface RegenEnqueueParams {
   aspectRatio?: string | null
   defectCheckAttempt: number
   defectCheckParentId: number
+  dramaId?: number | null
+  referenceMode?: string | null
+  referenceImageUrls?: string[] | string | null
+  referenceVideoUrls?: string[] | string | null
+  referenceAudioUrls?: string[] | string | null
 }
 
 export interface RegenInput {
@@ -70,5 +80,10 @@ export async function enqueueDefectRegeneration(input: RegenInput): Promise<numb
     aspectRatio: rec.aspectRatio,
     defectCheckAttempt: previousAttempt + 1,
     defectCheckParentId: rec.id,
+    dramaId: rec.dramaId,
+    referenceMode: rec.referenceMode,
+    referenceImageUrls: rec.referenceImageUrls,
+    referenceVideoUrls: rec.referenceVideoUrls,
+    referenceAudioUrls: rec.referenceAudioUrls,
   })
 }
