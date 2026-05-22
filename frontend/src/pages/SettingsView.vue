@@ -259,6 +259,18 @@
           <span class="mono">{{ endpointHint }}</span>
         </div>
         <label class="field"><span class="field-label">模型（逗号分隔）</span><input v-model="cfgForm.modelStr" class="input" placeholder="model-name" /></label>
+        <template v-if="cfgForm.service_type === 'vision'">
+          <label class="field">
+            <span class="field-label">启用穿帮检测</span>
+            <label class="toggle"><input type="checkbox" v-model="cfgForm.enabled" /><span /></label>
+            <span class="field-hint">关闭后视频生成完全不走检测，与未启用本功能时行为一致。</span>
+          </label>
+          <label class="field">
+            <span class="field-label">最大生成次数</span>
+            <input v-model.number="cfgForm.maxAttempts" class="input" type="number" min="1" max="5" />
+            <span class="field-hint">含首次生成。1=不重生成；2=允许 1 次重生成。范围 1–5。</span>
+          </label>
+        </template>
         <label class="field">
           <span class="field-label">高级默认参数（JSON）</span>
           <textarea
@@ -341,14 +353,15 @@ const cfgDialog = ref(false)
 const cfgEditId = ref(null)
 const cfgTesting = ref(false)
 const cfgTestResult = ref(null)
-const cfgForm = reactive({ name: '', provider: '', api_key: '', base_url: '', modelStr: '', settingsJson: '{}', service_type: 'text', priority: 0 })
-const serviceTypes = [{ type: 'text', label: '文本' }, { type: 'image', label: '图片' }, { type: 'video', label: '视频' }]
+const cfgForm = reactive({ name: '', provider: '', api_key: '', base_url: '', modelStr: '', settingsJson: '{}', service_type: 'text', priority: 0, enabled: false, maxAttempts: 2 })
+const serviceTypes = [{ type: 'text', label: '文本' }, { type: 'image', label: '图片' }, { type: 'video', label: '视频' }, { type: 'vision', label: '视频理解' }]
 const providers = ['ali', 'chatfire', 'gemini', 'minimax', 'openai', 'openrouter', 'vidu', 'volcengine']
 const providerSelectOptions = computed(() => providers.map(p => ({ label: p, value: p })))
 const serviceMeta = {
   text: { label: '文本', desc: '剧本改写、角色场景提取、分镜拆解等 Agent 文本能力' },
   image: { label: '图片', desc: '角色图、场景图、镜头图与首尾帧等静态图像生成' },
   video: { label: '视频', desc: '镜头视频生成，支持单图、多图和首尾帧模式' },
+  vision: { label: '视频理解', desc: '用于视频穿帮检测，默认阿里百炼 qwen3.6-plus' },
 }
 const providerPresets = {
   text: {
@@ -366,6 +379,9 @@ const providerPresets = {
     volcengine: { label: 'AiDrama 视频', baseUrl: 'https://api.chatfire.site/volcengine', models: ['doubao-seedance-1-5-pro-251215'] },
     vidu: { label: 'Vidu 推荐', baseUrl: 'https://api.vidu.com', models: ['viduq3-turbo'] },
     ali: { label: '阿里推荐', baseUrl: 'https://dashscope.aliyuncs.com', models: ['wan2.6-i2v-flash'] },
+  },
+  vision: {
+    ali: { label: '阿里推荐', baseUrl: 'https://dashscope.aliyuncs.com', models: ['qwen3.6-plus'] },
   },
 }
 const providerSettingsTemplates = {
@@ -403,6 +419,9 @@ const providerSettingsTemplates = {
       },
     },
   },
+  vision: {
+    default: {},
+  },
 }
 const endpointPrefixes = {
   chatfire: '/v1',
@@ -418,8 +437,12 @@ const endpointPrefixes = {
 const endpointHint = computed(() => {
   const provider = cfgForm.provider
   const base = cfgForm.base_url || 'https://...'
-  const prefix = endpointPrefixes[provider] || ''
   if (!provider) return '选择服务商后显示推荐端点前缀'
+  // 阿里百炼视频理解走 OpenAI 兼容模式（qwen-vl 系列），与 DashScope 原生 /api/v1 不同。
+  if (cfgForm.service_type === 'vision' && provider === 'ali') {
+    return `${base}/compatible-mode/v1`
+  }
+  const prefix = endpointPrefixes[provider] || ''
   return `${base}${prefix}`
 })
 
@@ -448,6 +471,15 @@ function parseSettingsJson(raw) {
     throw new Error(e.message || '高级默认参数 JSON 无效')
   }
 }
+function mergeVisionFormSettings(settings) {
+  if (cfgForm.service_type !== 'vision') return settings
+  const m = Number(cfgForm.maxAttempts)
+  return {
+    ...settings,
+    enabled: cfgForm.enabled === true,
+    maxAttempts: Number.isFinite(m) ? Math.min(5, Math.max(1, Math.trunc(m))) : 2,
+  }
+}
 function applyProviderPreset(type, provider) {
   const preset = providerPresets[type]?.[provider]
   if (!preset) return
@@ -474,7 +506,11 @@ async function delCfg(id) {
 function startAddCfg(t) {
   cfgEditId.value = null
   cfgTestResult.value = null
-  Object.assign(cfgForm, { name: '', provider: '', api_key: '', base_url: '', modelStr: '', settingsJson: stringifySettings(getSettingsTemplate(t)), service_type: t, priority: 0 })
+  Object.assign(cfgForm, {
+    name: '', provider: '', api_key: '', base_url: '', modelStr: '',
+    settingsJson: stringifySettings(getSettingsTemplate(t)),
+    service_type: t, priority: 0, enabled: false, maxAttempts: 2,
+  })
   const firstPreset = presetsByType(t)[0]
   if (firstPreset) applyProviderPreset(t, firstPreset.provider)
   cfgDialog.value = true
@@ -492,6 +528,16 @@ function startEditCfg(c) {
     service_type: c.service_type,
     priority: c.priority ?? 0,
   })
+  if (c.service_type === 'vision') {
+    const s = c.settings && typeof c.settings === 'object' ? c.settings : {}
+    cfgForm.enabled = s.enabled === true
+    cfgForm.maxAttempts = Number.isFinite(s.maxAttempts)
+      ? Math.min(5, Math.max(1, Math.trunc(s.maxAttempts)))
+      : 2
+  } else {
+    cfgForm.enabled = false
+    cfgForm.maxAttempts = 2
+  }
   cfgDialog.value = true
 }
 async function testCfgPayload(payload) {
@@ -507,7 +553,7 @@ async function testCfgPayload(payload) {
   }
 }
 async function testDraftCfg() {
-  const settings = parseSettingsJson(cfgForm.settingsJson)
+  const settings = mergeVisionFormSettings(parseSettingsJson(cfgForm.settingsJson))
   const payload = {
     service_type: cfgForm.service_type,
     provider: cfgForm.provider,
@@ -535,6 +581,7 @@ async function saveCfg() {
     toast.error(e.message)
     return
   }
+  settings = mergeVisionFormSettings(settings)
   try {
     if (cfgEditId.value) {
       const payload = { name: cfgForm.name, provider: cfgForm.provider, base_url: cfgForm.base_url, model: models, settings, priority: cfgForm.priority }
