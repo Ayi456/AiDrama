@@ -2,7 +2,7 @@
 
 - 日期：2026-05-22
 - 作者：Claude Code 协作设计
-- 范围：在视频生成成功后接入视觉理解模型（默认阿里百炼 qwen-vl-max），对结果做"穿帮检测"，若判定为穿帮则自动重生成；上限可配，过程可观测，可一键关闭。
+- 范围：在视频生成成功后接入视觉理解模型（默认阿里百炼 qwen3.6-plus），对结果做"穿帮检测"，若判定为穿帮则自动重生成；上限可配，过程可观测，可一键关闭。
 
 ## 1. 背景与目标
 
@@ -23,7 +23,7 @@
 
 ## 2. 用户故事
 
-- 作为用户，我在"设置"里新增一类 AI 服务"视频理解"，填写 URL（默认 `https://dashscope.aliyuncs.com`）、API Key、模型名（默认 `qwen-vl-max`），再开启"启用穿帮检测"开关、设置最大重试次数（默认 2）。
+- 作为用户，我在"设置"里新增一类 AI 服务"视频理解"，填写 URL（默认 `https://dashscope.aliyuncs.com`）、API Key、模型名（默认 `qwen3.6-plus`），再开启"启用穿帮检测"开关、设置最大重试次数（默认 2）。
 - 之后每次生成视频，系统在拿到视频 URL 后会先让视觉模型按硬性规则跑一遍。
 - 若判定为穿帮，系统自动重生成；若仍穿帮且达到上限，把当前视频和检测结果一并落库后照常返回给我。
 - 如果我没配视频理解模型、或关闭了开关，所有视频生成行为与现在完全一致。
@@ -54,7 +54,7 @@
 [runDefectCheckIfEnabled]
    ├─ 无 vision config                     → { action: 'publish', verdict: 'skipped' }
    ├─ 开关关                                 → { action: 'publish', verdict: 'skipped' }
-   ├─ 调 vision adapter（qwen-vl）
+   ├─ 调 vision adapter（qwen3.6-plus）
    │     ├─ 网络/4xx/解析异常             → { action: 'publish', verdict: 'unknown', error }
    │     ├─ verdict='complete'             → { action: 'publish', verdict: 'complete' }
    │     └─ verdict='defect'
@@ -120,7 +120,7 @@ B. 终判：
 [缺失动作]: 动作1 | 动作2 | 动作3
 ```
 
-#### `backend/src/services/adapters/qwen-vl-vision.ts`
+#### `backend/src/services/adapters/qwen-vision.ts`
 
 视觉理解 adapter。窄接口：
 
@@ -287,8 +287,8 @@ if (decision.action === 'regenerate') {
 #### `frontend/src/pages/SettingsView.vue`
 
 - `serviceTypes` 数组追加 `'vision'`。
-- `serviceMeta.vision = { label: '视频理解', desc: '用于视频穿帮检测，默认阿里百炼 qwen-vl-max' }`。
-- `providerPresets.ali` 增加 vision 段：`{ baseUrl: 'https://dashscope.aliyuncs.com', models: ['qwen-vl-max', 'qwen-vl-plus'] }`。
+- `serviceMeta.vision = { label: '视频理解', desc: '用于视频穿帮检测，默认阿里百炼 qwen3.6-plus' }`。
+- `providerPresets.ali` 增加 vision 段：`{ baseUrl: 'https://dashscope.aliyuncs.com', models: ['qwen3.6-plus'] }`。
 - `endpointPrefixes` vision 用 `/compatible-mode/v1`。
 - 当 `serviceType === 'vision'` 时，弹窗里多渲染两个字段：
   - `enabled`：Switch，绑定 `form.settings.enabled`（默认 false）
@@ -319,13 +319,13 @@ if (decision.action === 'regenerate') {
 
 后端走现有 `npm test`（build + 测试套件）。本期新增三个测试文件：
 
-- **`qwen-vl-vision.test.ts`**：mock HTTP，覆盖三种 verdict 解析（完整 / 穿帮 + 缺失动作 / 无标记）+ 网络异常 + 4xx。
+- **`qwen-vision.test.ts`**：mock HTTP，覆盖三种 verdict 解析（完整 / 穿帮 + 缺失动作 / 无标记）+ 网络异常 + 4xx。
 - **`video-defect-check.test.ts`**：表驱动测错误处理矩阵 8 行，每行断言 `action` 与 `verdict`；mock vision config 与 adapter。
 - **`video-regeneration.test.ts`**：断言 prompt 拼接正确（含 missingActions 为空时的回退文案）、`defectCheckAttempt` 正确递增、`defectCheckParentId` 正确链接、调用 `generateVideo` 时参数与原行一致。
 
 不在本期范围：
 
-- 真实 qwen-vl 联调（手动验证）。
+- 真实 qwen3.6-plus 联调（手动验证）。
 - 真实视频文件下载/上传集成测试（已有路径，非本期改动）。
 
 ## 7. 可观测性
@@ -350,7 +350,7 @@ DB 侧通过 `defectCheckResult` 字段 + `defectCheckParentId` 自连接即可�
 - 视频生成失败（非穿帮）的自动重试：维持现状，由 provider 错误流程处理。
 - 多模态 prompt 优化 / 自动调参：本期 prompt 硬编码，后续如需迭代再单独成项。
 - 前端"疑似穿帮"角标：数据已落 `defectCheckResult`，UI 留待后续。
-- 多视频理解 provider：本期只写 qwen-vl 一个 adapter，serviceType=vision 但 provider 字段允许扩展，后续按需加 adapter。
+- 多视频理解 provider：本期只写 qwen 一个 adapter，serviceType=vision 但 provider 字段允许扩展，后续按需加 adapter。
 - 系统级配置表：开关与重试次数复用 vision config 的 `settings` JSON，不引入新表。
 
 ## 10. 命名与一致性约定
