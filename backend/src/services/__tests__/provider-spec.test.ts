@@ -397,3 +397,24 @@ runTest('VolcEngineVideoAdapter does not pass service_tier through to Seedance v
     ['first_frame', 'last_frame'],
   )
 })
+
+runTest('VolcEngineVideoAdapter parsePollResponse extracts structured error message and code', () => {
+  const adapter = new VolcEngineVideoAdapter()
+
+  assert.deepEqual(
+    adapter.parsePollResponse({ status: 'failed', error: { code: 'SensitiveContent', message: 'Prompt rejected' } }),
+    { status: 'failed', error: '[SensitiveContent] Prompt rejected' },
+  )
+  assert.deepEqual(
+    adapter.parsePollResponse({ status: 'failed', error: { message: 'Internal error' } }),
+    { status: 'failed', error: 'Internal error' },
+  )
+  assert.deepEqual(
+    adapter.parsePollResponse({ status: 'failed', error: 'plain string error' }),
+    { status: 'failed', error: 'plain string error' },
+  )
+  assert.deepEqual(
+    adapter.parsePollResponse({ status: 'failed' }),
+    { status: 'failed', error: 'Video generation failed' },
+  )
+})

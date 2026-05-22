@@ -222,7 +222,18 @@ async function pollVideoTask(id: number, config: AIConfig, taskId: string, story
 
       if (pollDecision.type === 'failed') {
         logTaskError('VideoTask', 'poll-failed', { id, taskId, error: pollDecision.error })
-        throw new Error(pollDecision.error)
+        await recordMediaJobFailure({
+          taskName: 'VideoTask',
+          event: 'poll-failed',
+          id,
+          provider: config.provider,
+          error: new Error(pollDecision.error),
+          failedAt: now(),
+        }, {
+          logError: logTaskError,
+          persistFailure: persistence.persistFailure,
+        })
+        return { type: 'done', value: undefined }
       }
 
       return { type: 'continue' }

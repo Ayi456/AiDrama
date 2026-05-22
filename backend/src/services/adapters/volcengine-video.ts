@@ -103,7 +103,7 @@ export class VolcEngineVideoAdapter implements VideoProviderAdapter {
       }
     }
     if (status === 'failed') {
-      return { status: 'failed', error: this.readString(record.error) || 'Video generation failed' }
+      return { status: 'failed', error: this.readErrorMessage(record.error) || 'Video generation failed' }
     }
     if (status === 'pending' || status === 'processing') {
       return { status }
@@ -140,5 +140,15 @@ export class VolcEngineVideoAdapter implements VideoProviderAdapter {
 
   private readString(value: unknown): string | undefined {
     return typeof value === 'string' ? value : typeof value === 'number' ? String(value) : undefined
+  }
+
+  private readErrorMessage(value: unknown): string | undefined {
+    const direct = this.readString(value)
+    if (direct) return direct
+    if (!isRecord(value)) return undefined
+    const message = this.readString(value.message)
+    const code = this.readString(value.code)
+    if (message && code) return `[${code}] ${message}`
+    return message || code
   }
 }
