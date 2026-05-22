@@ -479,6 +479,9 @@ async function initializeDatabase(pool: Pool, database: string) {
   await ensureColumn(pool, database, 'video_generations', 'provider_response', 'TEXT')
   await ensureColumn(pool, database, 'video_generations', 'reference_video_urls', 'TEXT')
   await ensureColumn(pool, database, 'video_generations', 'reference_audio_urls', 'TEXT')
+  await ensureColumn(pool, database, 'video_generations', 'defect_check_attempt', 'INT DEFAULT 0')
+  await ensureColumn(pool, database, 'video_generations', 'defect_check_parent_id', 'INT')
+  await ensureColumn(pool, database, 'video_generations', 'defect_check_result', 'TEXT')
   await ensureColumn(pool, database, 'scenes', 'reference_image', 'TEXT')
 }
 
