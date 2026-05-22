@@ -1,6 +1,6 @@
 type RouteBody = Record<string, unknown>
 
-export const VALID_AI_SERVICE_TYPES = new Set(['text', 'image', 'video'])
+export const VALID_AI_SERVICE_TYPES = new Set(['text', 'image', 'video', 'vision'])
 
 export type AiConfigCreateBody = RouteBody & {
   service_type?: string
@@ -83,7 +83,7 @@ function hasOwn(body: RouteBody, key: string) {
 
 export function validateAiConfigCreateBody(body: AiConfigCreateBody) {
   if (!body.service_type || !body.provider) return 'service_type and provider are required'
-  if (!VALID_AI_SERVICE_TYPES.has(body.service_type)) return 'service_type must be one of text, image or video'
+  if (!VALID_AI_SERVICE_TYPES.has(body.service_type)) return 'service_type must be one of text, image, video or vision'
   return null
 }
 
@@ -92,7 +92,7 @@ export function validateAiConfigProbeBody(body: AiConfigProbeBody) {
   if (!body.service_type || !body.provider || !body.base_url) {
     return 'service_type, provider and base_url are required'
   }
-  if (!VALID_AI_SERVICE_TYPES.has(body.service_type)) return 'service_type must be one of text, image or video'
+  if (!VALID_AI_SERVICE_TYPES.has(body.service_type)) return 'service_type must be one of text, image, video or vision'
   return null
 }
 

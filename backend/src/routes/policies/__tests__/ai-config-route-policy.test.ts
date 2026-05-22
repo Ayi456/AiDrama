@@ -22,7 +22,7 @@ function runTest(name: string, fn: () => void) {
 
 runTest('validateAiConfigCreateBody preserves required service and provider checks', () => {
   assert.equal(validateAiConfigCreateBody({}), 'service_type and provider are required')
-  assert.equal(validateAiConfigCreateBody({ service_type: 'audio', provider: 'x' }), 'service_type must be one of text, image or video')
+  assert.equal(validateAiConfigCreateBody({ service_type: 'audio', provider: 'x' }), 'service_type must be one of text, image, video or vision')
   assert.equal(validateAiConfigCreateBody({ service_type: 'image', provider: 'ali' }), null)
 })
 
@@ -104,7 +104,7 @@ runTest('buildAiConfigUpdatePatch maps supported fields and serializes model/set
 
 runTest('validateAiConfigProbeBody preserves probe required-field checks', () => {
   assert.equal(validateAiConfigProbeBody({ service_type: 'video', provider: 'vidu' }), 'service_type, provider and base_url are required')
-  assert.equal(validateAiConfigProbeBody({ service_type: 'audio', provider: 'x', base_url: 'https://example.com' }), 'service_type must be one of text, image or video')
+  assert.equal(validateAiConfigProbeBody({ service_type: 'audio', provider: 'x', base_url: 'https://example.com' }), 'service_type must be one of text, image, video or vision')
   assert.equal(validateAiConfigProbeBody({ service_type: 'video', provider: 'vidu', base_url: 'https://example.com' }), null)
   assert.equal(validateAiConfigProbeBody({ config_id: 1 }), null)
 })
@@ -142,4 +142,19 @@ runTest('errorMessageFromUnknown normalizes probe failures without any', () => {
   assert.equal(errorMessageFromUnknown(new Error('network failed')), 'network failed')
   assert.equal(errorMessageFromUnknown('plain failure'), 'plain failure')
   assert.equal(errorMessageFromUnknown({ message: 'not trusted' }), 'Request failed')
+})
+
+runTest('validateAiConfigCreateBody accepts vision service_type', () => {
+  assert.equal(validateAiConfigCreateBody({ service_type: 'vision', provider: 'ali' }), null)
+})
+
+runTest('validateAiConfigProbeBody accepts vision service_type', () => {
+  assert.equal(
+    validateAiConfigProbeBody({
+      service_type: 'vision',
+      provider: 'ali',
+      base_url: 'https://dashscope.aliyuncs.com',
+    }),
+    null,
+  )
 })
