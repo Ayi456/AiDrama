@@ -16,94 +16,155 @@
 
     <template v-else-if="drama">
     <div class="drama-detail-main">
-      <!-- Header -->
-      <div class="page-head">
-      <div class="head-left">
-        <button class="detail-back-btn" @click="router.push('/')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
-          </svg>
-          返回
-        </button>
-        <div class="head-info">
-          <h1 class="page-title">{{ drama.title }}</h1>
-          <div class="page-meta">
-            <span class="meta-item">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              {{ drama.characters?.length || 0 }} 角色
-            </span>
-            <span class="meta-divider"></span>
-            <span class="meta-item">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>
-              {{ drama.scenes?.length || 0 }} 场景
-            </span>
-            <span v-if="drama.style" class="meta-divider"></span>
-            <span v-if="drama.style" class="style-chip">{{ getProjectStyleLabel(drama.style) }}</span>
+      <!-- Crumb -->
+      <div class="dd-crumb">
+        <a class="dd-crumb__link" @click.prevent="router.push('/')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+          项目
+        </a>
+        <svg class="dd-crumb__sep" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+        <span class="dd-crumb__current">{{ drama.title }}</span>
+      </div>
+
+      <!-- Hero -->
+      <section class="dd-hero">
+        <div class="dd-hero__grid">
+          <div class="dd-hero__copy">
+            <div class="dd-hero__eyebrow-row">
+              <span class="dd-eyebrow">Project</span>
+              <span v-if="drama.style" class="dd-tag">{{ getProjectStyleLabel(drama.style) }}</span>
+            </div>
+            <h1 class="dd-hero__title">{{ drama.title }}</h1>
+            <div class="dd-hero__meta">
+              <span class="dd-meta__item"><b>{{ drama.characters?.length || 0 }}</b> 角色</span>
+              <span class="dd-meta__dot"></span>
+              <span class="dd-meta__item"><b>{{ drama.scenes?.length || 0 }}</b> 场景</span>
+              <span class="dd-meta__dot"></span>
+              <span class="dd-meta__item"><b>{{ drama.episodes?.length || 0 }}</b> 集</span>
+              <span class="dd-meta__dot"></span>
+              <span :class="['dd-sync', styleDirty ? 'is-dirty' : 'is-clean']" :title="styleDirty ? '风格未保存' : '风格已同步'">
+                <span class="dd-sync__led"></span>
+                {{ styleDirty ? '未保存' : '已同步' }}
+              </span>
+            </div>
           </div>
-          <div class="project-style-editor">
-            <span class="project-style-editor__label">项目风格</span>
-            <ProjectStyleInput v-model="styleDraft" class="project-style-editor__input" :disabled="savingStyle" compact />
-            <button class="btn btn-sm project-style-editor__save" :disabled="savingStyle || !styleDirty" @click="saveProjectStyle">
-              {{ savingStyle ? '保存中...' : styleDirty ? '保存' : '已同步' }}
+
+          <div class="dd-hero__right">
+            <div class="dd-ring">
+              <svg width="96" height="96" viewBox="0 0 96 96">
+                <circle class="dd-ring__track" cx="48" cy="48" r="40" stroke-width="8" fill="none" />
+                <circle
+                  class="dd-ring__bar"
+                  cx="48" cy="48" r="40" stroke-width="8" fill="none"
+                  :stroke-dasharray="ringCircumference"
+                  :stroke-dashoffset="ringDashOffset"
+                />
+              </svg>
+              <div class="dd-ring__text">
+                <b>{{ progressPercent }}<span class="dd-ring__percent">%</span></b>
+              </div>
+            </div>
+            <div class="dd-ring__stats">
+              <div><b>{{ doneCount }}</b> / {{ totalCount }} 集已完成</div>
+              <div v-if="avgDuration">平均时长 <b>{{ avgDuration }}s</b></div>
+              <div v-if="pendingCount">{{ pendingCount }} 集 待编写</div>
+            </div>
+            <button class="btn btn-primary dd-add-btn" @click="openAddChapter">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              添加集
             </button>
           </div>
         </div>
-      </div>
-      <button class="btn btn-primary" @click="openAddChapter">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        添加集
-      </button>
-      </div>
 
-      <!-- Chapter List -->
-      <div class="section-label">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-        <rect x="2" y="2" width="20" height="20" rx="2.5"/>
-        <line x1="7" y1="8" x2="7" y2="16"/>
-        <line x1="10" y1="8" x2="10" y2="16"/>
-        <line x1="13" y1="8" x2="13" y2="16"/>
-        <line x1="16" y1="8" x2="16" y2="16"/>
-      </svg>
-      剧集列表
-      </div>
-
-      <div class="ep-grid">
-      <div
-        v-for="(ep, i) in drama.episodes"
-        :key="ep.id"
-        class="card ep-card"
-        :style="{ animationDelay: `${i * 0.05}s` }"
-        @click="router.push(`/drama/${drama.id}/chapter/${ep.episode_number || ep.episodeNumber}`)"
-      >
-        <div class="ep-number">E{{ String(ep.episode_number || ep.episodeNumber).padStart(2, '0') }}</div>
-        <div class="ep-body">
-          <span class="ep-title">{{ ep.title }}</span>
-          <div class="ep-status">
-            <span :class="['status-dot', hasScript(ep) ? 'dot-ready' : 'dot-pending']"></span>
-            <span class="status-text">{{ hasScript(ep) ? '已完成剧本' : '待编写' }}</span>
-            <span v-if="ep.duration" class="ep-duration">{{ ep.duration }}s</span>
+        <!-- Style row -->
+        <div class="dd-style-row">
+          <span class="dd-style-row__label">风格</span>
+          <div class="dd-style-row__input">
+            <ProjectStyleInput
+              v-model="styleDraft"
+              :disabled="savingStyle"
+              :custom-presets="customStylePresets"
+              allow-custom
+              compact
+              @update:custom-presets="updateCustomStylePresets"
+            />
           </div>
         </div>
-        <div class="ep-arrow">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="9 18 15 12 9 6"/>
-          </svg>
+
+        <!-- Progress bar -->
+        <div class="dd-progress" v-if="totalCount">
+          <div class="dd-progress__track"><span class="dd-progress__fill" :style="{ width: progressPercent + '%' }"></span></div>
+          <div class="dd-progress__meta">
+            <b>{{ doneCount }}</b> 已完成 · <b>{{ pendingCount }}</b> 待编写
+          </div>
+        </div>
+      </section>
+
+      <!-- Section head -->
+      <div class="dd-section-head">
+        <div>
+          <div class="dd-section-title">剧集列表</div>
+          <div class="dd-section-sub">点击任意集卡进入分镜工作台</div>
+        </div>
+        <div class="dd-filter-tabs" v-if="totalCount">
+          <button
+            v-for="tab in filterTabs"
+            :key="tab.value"
+            type="button"
+            :class="['dd-filter-tab', { 'is-on': filter === tab.value }]"
+            @click="filter = tab.value"
+          >
+            {{ tab.label }}
+            <span class="dd-filter-tab__count">{{ tab.count }}</span>
+          </button>
         </div>
       </div>
 
-      <!-- Empty episode state -->
-      <div v-if="!drama.episodes?.length" class="card ep-empty">
-        <div class="ep-empty-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="12" y1="8" x2="12" y2="16"/>
-            <line x1="8" y1="12" x2="16" y2="12"/>
-          </svg>
+      <!-- Episode grid -->
+      <div class="dd-ep-grid">
+        <article
+          v-for="(ep, i) in filteredEpisodes"
+          :key="ep.id"
+          :class="['dd-ep', hasScript(ep) ? 'is-done' : 'is-draft']"
+          :style="{ animationDelay: `${i * 0.04}s` }"
+          @click="router.push(`/drama/${drama.id}/chapter/${ep.episode_number || ep.episodeNumber}`)"
+        >
+          <div class="dd-ep__num">
+            <span class="dd-ep__num-tag">EP</span>
+            <span class="dd-ep__num-value">{{ String(ep.episode_number || ep.episodeNumber).padStart(2, '0') }}</span>
+          </div>
+          <div class="dd-ep__body">
+            <h3 class="dd-ep__title">
+              {{ ep.title }}
+              <span v-if="!hasScript(ep)" class="dd-ep__draft">Draft</span>
+            </h3>
+            <div class="dd-ep__meta">
+              <span class="dd-ep__led"></span>
+              <span class="dd-ep__status">{{ hasScript(ep) ? '已完成剧本' : '待编写' }}</span>
+              <template v-if="ep.duration">
+                <span class="dd-ep__pipe">/</span>
+                <span class="dd-ep__duration">{{ ep.duration }}s</span>
+              </template>
+            </div>
+          </div>
+          <div class="dd-ep__go">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+          </div>
+        </article>
+
+        <!-- Add card (always last) -->
+        <button v-if="filter === 'all'" class="dd-ep dd-ep-add" type="button" @click="openAddChapter">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          添加新一集
+        </button>
+
+        <!-- Empty -->
+        <div v-if="!drama.episodes?.length" class="dd-ep-empty">
+          <div class="dd-ep-empty__icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          </div>
+          <p>点击「添加集」创建第一集</p>
         </div>
-        <p>点击上方「添加集」创建第一集</p>
-      </div>
       </div>
     </div>
 
@@ -170,7 +231,7 @@
 
 <script setup>
 import { toast } from 'vue-sonner'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BaseSelect from '@/components/BaseSelect.vue'
 import ProjectStyleInput from '@/components/ProjectStyleInput.vue'
@@ -188,12 +249,45 @@ const creatingChapter = ref(false)
 const savingStyle = ref(false)
 const newChapterTitle = ref('')
 const styleDraft = ref('')
+const customStylePresets = ref([])
 const imageConfigs = ref([])
 const videoConfigs = ref([])
 const newChapterImageConfigId = ref(null)
 const newChapterVideoConfigId = ref(null)
+const filter = ref('all')
 
 function hasScript(ep) { return !!(ep.script_content || ep.scriptContent) }
+
+const totalCount = computed(() => drama.value?.episodes?.length || 0)
+const doneCount = computed(() => (drama.value?.episodes || []).filter(hasScript).length)
+const pendingCount = computed(() => totalCount.value - doneCount.value)
+const progressPercent = computed(() => (
+  totalCount.value ? Math.round((doneCount.value / totalCount.value) * 100) : 0
+))
+const ringCircumference = 2 * Math.PI * 40
+const ringDashOffset = computed(() => (
+  ringCircumference - (ringCircumference * progressPercent.value) / 100
+))
+const avgDuration = computed(() => {
+  const eps = drama.value?.episodes || []
+  const withDuration = eps.filter(ep => Number(ep.duration) > 0)
+  if (!withDuration.length) return 0
+  const total = withDuration.reduce((sum, ep) => sum + Number(ep.duration || 0), 0)
+  return Math.round(total / withDuration.length)
+})
+
+const filterTabs = computed(() => [
+  { value: 'all', label: '全部', count: totalCount.value },
+  { value: 'done', label: '已完成', count: doneCount.value },
+  { value: 'pending', label: '待编写', count: pendingCount.value },
+])
+
+const filteredEpisodes = computed(() => {
+  const eps = drama.value?.episodes || []
+  if (filter.value === 'done') return eps.filter(hasScript)
+  if (filter.value === 'pending') return eps.filter(ep => !hasScript(ep))
+  return eps
+})
 
 function configLabel(config) {
   if (!config) return ''
@@ -218,6 +312,7 @@ async function load() {
   try {
     drama.value = await dramaAPI.get(dramaId)
     styleDraft.value = drama.value?.style || ''
+    customStylePresets.value = readStylePresetsFromMetadata(drama.value?.metadata)
     if (dramaImageConfigId.value) newChapterImageConfigId.value = dramaImageConfigId.value
     if (dramaVideoConfigId.value) newChapterVideoConfigId.value = dramaVideoConfigId.value
   } catch (e) {
@@ -225,6 +320,44 @@ async function load() {
     toast.error(loadError.value)
   } finally {
     loading.value = false
+  }
+}
+
+function parseDramaMetadata(raw) {
+  if (!raw) return {}
+  if (typeof raw === 'object') return raw
+  try {
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function readStylePresetsFromMetadata(raw) {
+  const meta = parseDramaMetadata(raw)
+  const list = Array.isArray(meta.stylePresets) ? meta.stylePresets : []
+  return list.filter(item => typeof item === 'string' && item.trim()).map(item => item.trim())
+}
+
+async function updateCustomStylePresets(next) {
+  const dedup = []
+  const seen = new Set()
+  for (const item of (next || [])) {
+    const value = typeof item === 'string' ? item.trim() : ''
+    if (!value || seen.has(value)) continue
+    seen.add(value)
+    dedup.push(value)
+  }
+  const prev = customStylePresets.value
+  customStylePresets.value = dedup
+  try {
+    const metadata = { ...parseDramaMetadata(drama.value?.metadata), stylePresets: dedup }
+    await dramaAPI.update(dramaId, { metadata })
+    drama.value = { ...drama.value, metadata }
+  } catch (e) {
+    customStylePresets.value = prev
+    toast.error(e.message)
   }
 }
 
@@ -277,13 +410,23 @@ async function saveProjectStyle() {
     await dramaAPI.update(dramaId, { style })
     drama.value = { ...drama.value, style }
     styleDraft.value = style
-    toast.success('项目风格已更新')
   } catch (e) {
     toast.error(e.message)
   } finally {
     savingStyle.value = false
   }
 }
+
+let styleSaveTimer = null
+watch(styleDraft, () => {
+  if (!drama.value) return
+  if (!styleDirty.value) return
+  if (styleSaveTimer) clearTimeout(styleSaveTimer)
+  styleSaveTimer = setTimeout(() => {
+    styleSaveTimer = null
+    saveProjectStyle()
+  }, 600)
+})
 
 onMounted(() => { load(); loadConfigs() })
 </script>

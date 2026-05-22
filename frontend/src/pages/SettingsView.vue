@@ -46,7 +46,6 @@
                 <span class="section-title">{{ st.label }}</span>
                 <div class="section-subtitle">{{ serviceMeta[st.type].desc }}</div>
               </div>
-              <span v-if="countActive(st.type)" class="tag tag-accent">{{ countActive(st.type) }} 已启用</span>
               <button class="btn btn-ghost btn-sm ml-auto" @click="startAddCfg(st.type)"><Plus :size="13" /> 添加</button>
             </div>
             <div class="config-list">
@@ -447,7 +446,6 @@ const endpointHint = computed(() => {
 })
 
 function byType(t) { return cfgs.value.filter(c => c.service_type === t) }
-function countActive(t) { return byType(t).filter(c => c.is_active).length }
 function fmtModel(m) { return Array.isArray(m) ? m.join(', ') : m || '—' }
 function presetsByType(type) {
   const group = providerPresets[type] || {}
