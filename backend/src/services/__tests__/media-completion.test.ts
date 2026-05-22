@@ -296,3 +296,82 @@ runTest('completeGeneratedVideoJob persists generated video and publishes storyb
     },
   }])
 })
+
+runTest('completeGeneratedVideoJob: defectCheck=publish runs persist + publishStoryboardVideo as before', async () => {
+  const calls: string[] = []
+  await completeGeneratedVideoJob({
+    id: 1,
+    source: { type: 'url', videoUrl: 'https://x/v.mp4' },
+    duration: 5,
+    storyboardId: 9,
+  }, {
+    now: () => '2026-05-22T00:00:00Z',
+    downloadFile: async () => '/tmp/v.mp4',
+    uploadGeneratedAsset: async () => 'https://cdn/v.mp4',
+    persistVideoCompletion: async () => { calls.push('persist') },
+    publishStoryboardVideo: async () => { calls.push('publish') },
+    logSuccess: () => {},
+    defectCheck: async () => ({ action: 'publish' }),
+  })
+  assert.deepEqual(calls, ['persist', 'publish'])
+})
+
+runTest('completeGeneratedVideoJob: defectCheck=regenerate skips persist and publishStoryboardVideo', async () => {
+  const calls: string[] = []
+  await completeGeneratedVideoJob({
+    id: 1,
+    source: { type: 'url', videoUrl: 'https://x/v.mp4' },
+    duration: 5,
+    storyboardId: 9,
+  }, {
+    now: () => '2026-05-22T00:00:00Z',
+    downloadFile: async () => '/tmp/v.mp4',
+    uploadGeneratedAsset: async () => 'https://cdn/v.mp4',
+    persistVideoCompletion: async () => { calls.push('persist') },
+    publishStoryboardVideo: async () => { calls.push('publish') },
+    logSuccess: () => {},
+    defectCheck: async () => ({ action: 'regenerate' }),
+  })
+  assert.deepEqual(calls, [])
+})
+
+runTest('completeGeneratedVideoJob: omitting defectCheck preserves prior behaviour', async () => {
+  const calls: string[] = []
+  await completeGeneratedVideoJob({
+    id: 1,
+    source: { type: 'url', videoUrl: 'https://x/v.mp4' },
+    duration: 5,
+    storyboardId: 9,
+  }, {
+    now: () => '2026-05-22T00:00:00Z',
+    downloadFile: async () => '/tmp/v.mp4',
+    uploadGeneratedAsset: async () => 'https://cdn/v.mp4',
+    persistVideoCompletion: async () => { calls.push('persist') },
+    publishStoryboardVideo: async () => { calls.push('publish') },
+    logSuccess: () => {},
+  })
+  assert.deepEqual(calls, ['persist', 'publish'])
+})
+
+runTest('completeGeneratedVideoJob: defectCheck receives publicUrl and id', async () => {
+  let captured: { id: number; publicUrl: string; localPath: string } | null = null
+  await completeGeneratedVideoJob({
+    id: 77,
+    source: { type: 'url', videoUrl: 'https://x/v.mp4' },
+    duration: 5,
+    storyboardId: 9,
+  }, {
+    now: () => '2026-05-22T00:00:00Z',
+    downloadFile: async () => '/tmp/v.mp4',
+    uploadGeneratedAsset: async () => 'https://cdn/v.mp4',
+    persistVideoCompletion: async () => {},
+    publishStoryboardVideo: async () => {},
+    logSuccess: () => {},
+    defectCheck: async (input) => { captured = input; return { action: 'publish' } },
+  })
+  const cap = captured as unknown as { id: number; publicUrl: string; localPath: string } | null
+  assert.ok(cap)
+  assert.equal(cap!.id, 77)
+  assert.equal(cap!.publicUrl, 'https://cdn/v.mp4')
+  assert.equal(cap!.localPath, '/tmp/v.mp4')
+})

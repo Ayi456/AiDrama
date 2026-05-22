@@ -81,12 +81,21 @@ export type CompleteGeneratedImageJobDeps = MaterializeGeneratedImageDeps & {
   logSuccess: (taskName: string, event: string, payload: Record<string, unknown>) => void
 }
 
+export type DefectCheckCallback = (input: {
+  id: number
+  publicUrl: string
+  localPath: string
+  duration: number | null | undefined
+  storyboardId: number | null | undefined
+}) => Promise<{ action: 'publish' | 'regenerate' }>
+
 export type CompleteGeneratedVideoJobDeps = MaterializeGeneratedVideoDeps & {
   now: () => string
   uploadGeneratedAsset: UploadGeneratedAsset
   persistVideoCompletion: (patch: VideoCompletionPatch) => Promise<void>
   publishStoryboardVideo: (storyboardId: number, patch: StoryboardVideoPatch) => Promise<void>
   logSuccess: (taskName: string, event: string, payload: Record<string, unknown>) => void
+  defectCheck?: DefectCheckCallback
 }
 
 export async function publishGeneratedAsset(localPath: string, upload: UploadGeneratedAsset) {
@@ -203,6 +212,19 @@ export async function completeGeneratedVideoJob(
   const materialized = await materializeGeneratedVideo(input.source, deps)
   const localPath = materialized.localPath
   const publicUrl = await publishGeneratedAsset(localPath, deps.uploadGeneratedAsset)
+
+  if (deps.defectCheck) {
+    const decision = await deps.defectCheck({
+      id: input.id,
+      publicUrl,
+      localPath,
+      duration: input.duration,
+      storyboardId: input.storyboardId,
+    })
+    if (decision.action === 'regenerate') {
+      return { publicUrl, localPath }
+    }
+  }
 
   await deps.persistVideoCompletion(buildVideoCompletionPatch({
     publicUrl,
