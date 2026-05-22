@@ -115,6 +115,8 @@ runTest('buildVideoGenerationEnqueueRecord creates processing rows with AiDrama 
     referenceAudioUrls: '["static/audio/music.mp3"]',
     duration: 5,
     aspectRatio: '16:9',
+    defectCheckAttempt: undefined,
+    defectCheckParentId: undefined,
     status: 'processing',
     createdAt: 't2',
     updatedAt: 't2',
@@ -167,4 +169,31 @@ runTest('buildMediaGenerationEnqueuePayload records public config fields with or
       params,
     },
   )
+})
+
+runTest('buildVideoGenerationEnqueueRecord forwards defectCheckAttempt and parentId', () => {
+  const record = buildVideoGenerationEnqueueRecord({
+    params: {
+      prompt: 'p',
+      model: 'm',
+      defectCheckAttempt: 2,
+      defectCheckParentId: 41,
+    },
+    config: { provider: 'ali', model: 'm', baseUrl: 'b', apiKey: 'k' },
+    enqueuedAt: '2026-05-22T00:00:00Z',
+  })
+  const r = record as Record<string, unknown>
+  assert.equal(r.defectCheckAttempt, 2)
+  assert.equal(r.defectCheckParentId, 41)
+})
+
+runTest('buildVideoGenerationEnqueueRecord omits defect fields when not provided', () => {
+  const record = buildVideoGenerationEnqueueRecord({
+    params: { prompt: 'p', model: 'm' },
+    config: { provider: 'ali', model: 'm', baseUrl: 'b', apiKey: 'k' },
+    enqueuedAt: '2026-05-22T00:00:00Z',
+  })
+  const r = record as Record<string, unknown>
+  assert.equal(r.defectCheckAttempt, undefined)
+  assert.equal(r.defectCheckParentId, undefined)
 })

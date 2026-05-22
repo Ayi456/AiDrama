@@ -30,6 +30,8 @@ export type VideoGenerationEnqueueParams = {
   duration?: number
   aspectRatio?: string
   configId?: number
+  defectCheckAttempt?: number
+  defectCheckParentId?: number
 }
 
 export function buildImageGenerationEnqueueRecord(input: {
@@ -75,6 +77,8 @@ export function buildVideoGenerationEnqueueRecord(input: {
     referenceAudioUrls: stringifyStringList(input.params.referenceAudioUrls),
     duration: input.params.duration || 5,
     aspectRatio: input.params.aspectRatio || '16:9',
+    defectCheckAttempt: input.params.defectCheckAttempt,
+    defectCheckParentId: input.params.defectCheckParentId,
     status: 'processing' as const,
     createdAt: input.enqueuedAt,
     updatedAt: input.enqueuedAt,
