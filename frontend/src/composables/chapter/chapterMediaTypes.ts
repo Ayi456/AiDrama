@@ -15,6 +15,8 @@ export type ChapterScene = Scene & {
   local_path?: string
   localPath?: string
   status?: string
+  reference_image?: string | null
+  referenceImage?: string | null
 }
 
 export type ChapterStoryboard = Storyboard & {
@@ -91,6 +93,11 @@ export type ReplaceCharacterImagePayload = {
 }
 
 export type ReplaceSceneImagePayload = {
+  scene?: ChapterScene
+  file?: File
+}
+
+export type SceneReferenceImagePayload = {
   scene?: ChapterScene
   file?: File
 }

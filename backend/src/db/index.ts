@@ -189,6 +189,7 @@ const tableStatements = [
     prompt TEXT NOT NULL,
     storyboard_count INT DEFAULT 1,
     image_url TEXT,
+    reference_image TEXT,
     status VARCHAR(32) DEFAULT 'pending',
     local_path TEXT,
     created_at TEXT NOT NULL,
@@ -478,6 +479,7 @@ async function initializeDatabase(pool: Pool, database: string) {
   await ensureColumn(pool, database, 'video_generations', 'provider_response', 'TEXT')
   await ensureColumn(pool, database, 'video_generations', 'reference_video_urls', 'TEXT')
   await ensureColumn(pool, database, 'video_generations', 'reference_audio_urls', 'TEXT')
+  await ensureColumn(pool, database, 'scenes', 'reference_image', 'TEXT')
 }
 
 await ensureDatabaseExists(mysqlConfig)

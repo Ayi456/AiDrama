@@ -44,7 +44,7 @@ export type DramaCharacter = ApiEntity & {
   character_asset_image_url?: string | null
   characterAssetImageUrl?: string | null
 }
-export type Scene = ApiEntity & { location?: string; time?: string; image_url?: string; imageUrl?: string }
+export type Scene = ApiEntity & { location?: string; time?: string; image_url?: string; imageUrl?: string; reference_image?: string | null; referenceImage?: string | null }
 export type Storyboard = ApiEntity & {
   storyboard_number?: number
   storyboardNumber?: number

@@ -265,7 +265,7 @@ function isReplacingCharacterImage(id) {
 
 function getGenerateButtonLabel(character) {
   if (isPendingCharacterImage(character.id)) return '生成中'
-  return hasCharacterImage(character) ? '再生成' : '生成'
+  return '生成'
 }
 
 function rolePresetLabel(rolePreset) {

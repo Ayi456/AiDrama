@@ -55,6 +55,63 @@
             </span>
           </div>
 
+          <div class="scene-gallery__reference">
+            <template v-if="hasSceneReferenceImage(scene)">
+              <button
+                type="button"
+                class="scene-gallery__reference-thumb"
+                :title="'查看参考图，再生成将以图生图模式运行'"
+                @click="openSceneReferenceImage(scene)"
+              >
+                <img :src="assetUrl(getSceneReferenceImage(scene))" alt="参考图" />
+                <span class="scene-gallery__reference-tag">图生图</span>
+              </button>
+              <div class="scene-gallery__reference-meta">
+                <span class="scene-gallery__reference-label">已上传参考图</span>
+                <div class="scene-gallery__reference-actions">
+                  <label
+                    :class="['scene-gallery__reference-btn', isUploadingSceneReference(scene.id) && 'is-disabled']"
+                    title="重新上传参考图"
+                  >
+                    <input
+                      class="scene-gallery__reference-input"
+                      type="file"
+                      accept="image/*"
+                      :disabled="isUploadingSceneReference(scene.id)"
+                      @change="handleReferenceFile(scene, $event)"
+                    />
+                    {{ isUploadingSceneReference(scene.id) ? '上传中' : '更换' }}
+                  </label>
+                  <button
+                    type="button"
+                    class="scene-gallery__reference-btn is-ghost"
+                    :disabled="isUploadingSceneReference(scene.id)"
+                    @click="clearReference(scene)"
+                  >
+                    移除
+                  </button>
+                </div>
+              </div>
+            </template>
+            <label
+              v-else
+              :class="['scene-gallery__reference-empty', isUploadingSceneReference(scene.id) && 'is-disabled']"
+              title="上传一张参考图，再生成时将走图生图模式"
+            >
+              <input
+                class="scene-gallery__reference-input"
+                type="file"
+                accept="image/*"
+                :disabled="isUploadingSceneReference(scene.id)"
+                @change="handleReferenceFile(scene, $event)"
+              />
+              <span class="scene-gallery__reference-empty-icon">+</span>
+              <span class="scene-gallery__reference-empty-text">
+                {{ isUploadingSceneReference(scene.id) ? '上传中' : '上传参考图（开启图生图）' }}
+              </span>
+            </label>
+          </div>
+
           <label class="scene-gallery__prompt">
             <div class="scene-gallery__prompt-head">
               <span class="scene-gallery__prompt-label">图片提示词</span>
@@ -119,16 +176,36 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  uploadingSceneReferenceIds: {
+    type: Array,
+    default: () => [],
+  },
 })
 
-const emit = defineEmits(['batch-generate', 'generate', 'replace-image', 'update-scene-field', 'open-image-viewer'])
+const emit = defineEmits([
+  'batch-generate',
+  'generate',
+  'replace-image',
+  'update-scene-field',
+  'open-image-viewer',
+  'upload-scene-reference',
+  'clear-scene-reference',
+])
 
 function getSceneImage(scene) {
   return scene?.image_url || scene?.imageUrl || ''
 }
 
+function getSceneReferenceImage(scene) {
+  return scene?.reference_image || scene?.referenceImage || ''
+}
+
 function hasSceneImage(scene) {
   return !!getSceneImage(scene)
+}
+
+function hasSceneReferenceImage(scene) {
+  return !!getSceneReferenceImage(scene)
 }
 
 function isPendingSceneImage(id) {
@@ -139,9 +216,13 @@ function isReplacingSceneImage(id) {
   return props.replacingSceneImageIds.includes(id)
 }
 
+function isUploadingSceneReference(id) {
+  return props.uploadingSceneReferenceIds.includes(id)
+}
+
 function getGenerateButtonLabel(scene) {
   if (isPendingSceneImage(scene.id)) return '生成中'
-  return hasSceneImage(scene) ? '再生成' : '生成'
+  return '生成'
 }
 
 function openSceneImage(scene) {
@@ -153,11 +234,31 @@ function openSceneImage(scene) {
   })
 }
 
+function openSceneReferenceImage(scene) {
+  const src = getSceneReferenceImage(scene)
+  if (!src) return
+  emit('open-image-viewer', {
+    src: assetUrl(src),
+    title: `${scene.location} 参考图`,
+  })
+}
+
 function handleReplaceFile(scene, event) {
   const input = event.target
   const file = input?.files?.[0]
   if (file) emit('replace-image', { scene, file })
   if (input) input.value = ''
+}
+
+function handleReferenceFile(scene, event) {
+  const input = event.target
+  const file = input?.files?.[0]
+  if (file) emit('upload-scene-reference', { scene, file })
+  if (input) input.value = ''
+}
+
+function clearReference(scene) {
+  emit('clear-scene-reference', scene)
 }
 </script>
 

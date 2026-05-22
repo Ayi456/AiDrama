@@ -6,6 +6,7 @@ import type {
   ChapterScene,
   ReplaceCharacterImagePayload,
   ReplaceSceneImagePayload,
+  SceneReferenceImagePayload,
 } from './chapterMediaTypes'
 import { errorMessageFromUnknown } from './chapterMediaTypes'
 
@@ -33,6 +34,7 @@ export function useChapterAssetWorkflow(options: ChapterAssetWorkflowOptions) {
   const pendingSceneImageIds = ref<number[]>([])
   const replacingCharacterImageIds = ref<number[]>([])
   const replacingSceneImageIds = ref<number[]>([])
+  const uploadingSceneReferenceIds = ref<number[]>([])
 
   function isPendingCharImage(id: number) {
     return pendingCharImageIds.value.includes(id)
@@ -50,12 +52,20 @@ export function useChapterAssetWorkflow(options: ChapterAssetWorkflowOptions) {
     return replacingSceneImageIds.value.includes(id)
   }
 
+  function isUploadingSceneReference(id: number) {
+    return uploadingSceneReferenceIds.value.includes(id)
+  }
+
   function hasCharacterImage(char: ChapterCharacter | null | undefined) {
     return !!(char?.image_url || char?.imageUrl)
   }
 
   function hasSceneImage(scene: ChapterScene | null | undefined) {
     return !!(scene?.image_url || scene?.imageUrl)
+  }
+
+  function hasSceneReferenceImage(scene: ChapterScene | null | undefined) {
+    return !!(scene?.reference_image || scene?.referenceImage)
   }
 
   function getImageGenerateButtonLabel(hasImage: boolean, pending: boolean) {
@@ -234,17 +244,59 @@ export function useChapterAssetWorkflow(options: ChapterAssetWorkflowOptions) {
     }), 36)
   }
 
+  async function uploadSceneReference(payload: SceneReferenceImagePayload) {
+    const scene = payload?.scene
+    const file = payload?.file
+    if (!scene?.id || !file) return
+    if (!file.type?.startsWith('image/')) {
+      toast.error('请选择图片文件')
+      return
+    }
+
+    const id = Number(scene.id)
+    try {
+      if (!isUploadingSceneReference(id)) uploadingSceneReferenceIds.value.push(id)
+      const uploaded = await uploadAPI.image(file)
+      await sceneAPI.update(id, { reference_image: uploaded.url })
+      scene.reference_image = uploaded.url
+      scene.referenceImage = uploaded.url
+      toast.success('参考图已上传，再生成将以图生图模式运行')
+      await options.refresh()
+    } catch (error: unknown) {
+      toast.error(errorMessageFromUnknown(error, '参考图上传失败'))
+    } finally {
+      uploadingSceneReferenceIds.value = uploadingSceneReferenceIds.value.filter(item => item !== id)
+    }
+  }
+
+  async function clearSceneReference(scene: ChapterScene | null | undefined) {
+    if (!scene?.id) return
+    const id = Number(scene.id)
+    try {
+      await sceneAPI.update(id, { reference_image: null })
+      scene.reference_image = null
+      scene.referenceImage = null
+      toast.success('参考图已移除，再生成将回到文生图模式')
+      await options.refresh()
+    } catch (error: unknown) {
+      toast.error(errorMessageFromUnknown(error, '参考图移除失败'))
+    }
+  }
+
   return {
     pendingCharImageIds,
     pendingSceneImageIds,
     replacingCharacterImageIds,
     replacingSceneImageIds,
+    uploadingSceneReferenceIds,
     isPendingCharImage,
     isPendingSceneImage,
     isReplacingCharacterImage,
     isReplacingSceneImage,
+    isUploadingSceneReference,
     hasCharacterImage,
     hasSceneImage,
+    hasSceneReferenceImage,
     getImageGenerateButtonLabel,
     getImageGenerateToastLabel,
     genCharImg,
@@ -253,5 +305,7 @@ export function useChapterAssetWorkflow(options: ChapterAssetWorkflowOptions) {
     genSceneImg,
     replaceSceneImage,
     batchSceneImages,
+    uploadSceneReference,
+    clearSceneReference,
   }
 }

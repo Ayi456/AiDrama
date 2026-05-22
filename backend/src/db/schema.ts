@@ -103,6 +103,7 @@ export const scenes = mysqlTable('scenes', {
   prompt: text('prompt').notNull(),
   storyboardCount: int('storyboard_count').default(1),
   imageUrl: text('image_url'),
+  referenceImage: text('reference_image'),
   status: varchar('status', { length: 32 }).default('pending'),
   localPath: text('local_path'),
   createdAt: text('created_at').notNull(),

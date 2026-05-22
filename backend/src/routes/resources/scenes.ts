@@ -18,6 +18,7 @@ type SceneUpdatePatch = {
   imageUrl?: string | null
   localPath?: string | null
   status?: string | null
+  referenceImage?: string | null
 }
 
 // POST /scenes
@@ -51,6 +52,8 @@ app.put('/:id', async (c) => {
   if (hasOwn(body, 'local_path')) updates.localPath = body.local_path as string | null
   if (hasOwn(body, 'localPath')) updates.localPath = body.localPath as string | null
   if (hasOwn(body, 'status')) updates.status = body.status as string | null
+  if (hasOwn(body, 'reference_image')) updates.referenceImage = body.reference_image as string | null
+  if (hasOwn(body, 'referenceImage')) updates.referenceImage = body.referenceImage as string | null
   await db.update(schema.scenes).set(updates).where(eq(schema.scenes.id, id)).run()
   return success(c)
 })
@@ -66,11 +69,21 @@ app.post('/:id/generate-image', async (c) => {
   if (!ep) return badRequest(c, 'Episode not found')
   const [drama] = (await db.select().from(schema.dramas).where(eq(schema.dramas.id, scene.dramaId)).all())
 
-  const prompt = buildSceneImagePrompt({ ...scene, style: drama?.style || '' }) || `${scene.location}，${scene.time || ''}，高质量场景，统一画风`
+  const referenceImage = typeof scene.referenceImage === 'string' ? scene.referenceImage.trim() : ''
+  const basePrompt = buildSceneImagePrompt({ ...scene, style: drama?.style || '' }) || `${scene.location}，${scene.time || ''}，高质量场景，统一画风`
+  const prompt = referenceImage
+    ? `${basePrompt}，参考上传的参考图进行构图与风格延展，结合上述提示词重绘`
+    : basePrompt
   try {
-    logTaskStart('SceneImage', 'generate', { sceneId: id, episodeId: ep.id, dramaId: scene.dramaId, location: scene.location })
+    logTaskStart('SceneImage', 'generate', { sceneId: id, episodeId: ep.id, dramaId: scene.dramaId, location: scene.location, mode: referenceImage ? 'image-to-image' : 'text-to-image' })
     await db.update(schema.scenes).set({ status: 'processing', updatedAt: now() }).where(eq(schema.scenes.id, id)).run()
-    const genId = await generateImage({ sceneId: id, dramaId: scene.dramaId, prompt, configId: ep.imageConfigId ?? undefined })
+    const genId = await generateImage({
+      sceneId: id,
+      dramaId: scene.dramaId,
+      prompt,
+      configId: ep.imageConfigId ?? undefined,
+      referenceImages: referenceImage ? [referenceImage] : undefined,
+    })
     logTaskSuccess('SceneImage', 'generate', { sceneId: id, generationId: genId })
     return success(c, { image_generation_id: genId })
   } catch (error: unknown) {

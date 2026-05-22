@@ -19,6 +19,7 @@ type ProductionPanelBridgeOptions = {
   pendingSceneImageIds: ValueRef<unknown[]>
   replacingCharacterImageIds: ValueRef<unknown[]>
   replacingSceneImageIds: ValueRef<unknown[]>
+  uploadingSceneReferenceIds: ValueRef<unknown[]>
   shotImgCount: ValueRef<number>
   lockedImageModelName: ValueRef<string>
   lockedImageProvider: ValueRef<string>
@@ -106,6 +107,8 @@ type ProductionPanelBridgeOptions = {
   batchSceneImages: BridgeHandler
   genSceneImg: BridgeHandler
   replaceSceneImage: BridgeHandler
+  uploadSceneReference: BridgeHandler
+  clearSceneReference: BridgeHandler
   handleSceneFieldUpdate: BridgeHandler
   handleFrameModeChange: BridgeHandler
   handleShotImageAspectRatioChange: BridgeHandler
@@ -153,6 +156,7 @@ export function useChapterProductionPanelBridge(options: ProductionPanelBridgeOp
     pendingSceneImageIds: options.pendingSceneImageIds.value,
     replacingCharacterImageIds: options.replacingCharacterImageIds.value,
     replacingSceneImageIds: options.replacingSceneImageIds.value,
+    uploadingSceneReferenceIds: options.uploadingSceneReferenceIds.value,
     shotImgCount: options.shotImgCount.value,
     lockedImageModelName: options.lockedImageModelName.value,
     lockedImageProvider: options.lockedImageProvider.value,
@@ -245,6 +249,8 @@ export function useChapterProductionPanelBridge(options: ProductionPanelBridgeOp
     batchSceneImages: options.batchSceneImages,
     genSceneImg: options.genSceneImg,
     replaceSceneImage: options.replaceSceneImage,
+    uploadSceneReference: options.uploadSceneReference,
+    clearSceneReference: options.clearSceneReference,
     handleSceneFieldUpdate: options.handleSceneFieldUpdate,
     handleFrameModeChange: options.handleFrameModeChange,
     handleShotImageAspectRatioChange: options.handleShotImageAspectRatioChange,

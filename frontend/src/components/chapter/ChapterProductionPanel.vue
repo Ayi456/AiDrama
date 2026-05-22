@@ -57,9 +57,12 @@
         :locked-image-config-label="state.lockedImageConfigLabel"
         :pending-scene-image-ids="state.pendingSceneImageIds"
         :replacing-scene-image-ids="state.replacingSceneImageIds"
+        :uploading-scene-reference-ids="state.uploadingSceneReferenceIds"
         @batch-generate="handlers.batchSceneImages"
         @generate="handlers.genSceneImg"
         @replace-image="handlers.replaceSceneImage"
+        @upload-scene-reference="handlers.uploadSceneReference"
+        @clear-scene-reference="handlers.clearSceneReference"
         @update-scene-field="handlers.handleSceneFieldUpdate"
         @open-image-viewer="handlers.handleGalleryViewerOpen"
       />
