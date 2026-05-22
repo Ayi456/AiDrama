@@ -88,6 +88,14 @@ function buildProbe(
   }
 
   if (p === 'ali') {
+    if (serviceType === 'vision') {
+      return {
+        method: 'POST',
+        url: joinProviderUrl(baseUrl, '/compatible-mode/v1', '/chat/completions'),
+        headers: bearerHeaders(apiKey, true),
+        body: { model: m || 'qwen3.6-plus', messages: [{ role: 'user', content: 'ping' }] },
+      }
+    }
     return {
       method: 'POST',
       url: joinProviderUrl(baseUrl, '/api/v1', serviceType === 'video'
