@@ -8,6 +8,8 @@ import { success, badRequest, now } from '../../utils/response.js'
 import { downloadFile } from '../../utils/storage.js'
 import { uploadStaticAssetToCos } from '../../utils/cos.js'
 import { completeViduWebhookVideo } from '../../services/webhooks/vidu-webhook-completion.js'
+import { buildDefectCheckCallback } from '../../services/generation/video-defect-check-binding.js'
+import { generateVideo } from '../../services/generation/video-generation.js'
 import { logTaskError, logTaskProgress, logTaskSuccess, logTaskWarn } from '../../utils/task-logger.js'
 
 const app = new Hono()
@@ -63,6 +65,26 @@ app.post('/vidu', async (c) => {
             .run()
         },
         logSuccess: logTaskSuccess,
+        defectCheck: buildDefectCheckCallback(async (params) => {
+          return await generateVideo({
+            storyboardId: params.storyboardId ?? undefined,
+            dramaId: params.dramaId ?? undefined,
+            prompt: params.prompt,
+            model: params.model ?? undefined,
+            referenceMode: params.referenceMode ?? undefined,
+            imageUrl: params.imageUrl ?? undefined,
+            firstFrameUrl: params.firstFrameUrl ?? undefined,
+            lastFrameUrl: params.lastFrameUrl ?? undefined,
+            referenceImageUrls: params.referenceImageUrls ?? undefined,
+            referenceVideoUrls: params.referenceVideoUrls ?? undefined,
+            referenceAudioUrls: params.referenceAudioUrls ?? undefined,
+            duration: params.duration ?? undefined,
+            aspectRatio: params.aspectRatio ?? undefined,
+            configId: params.configId ?? undefined,
+            defectCheckAttempt: params.defectCheckAttempt,
+            defectCheckParentId: params.defectCheckParentId,
+          })
+        }),
       })
       return success(c, { message: 'Video updated successfully' })
     } catch (err: unknown) {
