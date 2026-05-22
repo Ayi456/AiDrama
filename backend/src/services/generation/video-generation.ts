@@ -41,6 +41,7 @@ import {
 import { createVideoGenerationDbPersistence } from '../media/generation/media-generation-persistence.js'
 import { isProviderApiError, sendProviderJsonRequest } from '../media/provider/media-provider-transport.js'
 import { logTaskError, logTaskPayload, logTaskProgress, logTaskStart, logTaskSuccess, logTaskWarn, redactUrl } from '../../utils/task-logger.js'
+import { buildDefectCheckCallback } from './video-defect-check-binding.js'
 
 type GenerateVideoParams = VideoGenerationEnqueueParams
 
@@ -266,5 +267,25 @@ async function completeGeneratedVideo(
     persistVideoCompletion: persistence.persistVideoCompletion,
     publishStoryboardVideo: persistence.publishStoryboardVideo,
     logSuccess: logTaskSuccess,
+    defectCheck: buildDefectCheckCallback(async (params) => {
+      return await generateVideo({
+        storyboardId: params.storyboardId ?? undefined,
+        dramaId: params.dramaId ?? undefined,
+        prompt: params.prompt,
+        model: params.model ?? undefined,
+        referenceMode: params.referenceMode ?? undefined,
+        imageUrl: params.imageUrl ?? undefined,
+        firstFrameUrl: params.firstFrameUrl ?? undefined,
+        lastFrameUrl: params.lastFrameUrl ?? undefined,
+        referenceImageUrls: params.referenceImageUrls ?? undefined,
+        referenceVideoUrls: params.referenceVideoUrls ?? undefined,
+        referenceAudioUrls: params.referenceAudioUrls ?? undefined,
+        duration: params.duration ?? undefined,
+        aspectRatio: params.aspectRatio ?? undefined,
+        configId: params.configId ?? undefined,
+        defectCheckAttempt: params.defectCheckAttempt,
+        defectCheckParentId: params.defectCheckParentId,
+      })
+    }),
   })
 }
