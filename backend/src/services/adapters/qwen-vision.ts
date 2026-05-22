@@ -81,7 +81,7 @@ export async function analyzeVideoForDefects(params: VisionAnalyzeParams): Promi
   }
 
   const controller = new AbortController()
-  const timeoutMs = params.timeoutMs ?? 120_000
+  const timeoutMs = params.timeoutMs ?? 600_000
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   let resp: Response
   try {
