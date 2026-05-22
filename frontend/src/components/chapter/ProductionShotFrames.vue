@@ -1,26 +1,5 @@
 <template>
   <div class="shot-frames">
-    <div class="shot-frames__toolbar">
-      <div class="shot-frames__toolbar-meta">
-        <span class="dim shot-frames__meta">{{ sbs.length }} 个镜头</span>
-        <span class="tag mono">{{ shotImgCount }}/{{ sbs.length }} 已有帧图</span>
-        <span class="tag">{{ lockedImageConfigLabel }}</span>
-        <span v-if="selectedShot" class="tag mono">当前 #{{ selectedShotIndexLabel }}</span>
-        <span class="tag shot-frames__jump-tip">中间切换分镜，左右联动当前镜头</span>
-      </div>
-
-      <div class="shot-frames__toolbar-actions">
-        <button v-if="gridImagePath" class="btn btn-sm" @click="emit('reopen-grid-preview')">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
-          查看当前宫格图
-        </button>
-        <button class="btn btn-primary btn-sm" @click="emit('open-grid-tool')">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-          宫格图工具
-        </button>
-      </div>
-    </div>
-
     <div v-if="selectedShot" class="shot-workbench">
       <section class="shot-panel shot-panel--studio">
         <div class="shot-panel__head shot-panel__head--compact">

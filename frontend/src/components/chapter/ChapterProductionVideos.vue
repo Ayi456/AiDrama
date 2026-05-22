@@ -1,26 +1,5 @@
 <template>
   <div class="prod-content">
-    <div class="prod-section-bar">
-      <div class="prod-section-copy">
-        <div class="prod-section-title-row">
-          <span class="prod-section-title">镜头视频生成</span>
-          <span class="tag">{{ state.lockedVideoConfigLabel }}</span>
-        </div>
-        <div class="prod-section-desc">保持和镜头图片一致的三栏工作台，左侧编辑提示词，中间切换镜头，右侧查看生成结果。</div>
-      </div>
-      <div class="prod-section-stats">
-        <span class="tag mono">{{ state.shotVidCount }}/{{ state.sbs.length }} 已生成</span>
-        <span v-if="selectedShot" class="tag mono">当前 #{{ selectedShotIndexLabel }}</span>
-        <span class="tag">{{ state.sbs.length }} 个镜头</span>
-      </div>
-      <div class="prod-section-actions">
-        <button class="btn btn-sm" @click="handlers.batchVideos()">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-          批量视频
-        </button>
-      </div>
-    </div>
-
     <div v-if="selectedShot" class="prod-content video-workbench">
       <section class="shot-panel shot-panel--studio video-panel video-panel--studio">
         <div class="shot-panel__head shot-panel__head--compact">
