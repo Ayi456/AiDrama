@@ -93,7 +93,7 @@ export function parseStoredStringList(value: string[] | string | null | undefine
 }
 
 export function stringifyStringList(value: string[] | string | null | undefined) {
-  const items = normalizeStringList(value)
+  const items = parseStoredStringList(value)
   return items.length ? JSON.stringify(items) : null
 }
 

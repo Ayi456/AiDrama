@@ -42,6 +42,15 @@ runTest('stringifyStringList stores normalized unique values or null', () => {
   assert.equal(stringifyStringList(''), null)
 })
 
+runTest('stringifyStringList preserves stored JSON-array strings without splitting on commas', () => {
+  const stored = '["https://cdn/a.jpeg","https://cdn/b.jpeg"]'
+  assert.equal(stringifyStringList(stored), stored)
+  assert.equal(
+    stringifyStringList('["https://cdn/x,y.jpeg"]'),
+    '["https://cdn/x,y.jpeg"]',
+  )
+})
+
 runTest('resolveImageReference compresses local static images and keeps remote/data URLs', async () => {
   const calls: string[] = []
   const result = await resolveImageReference('/static/uploads/a.png', {
