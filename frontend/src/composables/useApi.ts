@@ -1,6 +1,6 @@
 const BASE = '/api/v1'
 
-type ApiMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
+type ApiMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
 type ApiRequestBody = Record<string, unknown> | unknown[] | string | number | boolean | null
 type ApiEnvelope<T> = {
   code?: number
@@ -189,6 +189,7 @@ export const api = {
   get: <T = ApiEntity>(p: string) => req<T>('GET', p),
   post: <T = ApiEntity>(p: string, b?: ApiRequestBody) => req<T>('POST', p, b),
   put: <T = ApiEntity>(p: string, b?: ApiRequestBody) => req<T>('PUT', p, b),
+  patch: <T = ApiEntity>(p: string, b?: ApiRequestBody) => req<T>('PATCH', p, b),
   del: <T = ApiEntity>(p: string) => req<T>('DELETE', p),
 }
 
@@ -368,4 +369,20 @@ export type AutomationPreferences = {
 export const preferencesAPI = {
   get: () => api.get<AutomationPreferences>('/preferences'),
   put: (data: Partial<AutomationPreferences>) => api.put<AutomationPreferences>('/preferences', data),
+}
+
+export type AutomationStage = 'extract' | 'character_image' | 'scene_image' | 'shot_image' | 'video' | 'merge' | 'done'
+export type AutomationStatusValue = 'idle' | 'running' | 'paused' | 'failed' | 'done'
+export type AutomationStatusPayload = {
+  status: AutomationStatusValue
+  stage: AutomationStage
+  attempt: number
+  error: string | null
+  progress: { current: number; total: number; label: string }
+}
+
+export const automationAPI = {
+  start: (episodeId: number) => api.post<{ status: AutomationStatusValue }>(`/episodes/${episodeId}/automation/start`, {}),
+  patch: (episodeId: number, action: 'cancel' | 'resume' | 'abort') => api.patch<{ action: string }>(`/episodes/${episodeId}/automation`, { action }),
+  get: (episodeId: number) => api.get<AutomationStatusPayload>(`/episodes/${episodeId}/automation`),
 }
