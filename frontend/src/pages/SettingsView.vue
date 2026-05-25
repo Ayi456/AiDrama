@@ -70,6 +70,7 @@
             </div>
           </section>
         </div>
+        <AutomationSettingsCard />
       </div>
 
       <!-- ===== Agent 配置 ===== -->
@@ -328,6 +329,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { Plus, Pencil, Trash2, FileText, ChevronDown, Check, Loader2, Bot, Cpu } from 'lucide-vue-next'
 import BaseSelect from '@/components/BaseSelect.vue'
+import AutomationSettingsCard from '@/components/automation/AutomationSettingsCard.vue'
 import { toast } from 'vue-sonner'
 import { aiConfigAPI, agentConfigAPI, skillsAPI } from '@/composables/useApi'
 import { useConfirm } from '@/composables/useConfirm'

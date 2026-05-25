@@ -1,0 +1,51 @@
+.automation-card {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-top: 16px;
+  box-shadow: var(--shadow-card);
+}
+.automation-card__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-0);
+  margin-bottom: 12px;
+}
+.automation-card__field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.automation-card__hint {
+  color: var(--text-2);
+  font-size: 13px;
+  margin-top: 8px;
+}
+.automation-progress-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--accent-bg);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.automation-progress-bar.is-failed { background: color-mix(in srgb, var(--error) 12%, var(--bg-1)); }
+.automation-progress-bar__track {
+  flex: 1 1 auto;
+  height: 6px;
+  background: var(--bg-2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.automation-progress-bar__fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 200ms var(--ease-out, ease-out);
+}
+.automation-progress-bar.is-failed .automation-progress-bar__fill { background: var(--error); }
+.automation-progress-bar__actions { display: flex; gap: 8px; }
