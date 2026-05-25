@@ -23,6 +23,7 @@ import grid from './routes/actions/grid.js'
 import skills from './routes/configs/skills.js'
 import assets from './routes/resources/assets.js'
 import characterAssets from './routes/resources/characterAssets.js'
+import preferences from './routes/resources/preferences.js'
 import webhooks from './routes/webhooks/webhooks.js'
 import { requestLogger, errorHandler } from './middleware/logger.js'
 import { externalAssetRedirectUrl } from './utils/external-asset-redirect.js'
@@ -73,6 +74,7 @@ export function createApp() {
   api.route('/skills', skills)
   api.route('/assets', assets)
   api.route('/character-assets', characterAssets)
+  api.route('/preferences', preferences)
 
   app.route('/api/v1', api)
   app.route('/webhooks', webhooks)
