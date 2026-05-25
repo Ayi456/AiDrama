@@ -29,6 +29,8 @@
       @primary-action="panel = mergeUrl ? 'export' : (sbs.length ? 'production' : 'script')"
     />
 
+    <AutomationProgressBar v-if="epId" :episode-id="epId" />
+
     <div class="studio-body">
     <!-- ========== LEFT SIDEBAR ========== -->
     <ChapterStudioSidebar
@@ -173,6 +175,7 @@ import ChapterStudioSidebar from '@/components/chapter/ChapterStudioSidebar.vue'
 import ChapterStudioSubnav from '@/components/chapter/ChapterStudioSubnav.vue'
 import ChapterStudioTopbar from '@/components/chapter/ChapterStudioTopbar.vue'
 import ChapterStoryboardEditor from '@/components/chapter/ChapterStoryboardEditor.vue'
+import AutomationProgressBar from '@/components/automation/AutomationProgressBar.vue'
 import { useChapterExportDesk } from '@/composables/chapter/useChapterExportDesk'
 import { useChapterGridTool } from '@/composables/chapter/useChapterGridTool'
 import { useChapterImageViewer } from '@/composables/chapter/useChapterImageViewer'
