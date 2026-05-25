@@ -20,6 +20,7 @@ import agent from './routes/actions/agent.js'
 import compose from './routes/actions/compose.js'
 import merge from './routes/actions/merge.js'
 import grid from './routes/actions/grid.js'
+import automation from './routes/actions/automation.js'
 import skills from './routes/configs/skills.js'
 import assets from './routes/resources/assets.js'
 import characterAssets from './routes/resources/characterAssets.js'
@@ -75,6 +76,7 @@ export function createApp() {
   api.route('/assets', assets)
   api.route('/character-assets', characterAssets)
   api.route('/preferences', preferences)
+  api.route('/', automation)
 
   app.route('/api/v1', api)
   app.route('/webhooks', webhooks)
