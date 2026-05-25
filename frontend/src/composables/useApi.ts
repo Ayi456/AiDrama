@@ -356,3 +356,16 @@ export const skillsAPI = {
   update: (id: string, content: string) => api.put(`/skills/${id}`, { content }),
   del: (id: string) => api.del(`/skills/${id}`),
 }
+
+export type AutomationPreferences = {
+  userId: string
+  autoPipelineEnabled: boolean
+  autoPipelineMaxRetries: number
+  autoPipelineConcurrencyImage: number
+  autoPipelineConcurrencyVideo: number
+}
+
+export const preferencesAPI = {
+  get: () => api.get<AutomationPreferences>('/preferences'),
+  put: (data: Partial<AutomationPreferences>) => api.put<AutomationPreferences>('/preferences', data),
+}
