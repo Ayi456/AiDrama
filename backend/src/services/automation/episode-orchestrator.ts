@@ -149,3 +149,45 @@ async function markStatus(episodeId: number, status: AutomationStatus) {
     updatedAt: new Date().toISOString(),
   }).where(eq(schema.episodes.id, episodeId))
 }
+
+export type ActionInput = { status: AutomationStatus; stage: AutomationStage; attempt: number; error?: string | null }
+export type ActionResult = { status: AutomationStatus; stage: AutomationStage; attempt: number; error: string | null }
+export type AutomationAction = 'cancel' | 'resume' | 'abort'
+
+export function applyAction(input: ActionInput, action: AutomationAction): ActionResult {
+  switch (action) {
+    case 'cancel': return { status: 'paused', stage: input.stage, attempt: input.attempt, error: input.error ?? null }
+    case 'resume': return { status: 'running', stage: input.stage, attempt: 0, error: null }
+    case 'abort':  return { status: 'idle', stage: 'extract', attempt: 0, error: null }
+  }
+}
+
+export async function cancel(episodeId: number) {
+  await mutate(episodeId, 'cancel')
+}
+export async function resume(episodeId: number) {
+  await mutate(episodeId, 'resume')
+  void advance(episodeId)
+}
+export async function abort(episodeId: number) {
+  await mutate(episodeId, 'abort')
+}
+
+async function mutate(episodeId: number, action: AutomationAction) {
+  const rows = await db.select().from(schema.episodes).where(eq(schema.episodes.id, episodeId))
+  if (!rows.length) return
+  const ep = rows[0]
+  const result = applyAction({
+    status: (ep.automationStatus ?? 'idle') as AutomationStatus,
+    stage: (ep.automationStage ?? 'extract') as AutomationStage,
+    attempt: ep.automationAttempt ?? 0,
+    error: ep.automationError,
+  }, action)
+  await db.update(schema.episodes).set({
+    automationStatus: result.status,
+    automationStage: result.stage,
+    automationAttempt: result.attempt,
+    automationError: result.error,
+    updatedAt: new Date().toISOString(),
+  }).where(eq(schema.episodes.id, episodeId))
+}

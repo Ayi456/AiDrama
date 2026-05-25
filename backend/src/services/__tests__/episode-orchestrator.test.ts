@@ -44,3 +44,33 @@ test('failed run with attempt >= max → mark failed', () => {
   })
   assert.equal(decision.type, 'fail')
 })
+
+import { applyAction } from '../automation/episode-orchestrator.js'
+
+test('cancel from running → paused, stage unchanged', () => {
+  const out = applyAction({ status: 'running', stage: 'video', attempt: 1 }, 'cancel')
+  assert.equal(out.status, 'paused')
+  assert.equal(out.stage, 'video')
+  assert.equal(out.attempt, 1)
+})
+
+test('resume from paused → running, attempt reset, error cleared', () => {
+  const out = applyAction({ status: 'paused', stage: 'video', attempt: 2, error: 'x' }, 'resume')
+  assert.equal(out.status, 'running')
+  assert.equal(out.attempt, 0)
+  assert.equal(out.error, null)
+})
+
+test('resume from failed → running, attempt reset', () => {
+  const out = applyAction({ status: 'failed', stage: 'shot_image', attempt: 3, error: 'oops' }, 'resume')
+  assert.equal(out.status, 'running')
+  assert.equal(out.attempt, 0)
+})
+
+test('abort from any state → idle, stage extract, attempt 0, error null', () => {
+  const out = applyAction({ status: 'failed', stage: 'video', attempt: 3, error: 'oops' }, 'abort')
+  assert.equal(out.status, 'idle')
+  assert.equal(out.stage, 'extract')
+  assert.equal(out.attempt, 0)
+  assert.equal(out.error, null)
+})
