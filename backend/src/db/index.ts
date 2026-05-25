@@ -438,6 +438,16 @@ const tableStatements = [
     updated_at TEXT NOT NULL,
     deleted_at TEXT
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+  `CREATE TABLE IF NOT EXISTS user_preferences (
+    user_id VARCHAR(64) PRIMARY KEY,
+    auto_pipeline_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    auto_pipeline_max_retries INT NOT NULL DEFAULT 2,
+    auto_pipeline_concurrency_image INT NOT NULL DEFAULT 4,
+    auto_pipeline_concurrency_video INT NOT NULL DEFAULT 2,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 ]
 
 async function ensureColumn(pool: Pool, database: string, table: string, column: string, definition: string) {

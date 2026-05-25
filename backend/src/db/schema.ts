@@ -347,3 +347,13 @@ export const assets = mysqlTable('assets', {
   updatedAt: text('updated_at').notNull(),
   deletedAt: text('deleted_at'),
 })
+
+export const userPreferences = mysqlTable('user_preferences', {
+  userId: varchar('user_id', { length: 64 }).primaryKey(),
+  autoPipelineEnabled: boolean('auto_pipeline_enabled').default(false),
+  autoPipelineMaxRetries: int('auto_pipeline_max_retries').default(2),
+  autoPipelineConcurrencyImage: int('auto_pipeline_concurrency_image').default(4),
+  autoPipelineConcurrencyVideo: int('auto_pipeline_concurrency_video').default(2),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
