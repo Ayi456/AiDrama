@@ -40,6 +40,10 @@ export const episodes = mysqlTable('episodes', {
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
   deletedAt: text('deleted_at'),
+  automationStatus: varchar('automation_status', { length: 16 }).default('idle'),
+  automationStage: varchar('automation_stage', { length: 32 }).default('extract'),
+  automationAttempt: int('automation_attempt').default(0),
+  automationError: text('automation_error'),
 })
 export const characters = mysqlTable('characters', {
   id: int('id').autoincrement().primaryKey(),
