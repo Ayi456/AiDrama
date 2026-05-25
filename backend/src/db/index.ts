@@ -524,3 +524,8 @@ installQueryExecutionHelpers(mysqlDb.delete(schema.dramas).where(eq(schema.drama
 export const db = mysqlDb
 export { schema }
 export type DB = typeof db
+
+// Resume in-progress automation sessions on startup. Imported lazily to break circular deps.
+import('../services/automation/episode-orchestrator.js')
+  .then(m => m.bootResume())
+  .catch(err => console.warn('[automation] bootResume import failed:', err))
