@@ -23,10 +23,41 @@ function getErrorStack(error: unknown) {
   return error instanceof Error ? error.stack : undefined
 }
 
-async function runChunkedStoryboardBreaker(
-  message: string,
+export const DEFAULT_EXTRACTOR_MESSAGE = '请从剧本中提取所有角色和场景信息，提取时自动与项目已有数据进行去重合并。'
+export const DEFAULT_STORYBOARD_BREAKER_MESSAGE = '请拆解分镜并生成视频提示词。'
+
+export async function runExtractorAgent(
   dramaId: number,
   episodeId: number,
+  message: string = DEFAULT_EXTRACTOR_MESSAGE,
+) {
+  const directResult = await runDirectAgentIfNeeded('extractor', {
+    dramaId,
+    episodeId,
+    message,
+  })
+  if (directResult) return directResult
+
+  const agent = await createAgent('extractor', episodeId, dramaId)
+  if (!agent) throw new Error('Agent not found')
+
+  const result = await agent.generate(
+    [{ role: 'user', content: message }],
+    { maxSteps: 20 },
+  )
+  const normalized = normalizeAgentResult(result)
+  return {
+    type: 'done' as const,
+    text: normalized.text,
+    toolCalls: normalized.toolCalls,
+    toolResults: normalized.toolResults,
+  }
+}
+
+export async function runChunkedStoryboardBreaker(
+  dramaId: number,
+  episodeId: number,
+  message: string = DEFAULT_STORYBOARD_BREAKER_MESSAGE,
   chunkChars?: number,
 ) {
   const [episode] = (await db.select().from(schema.episodes)
@@ -149,9 +180,9 @@ app.post('/:type/chat', async (c) => {
   try {
     if (agentType === 'storyboard_breaker') {
       const data = await runChunkedStoryboardBreaker(
-        String(message || ''),
         dramaId,
         episodeId,
+        String(message || DEFAULT_STORYBOARD_BREAKER_MESSAGE),
         Number(body.storyboard_chunk_chars || 0) || undefined,
       )
 

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { STAGE_ORDER, nextStage, terminalStage } from '../automation/stage-handlers.js'
+import { STAGE_ORDER, nextStage, terminalStage, isExtractCompleteFromCounts } from '../automation/stage-handlers.js'
 
 test('STAGE_ORDER follows the spec', () => {
   assert.deepEqual(STAGE_ORDER, ['extract', 'character_image', 'scene_image', 'shot_image', 'video', 'merge', 'done'])
@@ -18,4 +18,19 @@ test('nextStage advances through the chain', () => {
 
 test('terminalStage is done', () => {
   assert.equal(terminalStage(), 'done')
+})
+
+test('isExtractCompleteFromCounts returns false when no storyboards exist', () => {
+  const result = isExtractCompleteFromCounts({ storyboards: 0, episodeCharacters: 0, episodeScenes: 0 })
+  assert.equal(result, false)
+})
+
+test('isExtractCompleteFromCounts returns true when storyboards and character links exist', () => {
+  const result = isExtractCompleteFromCounts({ storyboards: 5, episodeCharacters: 3, episodeScenes: 2 })
+  assert.equal(result, true)
+})
+
+test('isExtractCompleteFromCounts returns false when storyboards exist but no character links', () => {
+  const result = isExtractCompleteFromCounts({ storyboards: 5, episodeCharacters: 0, episodeScenes: 2 })
+  assert.equal(result, false)
 })

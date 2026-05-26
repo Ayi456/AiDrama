@@ -1,3 +1,7 @@
+import { eq } from 'drizzle-orm'
+import { db, schema } from '../../db/index.js'
+import { runExtractorAgent, runChunkedStoryboardBreaker } from '../../routes/actions/agent.js'
+
 export type AutomationStage = 'extract' | 'character_image' | 'scene_image' | 'shot_image' | 'video' | 'merge' | 'done'
 
 export const STAGE_ORDER: AutomationStage[] = ['extract', 'character_image', 'scene_image', 'shot_image', 'video', 'merge', 'done']
@@ -21,8 +25,36 @@ const noop: StageHandler = {
   isComplete: async () => true,
 }
 
+export function isExtractCompleteFromCounts(counts: { storyboards: number; episodeCharacters: number; episodeScenes: number }): boolean {
+  return counts.storyboards > 0 && counts.episodeCharacters > 0
+}
+
+async function loadExtractCounts(episodeId: number) {
+  const [sbs, ecs, ess] = await Promise.all([
+    db.select().from(schema.storyboards).where(eq(schema.storyboards.episodeId, episodeId)),
+    db.select().from(schema.episodeCharacters).where(eq(schema.episodeCharacters.episodeId, episodeId)),
+    db.select().from(schema.episodeScenes).where(eq(schema.episodeScenes.episodeId, episodeId)),
+  ])
+  return { storyboards: sbs.length, episodeCharacters: ecs.length, episodeScenes: ess.length }
+}
+
+export async function isExtractComplete(ctx: StageContext): Promise<boolean> {
+  const c = await loadExtractCounts(ctx.episodeId)
+  return isExtractCompleteFromCounts(c)
+}
+
+const extractHandler: StageHandler = {
+  enter: async (ctx) => {
+    const counts = await loadExtractCounts(ctx.episodeId)
+    if (counts.episodeCharacters === 0) await runExtractorAgent(ctx.dramaId, ctx.episodeId)
+    const after = await loadExtractCounts(ctx.episodeId)
+    if (after.storyboards === 0) await runChunkedStoryboardBreaker(ctx.dramaId, ctx.episodeId)
+  },
+  isComplete: isExtractComplete,
+}
+
 export const handlers: Record<Exclude<AutomationStage, 'done'>, StageHandler> = {
-  extract: noop,
+  extract: extractHandler,
   character_image: noop,
   scene_image: noop,
   shot_image: noop,
