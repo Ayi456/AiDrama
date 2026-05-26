@@ -117,17 +117,12 @@ app.post('/:id/generate-image', async (c) => {
   }
 })
 
-// POST /characters/batch-generate-images
-app.post('/batch-generate-images', async (c) => {
-  const body = await readJsonBody(c)
-  const ids = Array.isArray(body.character_ids) ? body.character_ids as number[] : []
-  if (!body.episode_id) return badRequest(c, 'episode_id is required')
-
-  const [ep] = (await db.select().from(schema.episodes).where(eq(schema.episodes.id, Number(body.episode_id))).all())
-  if (!ep) return badRequest(c, 'Episode not found')
+export async function generateCharacterImageBatch(episodeId: number, characterIds: number[]): Promise<number[]> {
+  const [ep] = (await db.select().from(schema.episodes).where(eq(schema.episodes.id, episodeId)).all())
+  if (!ep) throw new Error('Episode not found')
 
   const results: number[] = []
-  for (const charId of ids) {
+  for (const charId of characterIds) {
     const [char] = (await db.select().from(schema.characters).where(eq(schema.characters.id, charId)).all())
     if (!char) continue
     const [drama] = (await db.select().from(schema.dramas).where(eq(schema.dramas.id, char.dramaId)).all())
@@ -150,7 +145,16 @@ app.post('/batch-generate-images', async (c) => {
     }
   }
 
-  logTaskSuccess('CharacterImage', 'batch-generate', { episodeId: ep.id, requested: ids.length, started: results.length })
+  logTaskSuccess('CharacterImage', 'batch-generate', { episodeId: ep.id, requested: characterIds.length, started: results.length })
+  return results
+}
+
+// POST /characters/batch-generate-images
+app.post('/batch-generate-images', async (c) => {
+  const body = await readJsonBody(c)
+  const ids = Array.isArray(body.character_ids) ? body.character_ids as number[] : []
+  if (!body.episode_id) return badRequest(c, 'episode_id is required')
+  const results = await generateCharacterImageBatch(Number(body.episode_id), ids)
   return success(c, { count: results.length, ids: results })
 })
 

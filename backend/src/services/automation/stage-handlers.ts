@@ -1,6 +1,9 @@
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../db/index.js'
 import { runExtractorAgent, runChunkedStoryboardBreaker } from '../../routes/actions/agent.js'
+import { generateCharacterImageBatch } from '../../routes/resources/characters.js'
+import { generateSceneImage } from '../../routes/resources/scenes.js'
+import { imageGate, resizeGates } from './concurrency-gate.js'
 
 export type AutomationStage = 'extract' | 'character_image' | 'scene_image' | 'shot_image' | 'video' | 'merge' | 'done'
 
@@ -53,10 +56,68 @@ const extractHandler: StageHandler = {
   isComplete: isExtractComplete,
 }
 
+async function syncGateSizes() {
+  const prefs = await db.select().from(schema.userPreferences).where(eq(schema.userPreferences.userId, 'default'))
+  const p = prefs[0]
+  resizeGates(p?.autoPipelineConcurrencyImage ?? 4, p?.autoPipelineConcurrencyVideo ?? 2)
+}
+
+const characterImageHandler: StageHandler = {
+  enter: async (ctx) => {
+    await syncGateSizes()
+    const ec = await db.select().from(schema.episodeCharacters).where(eq(schema.episodeCharacters.episodeId, ctx.episodeId))
+    const charIds = ec.map(r => r.characterId)
+    if (!charIds.length) return
+    const chars = await db.select().from(schema.characters)
+    const charIdSet = new Set(charIds)
+    const need = chars.filter(c => charIdSet.has(c.id) && !c.imageUrl)
+    if (!need.length) return
+    await Promise.all(need.map(async (char) => {
+      const release = await imageGate().acquire()
+      try { await generateCharacterImageBatch(ctx.episodeId, [char.id]) }
+      catch (err) { console.warn('[automation] character image failed', char.id, err) }
+      finally { release() }
+    }))
+  },
+  isComplete: async (ctx) => {
+    const ec = await db.select().from(schema.episodeCharacters).where(eq(schema.episodeCharacters.episodeId, ctx.episodeId))
+    if (!ec.length) return false
+    const charIds = new Set(ec.map(r => r.characterId))
+    const chars = await db.select().from(schema.characters)
+    const need = chars.filter(c => charIds.has(c.id))
+    return need.length > 0 && need.every(c => !!c.imageUrl)
+  },
+}
+
+const sceneImageHandler: StageHandler = {
+  enter: async (ctx) => {
+    await syncGateSizes()
+    const es = await db.select().from(schema.episodeScenes).where(eq(schema.episodeScenes.episodeId, ctx.episodeId))
+    const sceneIds = es.map(r => r.sceneId)
+    if (!sceneIds.length) return
+    const all = await db.select().from(schema.scenes)
+    const sceneIdSet = new Set(sceneIds)
+    const need = all.filter(s => sceneIdSet.has(s.id) && !s.imageUrl)
+    await Promise.all(need.map(async (scene) => {
+      const release = await imageGate().acquire()
+      try { await generateSceneImage(scene.id, ctx.episodeId) }
+      catch (err) { console.warn('[automation] scene image failed', scene.id, err) }
+      finally { release() }
+    }))
+  },
+  isComplete: async (ctx) => {
+    const es = await db.select().from(schema.episodeScenes).where(eq(schema.episodeScenes.episodeId, ctx.episodeId))
+    if (!es.length) return true
+    const ids = new Set(es.map(r => r.sceneId))
+    const all = await db.select().from(schema.scenes)
+    return all.filter(s => ids.has(s.id)).every(s => !!s.imageUrl)
+  },
+}
+
 export const handlers: Record<Exclude<AutomationStage, 'done'>, StageHandler> = {
   extract: extractHandler,
-  character_image: noop,
-  scene_image: noop,
+  character_image: characterImageHandler,
+  scene_image: sceneImageHandler,
   shot_image: noop,
   video: noop,
   merge: noop,

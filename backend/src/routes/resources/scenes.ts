@@ -58,15 +58,11 @@ app.put('/:id', async (c) => {
   return success(c)
 })
 
-// POST /scenes/:id/generate-image
-app.post('/:id/generate-image', async (c) => {
-  const id = Number(c.req.param('id'))
-  const body = await readJsonBody(c)
-  const [scene] = (await db.select().from(schema.scenes).where(eq(schema.scenes.id, id)).all())
-  if (!scene) return badRequest(c, 'Scene not found')
-  if (!body.episode_id) return badRequest(c, 'episode_id is required')
-  const [ep] = (await db.select().from(schema.episodes).where(eq(schema.episodes.id, Number(body.episode_id))).all())
-  if (!ep) return badRequest(c, 'Episode not found')
+export async function generateSceneImage(sceneId: number, episodeId: number): Promise<number> {
+  const [scene] = (await db.select().from(schema.scenes).where(eq(schema.scenes.id, sceneId)).all())
+  if (!scene) throw new Error('Scene not found')
+  const [ep] = (await db.select().from(schema.episodes).where(eq(schema.episodes.id, episodeId)).all())
+  if (!ep) throw new Error('Episode not found')
   const [drama] = (await db.select().from(schema.dramas).where(eq(schema.dramas.id, scene.dramaId)).all())
 
   const referenceImage = typeof scene.referenceImage === 'string' ? scene.referenceImage.trim() : ''
@@ -74,22 +70,36 @@ app.post('/:id/generate-image', async (c) => {
   const prompt = referenceImage
     ? `${basePrompt}，参考上传的参考图进行构图与风格延展，结合上述提示词重绘`
     : basePrompt
+
+  logTaskStart('SceneImage', 'generate', { sceneId, episodeId: ep.id, dramaId: scene.dramaId, location: scene.location, mode: referenceImage ? 'image-to-image' : 'text-to-image' })
+  await db.update(schema.scenes).set({ status: 'processing', updatedAt: now() }).where(eq(schema.scenes.id, sceneId)).run()
   try {
-    logTaskStart('SceneImage', 'generate', { sceneId: id, episodeId: ep.id, dramaId: scene.dramaId, location: scene.location, mode: referenceImage ? 'image-to-image' : 'text-to-image' })
-    await db.update(schema.scenes).set({ status: 'processing', updatedAt: now() }).where(eq(schema.scenes.id, id)).run()
     const genId = await generateImage({
-      sceneId: id,
+      sceneId,
       dramaId: scene.dramaId,
       prompt,
       configId: ep.imageConfigId ?? undefined,
       referenceImages: referenceImage ? [referenceImage] : undefined,
     })
-    logTaskSuccess('SceneImage', 'generate', { sceneId: id, generationId: genId })
+    logTaskSuccess('SceneImage', 'generate', { sceneId, generationId: genId })
+    return genId
+  } catch (error: unknown) {
+    await db.update(schema.scenes).set({ status: 'failed', updatedAt: now() }).where(eq(schema.scenes.id, sceneId)).run()
+    throw error
+  }
+}
+
+// POST /scenes/:id/generate-image
+app.post('/:id/generate-image', async (c) => {
+  const id = Number(c.req.param('id'))
+  const body = await readJsonBody(c)
+  if (!body.episode_id) return badRequest(c, 'episode_id is required')
+  try {
+    const genId = await generateSceneImage(id, Number(body.episode_id))
     return success(c, { image_generation_id: genId })
   } catch (error: unknown) {
     const message = errorMessageFromUnknown(error, 'Scene image generation failed')
     logTaskError('SceneImage', 'generate', { sceneId: id, error: message })
-    await db.update(schema.scenes).set({ status: 'failed', updatedAt: now() }).where(eq(schema.scenes.id, id)).run()
     return badRequest(c, message)
   }
 })

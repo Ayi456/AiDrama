@@ -39,6 +39,23 @@ import {
 import { createImageGenerationDbPersistence } from '../media/generation/media-generation-persistence.js'
 import { isProviderApiError, sendProviderJsonRequest } from '../media/provider/media-provider-transport.js'
 import { logTaskError, logTaskPayload, logTaskProgress, logTaskStart, logTaskSuccess, logTaskWarn, redactUrl } from '../../utils/task-logger.js'
+import { onResourceCompleted } from '../automation/automation-hook.js'
+
+async function notifyAutomationAfterImage(id: number, status: 'ok' | 'failed') {
+  try {
+    const [row] = await db.select().from(schema.imageGenerations).where(eq(schema.imageGenerations.id, id))
+    if (!row) return
+    await onResourceCompleted({
+      type: 'image',
+      storyboardId: row.storyboardId ?? null,
+      characterId: row.characterId ?? null,
+      sceneId: row.sceneId ?? null,
+      status,
+    })
+  } catch (err) {
+    console.warn('[automation] image hook failed', err)
+  }
+}
 
 type GenerateImageParams = ImageGenerationEnqueueParams
 
@@ -138,6 +155,7 @@ async function processImageGeneration(id: number, config: AIConfig) {
     if (generationResult.type === 'completed-url') {
       logTaskProgress('ImageTask', 'sync-complete', { id, imageUrl: generationResult.imageUrl })
       await completeGeneratedImage(id, config.provider, { type: 'url', imageUrl: generationResult.imageUrl })
+      await notifyAutomationAfterImage(id, 'ok')
       return
     }
 
@@ -148,6 +166,7 @@ async function processImageGeneration(id: number, config: AIConfig) {
         data: generationResult.data,
         mimeType: generationResult.mimeType,
       })
+      await notifyAutomationAfterImage(id, 'ok')
       return
     }
 
@@ -180,6 +199,7 @@ async function processImageGeneration(id: number, config: AIConfig) {
       logError: logTaskError,
       persistFailure: persistence.persistFailure,
     })
+    await notifyAutomationAfterImage(id, 'failed')
   }
 }
 
@@ -224,6 +244,7 @@ async function pollImageTask(id: number, config: AIConfig, taskId: string) {
       if (pollDecision.type === 'completed-url') {
         logTaskSuccess('ImageTask', 'poll-complete', { id, taskId, imageUrl: pollDecision.imageUrl })
         await completeGeneratedImage(id, config.provider, { type: 'url', imageUrl: pollDecision.imageUrl })
+        await notifyAutomationAfterImage(id, 'ok')
         return { type: 'done', value: undefined }
       }
 
@@ -234,6 +255,7 @@ async function pollImageTask(id: number, config: AIConfig, taskId: string) {
           data: pollDecision.data,
           mimeType: pollDecision.mimeType,
         })
+        await notifyAutomationAfterImage(id, 'ok')
         return { type: 'done', value: undefined }
       }
 
@@ -262,6 +284,7 @@ async function pollImageTask(id: number, config: AIConfig, taskId: string) {
     logError: logTaskError,
     persistFailure: persistence.persistFailure,
   })
+  await notifyAutomationAfterImage(id, 'failed')
 }
 
 async function completeGeneratedImage(id: number, provider: string, source: GeneratedImageSource) {
