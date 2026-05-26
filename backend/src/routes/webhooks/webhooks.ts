@@ -10,6 +10,7 @@ import { uploadStaticAssetToCos } from '../../utils/cos.js'
 import { completeViduWebhookVideo } from '../../services/webhooks/vidu-webhook-completion.js'
 import { buildDefectCheckCallback } from '../../services/generation/video-defect-check-binding.js'
 import { generateVideo } from '../../services/generation/video-generation.js'
+import { captureAndPersistTailFrame, notifyAutomationAfterVideo } from '../../services/automation/video-side-effects.js'
 import { logTaskError, logTaskProgress, logTaskSuccess, logTaskWarn } from '../../utils/task-logger.js'
 
 const app = new Hono()
@@ -44,7 +45,7 @@ app.post('/vidu', async (c) => {
 
   if (state === 'success' && video_url) {
     try {
-      await completeViduWebhookVideo({
+      const result = await completeViduWebhookVideo({
         taskId: task_id,
         record,
         videoUrl: video_url,
@@ -86,6 +87,12 @@ app.post('/vidu', async (c) => {
           })
         }),
       })
+      try {
+        await captureAndPersistTailFrame(record.id, result.localPath)
+      } catch (err) {
+        console.warn('[automation] captureLastFrame failed', err)
+      }
+      await notifyAutomationAfterVideo(record.id, record.storyboardId ?? null, 'ok')
       return success(c, { message: 'Video updated successfully' })
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
@@ -94,6 +101,7 @@ app.post('/vidu', async (c) => {
         .set({ status: 'failed', errorMsg: `Webhook download failed: ${message}` })
         .where(eq(schema.videoGenerations.id, record.id))
         .run()
+      await notifyAutomationAfterVideo(record.id, record.storyboardId ?? null, 'failed')
       return badRequest(c, message)
     }
   }
@@ -107,6 +115,7 @@ app.post('/vidu', async (c) => {
       })
       .where(eq(schema.videoGenerations.id, record.id))
       .run()
+    await notifyAutomationAfterVideo(record.id, record.storyboardId ?? null, 'failed')
     return success(c, { message: 'Error recorded' })
   }
 
