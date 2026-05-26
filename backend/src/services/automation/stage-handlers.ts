@@ -8,6 +8,7 @@ import { imageGate, resizeGates } from './concurrency-gate.js'
 
 type InFlightImageKeys = {
   storyboardFirst: Set<number>
+  storyboardLast: Set<number>
   characters: Set<number>
   scenes: Set<number>
 }
@@ -23,14 +24,16 @@ async function loadInFlightImageKeys(episodeId: number): Promise<InFlightImageKe
   const imgRows = await db.select().from(schema.imageGenerations)
   const result: InFlightImageKeys = {
     storyboardFirst: new Set<number>(),
+    storyboardLast: new Set<number>(),
     characters: new Set<number>(),
     scenes: new Set<number>(),
   }
   for (const row of imgRows) {
     const status = row.status ?? 'pending'
     if (status !== 'pending' && status !== 'processing') continue
-    if (row.storyboardId && sbIdSet.has(row.storyboardId) && row.frameType === 'first_frame') {
-      result.storyboardFirst.add(row.storyboardId)
+    if (row.storyboardId && sbIdSet.has(row.storyboardId)) {
+      if (row.frameType === 'first_frame') result.storyboardFirst.add(row.storyboardId)
+      else if (row.frameType === 'last_frame') result.storyboardLast.add(row.storyboardId)
     }
     if (row.characterId && charIdSet.has(row.characterId)) {
       result.characters.add(row.characterId)
@@ -156,20 +159,39 @@ const sceneImageHandler: StageHandler = {
 const shotImageHandler: StageHandler = {
   enter: async (ctx) => {
     await syncGateSizes()
-    const sbs = await db.select().from(schema.storyboards).where(eq(schema.storyboards.episodeId, ctx.episodeId))
+    const sbs = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.episodeId, ctx.episodeId)))
+      .sort((a, b) => (a.storyboardNumber ?? 0) - (b.storyboardNumber ?? 0))
+    if (!sbs.length) return
+    const lastSb = sbs[sbs.length - 1]
     const inFlight = await loadInFlightImageKeys(ctx.episodeId)
-    const need = sbs.filter(sb => !sb.firstFrameImage && !inFlight.storyboardFirst.has(sb.id))
-    if (!need.length) return
-    await Promise.all(need.map(async (sb) => {
-      const release = await imageGate().acquire()
-      try { await generateStoryboardFrame(sb.id, 'first', ctx.episodeId) }
-      catch (err) { console.warn('[automation] shot image first failed', sb.id, err) }
-      finally { release() }
-    }))
+
+    const firstFrameNeeds = sbs.filter(sb => !sb.firstFrameImage && !inFlight.storyboardFirst.has(sb.id))
+    const lastFrameNeeds = !lastSb.lastFrameImage && !inFlight.storyboardLast.has(lastSb.id) ? [lastSb] : []
+
+    if (!firstFrameNeeds.length && !lastFrameNeeds.length) return
+
+    await Promise.all([
+      ...firstFrameNeeds.map(async (sb) => {
+        const release = await imageGate().acquire()
+        try { await generateStoryboardFrame(sb.id, 'first', ctx.episodeId) }
+        catch (err) { console.warn('[automation] shot image first failed', sb.id, err) }
+        finally { release() }
+      }),
+      ...lastFrameNeeds.map(async (sb) => {
+        const release = await imageGate().acquire()
+        try { await generateStoryboardFrame(sb.id, 'last', ctx.episodeId) }
+        catch (err) { console.warn('[automation] shot image last failed', sb.id, err) }
+        finally { release() }
+      }),
+    ])
   },
   isComplete: async (ctx) => {
-    const sbs = await db.select().from(schema.storyboards).where(eq(schema.storyboards.episodeId, ctx.episodeId))
-    return sbs.length > 0 && sbs.every(sb => !!sb.firstFrameImage)
+    const sbs = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.episodeId, ctx.episodeId)))
+      .sort((a, b) => (a.storyboardNumber ?? 0) - (b.storyboardNumber ?? 0))
+    if (!sbs.length) return false
+    const allFirstDone = sbs.every(sb => !!sb.firstFrameImage)
+    const lastSb = sbs[sbs.length - 1]
+    return allFirstDone && !!lastSb.lastFrameImage
   },
 }
 
