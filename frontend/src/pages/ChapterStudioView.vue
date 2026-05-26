@@ -66,12 +66,15 @@
           :chars="chars"
           :scenes="scenes"
           :merge-char-desc="mergeCharDesc"
+          :can-start-automation="canStartAutomation"
+          :automation-starting="automationStarting"
           @update:local-raw="localRaw = $event"
           @update:local-script="localScript = $event"
           @save-raw="saveRaw"
           @skip-rewrite="skipRewrite"
           @rewrite="doRewrite"
           @extract="doExtract"
+          @start-automation="startAutomation"
         />
         <ChapterStoryboardEditor
           v-else
@@ -241,6 +244,9 @@ const {
   skipRewrite,
   doExtract,
   doBreakdown,
+  canStartAutomation,
+  automationStarting,
+  startAutomation,
 } = useChapterScriptDesk({
   dramaId,
   epId,

@@ -1,7 +1,11 @@
-import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { computed, onMounted, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { toast } from 'vue-sonner'
 import {
+  automationAPI,
   chapterAPI,
+  preferencesAPI,
   type AiConfig,
+  type AutomationPreferences,
   type Episode,
 } from '../useApi.ts'
 
@@ -9,6 +13,8 @@ type ChapterScriptEpisode = Episode & {
   content?: string
   script_content?: string
   scriptContent?: string
+  automation_status?: string
+  automationStatus?: string
 }
 
 type ChapterUpdatePayload = {
@@ -50,6 +56,49 @@ export function useChapterScriptDesk(options: ChapterScriptDeskOptions) {
   const rawLen = computed(() => localRaw.value.replace(/\s/g, '').length || 0)
   const scriptLen = computed(() => localScript.value.replace(/\s/g, '').length || 0)
   const updateChapter = options.updateChapter || defaultUpdateChapter
+
+  const automationPrefs = ref<AutomationPreferences | null>(null)
+  const automationStarting = ref(false)
+  const automationStatus = computed(() => {
+    const ep = options.episode.value
+    return (ep?.automation_status || ep?.automationStatus || 'idle') as string
+  })
+  const canStartAutomation = computed(() => {
+    if (!automationPrefs.value?.autoPipelineEnabled) return false
+    if (!scriptContent.value?.trim()) return false
+    return automationStatus.value === 'idle'
+  })
+
+  async function loadAutomationPreferences() {
+    try {
+      const res = await preferencesAPI.get()
+      if (res) automationPrefs.value = res
+    } catch (err) {
+      console.warn('Failed to load automation preferences', err)
+    }
+  }
+  onMounted(loadAutomationPreferences)
+
+  async function startAutomation() {
+    const id = options.epId.value
+    if (!id) return
+    if (automationStarting.value) return
+    automationStarting.value = true
+    try {
+      await automationAPI.start(id)
+      toast.success('已开始一键自动化')
+      await options.refresh()
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err)
+      if (/already running|already paused|409/i.test(message)) {
+        toast.warning('已在运行中或处于暂停状态')
+      } else {
+        toast.error(message || '启动失败')
+      }
+    } finally {
+      automationStarting.value = false
+    }
+  }
 
   watch(rawContent, value => { localRaw.value = value }, { immediate: true })
   watch(scriptContent, value => { localScript.value = value }, { immediate: true })
@@ -127,5 +176,10 @@ export function useChapterScriptDesk(options: ChapterScriptDeskOptions) {
     skipRewrite,
     doExtract,
     doBreakdown,
+    automationPrefs,
+    automationStatus,
+    canStartAutomation,
+    automationStarting,
+    startAutomation,
   }
 }

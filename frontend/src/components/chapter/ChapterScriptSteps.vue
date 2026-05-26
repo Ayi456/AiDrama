@@ -42,6 +42,11 @@
           <svg v-else width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
           重新改写
         </button>
+        <button v-if="canStartAutomation" class="btn btn-sm btn-primary" @click="emit('start-automation')" :disabled="automationStarting">
+          <Loader2 v-if="automationStarting" :size="11" class="animate-spin" />
+          <svg v-else width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          一键开始
+        </button>
       </div>
     </div>
 
@@ -91,6 +96,11 @@
           <Loader2 v-if="rn && rt === 'extractor'" :size="11" class="animate-spin" />
           <svg v-else width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           重新提取
+        </button>
+        <button v-if="canStartAutomation" class="btn btn-sm btn-primary" @click="emit('start-automation')" :disabled="automationStarting">
+          <Loader2 v-if="automationStarting" :size="11" class="animate-spin" />
+          <svg v-else width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          一键开始
         </button>
       </div>
     </div>
@@ -226,9 +236,17 @@ defineProps({
     type: Function,
     default: () => '',
   },
+  canStartAutomation: {
+    type: Boolean,
+    default: false,
+  },
+  automationStarting: {
+    type: Boolean,
+    default: false,
+  },
 })
 
-const emit = defineEmits(['update:localRaw', 'update:localScript', 'save-raw', 'skip-rewrite', 'rewrite', 'extract'])
+const emit = defineEmits(['update:localRaw', 'update:localScript', 'save-raw', 'skip-rewrite', 'rewrite', 'extract', 'start-automation'])
 
 function handleSaveRaw() {
   emit('save-raw')
