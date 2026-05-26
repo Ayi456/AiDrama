@@ -3,7 +3,44 @@ import { db, schema } from '../../db/index.js'
 import { runExtractorAgent, runChunkedStoryboardBreaker } from '../../routes/actions/agent.js'
 import { generateCharacterImageBatch } from '../../routes/resources/characters.js'
 import { generateSceneImage } from '../../routes/resources/scenes.js'
+import { generateStoryboardFrame } from '../../routes/actions/grid.js'
 import { imageGate, resizeGates } from './concurrency-gate.js'
+
+type InFlightImageKeys = {
+  storyboardFirst: Set<number>
+  characters: Set<number>
+  scenes: Set<number>
+}
+
+async function loadInFlightImageKeys(episodeId: number): Promise<InFlightImageKeys> {
+  const sbRows = await db.select().from(schema.storyboards).where(eq(schema.storyboards.episodeId, episodeId))
+  const sbIdSet = new Set(sbRows.map(r => r.id))
+  const ec = await db.select().from(schema.episodeCharacters).where(eq(schema.episodeCharacters.episodeId, episodeId))
+  const charIdSet = new Set(ec.map(r => r.characterId))
+  const es = await db.select().from(schema.episodeScenes).where(eq(schema.episodeScenes.episodeId, episodeId))
+  const sceneIdSet = new Set(es.map(r => r.sceneId))
+
+  const imgRows = await db.select().from(schema.imageGenerations)
+  const result: InFlightImageKeys = {
+    storyboardFirst: new Set<number>(),
+    characters: new Set<number>(),
+    scenes: new Set<number>(),
+  }
+  for (const row of imgRows) {
+    const status = row.status ?? 'pending'
+    if (status !== 'pending' && status !== 'processing') continue
+    if (row.storyboardId && sbIdSet.has(row.storyboardId) && row.frameType === 'first_frame') {
+      result.storyboardFirst.add(row.storyboardId)
+    }
+    if (row.characterId && charIdSet.has(row.characterId)) {
+      result.characters.add(row.characterId)
+    }
+    if (row.sceneId && sceneIdSet.has(row.sceneId)) {
+      result.scenes.add(row.sceneId)
+    }
+  }
+  return result
+}
 
 export type AutomationStage = 'extract' | 'character_image' | 'scene_image' | 'shot_image' | 'video' | 'merge' | 'done'
 
@@ -70,7 +107,8 @@ const characterImageHandler: StageHandler = {
     if (!charIds.length) return
     const chars = await db.select().from(schema.characters)
     const charIdSet = new Set(charIds)
-    const need = chars.filter(c => charIdSet.has(c.id) && !c.imageUrl)
+    const inFlight = await loadInFlightImageKeys(ctx.episodeId)
+    const need = chars.filter(c => charIdSet.has(c.id) && !c.imageUrl && !inFlight.characters.has(c.id))
     if (!need.length) return
     await Promise.all(need.map(async (char) => {
       const release = await imageGate().acquire()
@@ -97,7 +135,8 @@ const sceneImageHandler: StageHandler = {
     if (!sceneIds.length) return
     const all = await db.select().from(schema.scenes)
     const sceneIdSet = new Set(sceneIds)
-    const need = all.filter(s => sceneIdSet.has(s.id) && !s.imageUrl)
+    const inFlight = await loadInFlightImageKeys(ctx.episodeId)
+    const need = all.filter(s => sceneIdSet.has(s.id) && !s.imageUrl && !inFlight.scenes.has(s.id))
     await Promise.all(need.map(async (scene) => {
       const release = await imageGate().acquire()
       try { await generateSceneImage(scene.id, ctx.episodeId) }
@@ -114,11 +153,31 @@ const sceneImageHandler: StageHandler = {
   },
 }
 
+const shotImageHandler: StageHandler = {
+  enter: async (ctx) => {
+    await syncGateSizes()
+    const sbs = await db.select().from(schema.storyboards).where(eq(schema.storyboards.episodeId, ctx.episodeId))
+    const inFlight = await loadInFlightImageKeys(ctx.episodeId)
+    const need = sbs.filter(sb => !sb.firstFrameImage && !inFlight.storyboardFirst.has(sb.id))
+    if (!need.length) return
+    await Promise.all(need.map(async (sb) => {
+      const release = await imageGate().acquire()
+      try { await generateStoryboardFrame(sb.id, 'first', ctx.episodeId) }
+      catch (err) { console.warn('[automation] shot image first failed', sb.id, err) }
+      finally { release() }
+    }))
+  },
+  isComplete: async (ctx) => {
+    const sbs = await db.select().from(schema.storyboards).where(eq(schema.storyboards.episodeId, ctx.episodeId))
+    return sbs.length > 0 && sbs.every(sb => !!sb.firstFrameImage)
+  },
+}
+
 export const handlers: Record<Exclude<AutomationStage, 'done'>, StageHandler> = {
   extract: extractHandler,
   character_image: characterImageHandler,
   scene_image: sceneImageHandler,
-  shot_image: noop,
+  shot_image: shotImageHandler,
   video: noop,
   merge: noop,
 }

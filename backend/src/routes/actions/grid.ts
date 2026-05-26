@@ -666,4 +666,50 @@ app.get('/status/:id', async (c) => {
   })
 })
 
+export async function generateStoryboardFrame(
+  storyboardId: number,
+  frameType: 'first' | 'last',
+  episodeId: number,
+): Promise<number> {
+  const [sb] = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.id, storyboardId)).all())
+  if (!sb) throw new Error('Storyboard not found')
+  const [ep] = (await db.select().from(schema.episodes).where(eq(schema.episodes.id, episodeId)).all())
+  if (!ep) throw new Error('Episode not found')
+
+  let dramaId = 0
+  let dramaStyle = ''
+  const [drama] = (await db.select().from(schema.dramas).where(eq(schema.dramas.id, ep.dramaId)).all())
+  if (drama) {
+    dramaId = drama.id
+    dramaStyle = drama.style || ''
+  }
+
+  const desc = sb.imagePrompt || sb.description || sb.title || `shot ${sb.storyboardNumber || ''}`
+  const motion = sb.action || sb.movement || ''
+  const isFirst = frameType === 'first'
+  const promptParts = [
+    isFirst ? '首帧' : '尾帧',
+    desc,
+    sb.location ? `场景：${sb.location}` : '',
+    sb.shotType ? `镜头：${sb.shotType}` : '',
+    !isFirst && motion ? `动作：${motion}` : '',
+    dramaStyle ? `画风：${dramaStyle}` : '',
+    'storyboard frame, high quality',
+  ].filter(Boolean)
+  const prompt = promptParts.join('，')
+
+  const referenceAssets = await collectGridReferenceAssets([sb])
+  const referenceImages = referenceAssets.map(a => a.path)
+
+  return await generateImage({
+    storyboardId,
+    dramaId: dramaId || sb.episodeId,
+    prompt,
+    frameType: isFirst ? 'first_frame' : 'last_frame',
+    size: '960x540',
+    referenceImages: referenceImages.length ? referenceImages : undefined,
+    configId: ep.imageConfigId ?? undefined,
+  })
+}
+
 export default app
