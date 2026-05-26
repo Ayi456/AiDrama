@@ -145,6 +145,9 @@
                 <span class="dd-ep__pipe">/</span>
                 <span class="dd-ep__duration">{{ ep.duration }}s</span>
               </template>
+              <span v-if="(ep.automation_status || ep.automationStatus) === 'running'" class="badge-running">自动化中</span>
+              <span v-else-if="(ep.automation_status || ep.automationStatus) === 'failed'" class="badge-failed">自动化失败</span>
+              <span v-else-if="(ep.automation_status || ep.automationStatus) === 'paused'" class="badge-paused">已暂停</span>
             </div>
           </div>
           <div class="dd-ep__go">
@@ -236,6 +239,7 @@ import { useRoute, useRouter } from 'vue-router'
 import BaseSelect from '@/components/BaseSelect.vue'
 import ProjectStyleInput from '@/components/ProjectStyleInput.vue'
 import { aiConfigAPI, chapterAPI, dramaAPI } from '@/composables/useApi'
+import '@/assets/automation.css'
 import { getProjectStyleLabel, normalizeProjectStyleInput } from '@/utils/project-style'
 
 const route = useRoute()

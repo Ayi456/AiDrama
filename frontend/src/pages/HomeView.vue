@@ -69,6 +69,7 @@
               <div class="progress-mini-fill" :style="{ width: getProgress(d) + '%' }"></div>
             </div>
           </div>
+          <span v-if="(d.automation_running_count || 0) > 0" class="badge-running">运行中 · {{ d.automation_running_count }}</span>
           <span class="card-date">{{ fmtDate(d.updated_at || d.updatedAt) }}</span>
         </div>
       </div>
@@ -144,6 +145,7 @@ import { toast } from 'vue-sonner'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { aiConfigAPI, dramaAPI } from '@/composables/useApi'
+import '@/assets/automation.css'
 import { useConfirm } from '@/composables/useConfirm'
 import BaseSelect from '@/components/BaseSelect.vue'
 import ProjectStyleInput from '@/components/ProjectStyleInput.vue'

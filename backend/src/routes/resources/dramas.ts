@@ -45,10 +45,12 @@ app.get('/', async (c) => {
     const eps = await db.select().from(schema.episodes).where(eq(schema.episodes.dramaId, drama.id))
     const chars = await db.select().from(schema.characters).where(eq(schema.characters.dramaId, drama.id))
     const scns = await db.select().from(schema.scenes).where(eq(schema.scenes.dramaId, drama.id))
+    const automationRunningCount = eps.filter(ep => ep.automationStatus === 'running').length
     return {
       ...toSnakeCase(drama),
       tags: drama.tags ? JSON.parse(drama.tags) : [],
       total_episodes: eps.length,
+      automation_running_count: automationRunningCount,
       episodes: toSnakeCaseArray(eps),
       characters: toSnakeCaseArray(enrichCharactersWithImagePrompt(chars, drama.style)),
       scenes: toSnakeCaseArray(scns),

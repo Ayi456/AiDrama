@@ -49,3 +49,45 @@
 }
 .automation-progress-bar.is-failed .automation-progress-bar__fill { background: var(--error); }
 .automation-progress-bar__actions { display: flex; gap: 8px; }
+
+.badge-running {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent, var(--text-0));
+  font-size: 12px;
+  font-weight: 500;
+}
+.badge-running::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: badge-running-pulse 1.4s ease-in-out infinite;
+}
+@keyframes badge-running-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.badge-failed {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--error) 14%, var(--bg-1));
+  color: var(--error);
+  font-size: 12px;
+}
+.badge-paused {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warning, var(--accent)) 14%, var(--bg-1));
+  color: var(--warning, var(--accent));
+  font-size: 12px;
+}
