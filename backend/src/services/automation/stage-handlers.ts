@@ -4,7 +4,8 @@ import { runExtractorAgent, runChunkedStoryboardBreaker } from '../../routes/act
 import { generateCharacterImageBatch } from '../../routes/resources/characters.js'
 import { generateSceneImage } from '../../routes/resources/scenes.js'
 import { generateStoryboardFrame } from '../../routes/actions/grid.js'
-import { imageGate, resizeGates } from './concurrency-gate.js'
+import { generateStoryboardVideo } from '../../routes/resources/videos.js'
+import { imageGate, videoGate, resizeGates } from './concurrency-gate.js'
 
 type InFlightImageKeys = {
   storyboardFirst: Set<number>
@@ -195,11 +196,67 @@ const shotImageHandler: StageHandler = {
   },
 }
 
+async function hasInFlightVideoForStoryboard(storyboardId: number): Promise<boolean> {
+  const rows = await db.select().from(schema.videoGenerations).where(eq(schema.videoGenerations.storyboardId, storyboardId))
+  return rows.some(r => {
+    if (r.defectCheckParentId) return false
+    const status = r.status ?? 'pending'
+    return status === 'pending' || status === 'processing'
+  })
+}
+
+const videoHandler: StageHandler = {
+  enter: async (ctx) => {
+    const sbs = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.episodeId, ctx.episodeId)))
+      .sort((a, b) => (a.storyboardNumber ?? 0) - (b.storyboardNumber ?? 0))
+    if (!sbs.length) return
+
+    const firstPending = sbs.findIndex(sb => !sb.videoUrl)
+    if (firstPending < 0) return
+    const sb = sbs[firstPending]
+    if (await hasInFlightVideoForStoryboard(sb.id)) return
+
+    const prev = firstPending > 0 ? sbs[firstPending - 1] : null
+    const next = firstPending < sbs.length - 1 ? sbs[firstPending + 1] : null
+
+    let firstFrameUrl: string | null = null
+    if (prev) {
+      const prevVideos = await db.select().from(schema.videoGenerations).where(eq(schema.videoGenerations.storyboardId, prev.id))
+      const latest = prevVideos
+        .filter(r => !r.defectCheckParentId)
+        .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0]
+      firstFrameUrl = latest?.tailFrameUrl ?? null
+    }
+    if (!firstFrameUrl) firstFrameUrl = sb.firstFrameImage ?? null
+
+    const lastFrameUrl = next ? (next.firstFrameImage ?? null) : (sb.lastFrameImage ?? null)
+
+    if (!firstFrameUrl || !lastFrameUrl) {
+      throw new Error(`video stage: missing frame urls for storyboard ${sb.id}`)
+    }
+
+    await syncGateSizes()
+    const release = await videoGate().acquire()
+    try {
+      await generateStoryboardVideo({
+        storyboardId: sb.id,
+        firstFrameUrl,
+        lastFrameUrl,
+        referenceMode: 'first_last',
+      })
+    } finally { release() }
+  },
+  isComplete: async (ctx) => {
+    const sbs = await db.select().from(schema.storyboards).where(eq(schema.storyboards.episodeId, ctx.episodeId))
+    return sbs.length > 0 && sbs.every(sb => !!sb.videoUrl)
+  },
+}
+
 export const handlers: Record<Exclude<AutomationStage, 'done'>, StageHandler> = {
   extract: extractHandler,
   character_image: characterImageHandler,
   scene_image: sceneImageHandler,
   shot_image: shotImageHandler,
-  video: noop,
+  video: videoHandler,
   merge: noop,
 }

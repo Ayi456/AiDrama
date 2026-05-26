@@ -74,4 +74,35 @@ app.delete('/:id', async (c) => {
   return success(c)
 })
 
+export type GenerateStoryboardVideoInput = {
+  storyboardId: number
+  firstFrameUrl: string
+  lastFrameUrl: string
+  referenceMode?: string
+}
+
+export async function generateStoryboardVideo(input: GenerateStoryboardVideoInput): Promise<number> {
+  const [sb] = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.id, input.storyboardId)).all())
+  if (!sb) throw new Error('Storyboard not found')
+  const [ep] = (await db.select().from(schema.episodes).where(eq(schema.episodes.id, sb.episodeId)).all())
+  if (!ep) throw new Error('Episode not found')
+
+  const prompt = sb.videoPrompt || sb.imagePrompt || sb.description || sb.title || `镜头 ${sb.storyboardNumber ?? sb.id}`
+  const configId = typeof ep.videoConfigId === 'number' ? ep.videoConfigId : undefined
+
+  const id = await generateVideo({
+    storyboardId: input.storyboardId,
+    dramaId: typeof ep.dramaId === 'number' ? ep.dramaId : undefined,
+    prompt,
+    referenceMode: input.referenceMode || 'first_last',
+    firstFrameUrl: input.firstFrameUrl,
+    lastFrameUrl: input.lastFrameUrl,
+    duration: sb.duration && sb.duration > 0 ? sb.duration : undefined,
+    configId,
+  })
+
+  logTaskSuccess('VideoAPI', 'auto-generate', { storyboardId: input.storyboardId, generationId: id })
+  return id
+}
+
 export default app
