@@ -666,6 +666,8 @@ app.get('/status/:id', async (c) => {
   })
 })
 
+const DEFAULT_STORYBOARD_FRAME_SIZE = '2560x1440'
+
 export async function generateStoryboardFrame(
   storyboardId: number,
   frameType: 'first' | 'last',
@@ -706,7 +708,7 @@ export async function generateStoryboardFrame(
     dramaId: dramaId || sb.episodeId,
     prompt,
     frameType: isFirst ? 'first_frame' : 'last_frame',
-    size: '960x540',
+    size: DEFAULT_STORYBOARD_FRAME_SIZE,
     referenceImages: referenceImages.length ? referenceImages : undefined,
     configId: ep.imageConfigId ?? undefined,
   })
