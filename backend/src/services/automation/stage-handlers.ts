@@ -5,6 +5,7 @@ import { generateCharacterImageBatch } from '../../routes/resources/characters.j
 import { generateSceneImage } from '../../routes/resources/scenes.js'
 import { generateStoryboardFrame } from '../../routes/actions/grid.js'
 import { generateStoryboardVideo } from '../../routes/resources/videos.js'
+import { mergeEpisodeVideos } from '../merge/ffmpeg-merge.js'
 import { imageGate, videoGate, resizeGates } from './concurrency-gate.js'
 
 type InFlightImageKeys = {
@@ -252,11 +253,24 @@ const videoHandler: StageHandler = {
   },
 }
 
+const mergeHandler: StageHandler = {
+  enter: async (ctx) => {
+    const existing = await db.select().from(schema.videoMerges).where(eq(schema.videoMerges.episodeId, ctx.episodeId))
+    if (existing.some(r => r.status === 'completed')) return
+    if (existing.some(r => r.status === 'pending' || r.status === 'processing')) return
+    await mergeEpisodeVideos(ctx.episodeId, ctx.dramaId)
+  },
+  isComplete: async (ctx) => {
+    const rows = await db.select().from(schema.videoMerges).where(eq(schema.videoMerges.episodeId, ctx.episodeId))
+    return rows.some(r => r.status === 'completed')
+  },
+}
+
 export const handlers: Record<Exclude<AutomationStage, 'done'>, StageHandler> = {
   extract: extractHandler,
   character_image: characterImageHandler,
   scene_image: sceneImageHandler,
   shot_image: shotImageHandler,
   video: videoHandler,
-  merge: noop,
+  merge: mergeHandler,
 }

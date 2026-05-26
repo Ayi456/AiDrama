@@ -18,6 +18,7 @@ import {
   type TransitionConfig,
 } from './merge-transition-policy.js'
 import { db, schema } from '../../db/index.js'
+import { onMergeCompleted } from '../automation/automation-hook.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PROJECT_ROOT = path.resolve(__dirname, '../../../..')
@@ -104,6 +105,7 @@ export async function mergeEpisodeVideos(
     logTaskError('MergeTask', 'episode-merge', { mergeId, episodeId, error: message })
     console.error('[Merge] Failed:', error)
     await mergeState.recordMergeFailure(mergeId, error)
+    await onMergeCompleted({ episodeId, status: 'failed' }).catch(err => console.warn('[automation] merge failure hook failed', err))
   })
 
   return mergeId
@@ -189,4 +191,5 @@ async function doMerge(
     clips: videos.length,
     strategy,
   })
+  await onMergeCompleted({ episodeId, status: 'ok' }).catch(err => console.warn('[automation] merge hook failed', err))
 }
