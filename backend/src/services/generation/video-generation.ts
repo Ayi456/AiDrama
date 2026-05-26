@@ -1,9 +1,12 @@
 import { db, schema } from '../../db/index.js'
 import { eq } from 'drizzle-orm'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { getActiveConfig, getConfigById } from '../ai/ai.js'
 import { now } from '../../utils/response.js'
 import { downloadFile, readImageAsCompressedDataUrl } from '../../utils/storage.js'
 import { uploadStaticAssetToCos } from '../../utils/cos.js'
+import { resolveStorageRoot } from '../../utils/runtime-paths.js'
 import { getVideoAdapter } from '../adapters/registry.js'
 import type { AIConfig } from '../adapters/types.js'
 import {
@@ -42,6 +45,37 @@ import { createVideoGenerationDbPersistence } from '../media/generation/media-ge
 import { isProviderApiError, sendProviderJsonRequest } from '../media/provider/media-provider-transport.js'
 import { logTaskError, logTaskPayload, logTaskProgress, logTaskStart, logTaskSuccess, logTaskWarn, redactUrl } from '../../utils/task-logger.js'
 import { buildDefectCheckCallback } from './video-defect-check-binding.js'
+import { captureLastFrame, resolveTailFrameOutputPath } from '../media/frame-capture.js'
+import { onResourceCompleted } from '../automation/automation-hook.js'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const PROJECT_ROOT = path.resolve(__dirname, '../../..')
+const STORAGE_ROOT = resolveStorageRoot(PROJECT_ROOT)
+
+async function captureAndPersistTailFrame(videoGenerationId: number, localPath: string | null | undefined): Promise<void> {
+  if (!localPath) return
+  if (!localPath.startsWith('static/') && !localPath.startsWith('static\\')) return
+  const inputAbs = path.join(STORAGE_ROOT, '..', localPath)
+  const outputAbs = resolveTailFrameOutputPath(videoGenerationId, STORAGE_ROOT)
+  await captureLastFrame(inputAbs, outputAbs)
+  const publicUrl = `/static/tail-frames/${videoGenerationId}.png`
+  await db.update(schema.videoGenerations)
+    .set({ tailFrameUrl: publicUrl, updatedAt: now() })
+    .where(eq(schema.videoGenerations.id, videoGenerationId))
+}
+
+async function notifyAutomationAfterVideo(videoGenerationId: number, storyboardId: number | null | undefined, status: 'ok' | 'failed'): Promise<void> {
+  try {
+    await onResourceCompleted({
+      type: 'video',
+      storyboardId: storyboardId ?? null,
+      videoGenerationId,
+      status,
+    })
+  } catch (err) {
+    console.warn('[automation] video hook failed', err)
+  }
+}
 
 type GenerateVideoParams = VideoGenerationEnqueueParams
 
@@ -177,6 +211,8 @@ async function processVideoGeneration(id: number, config: AIConfig) {
       logError: logTaskError,
       persistFailure: persistence.persistFailure,
     })
+    const recordForStoryboard = await db.select().from(schema.videoGenerations).where(eq(schema.videoGenerations.id, id))
+    await notifyAutomationAfterVideo(id, recordForStoryboard[0]?.storyboardId ?? null, 'failed')
   }
 }
 
@@ -233,6 +269,7 @@ async function pollVideoTask(id: number, config: AIConfig, taskId: string, story
           logError: logTaskError,
           persistFailure: persistence.persistFailure,
         })
+        await notifyAutomationAfterVideo(id, storyboardId ?? null, 'failed')
         return { type: 'done', value: undefined }
       }
 
@@ -256,6 +293,7 @@ async function pollVideoTask(id: number, config: AIConfig, taskId: string, story
     logError: logTaskError,
     persistFailure: persistence.persistFailure,
   })
+  await notifyAutomationAfterVideo(id, storyboardId ?? null, 'failed')
 }
 
 async function completeGeneratedVideo(
@@ -266,7 +304,7 @@ async function completeGeneratedVideo(
 ) {
   const persistence = createVideoGenerationDbPersistence(id)
 
-  await completeGeneratedVideoJob({
+  const result = await completeGeneratedVideoJob({
     id,
     source,
     duration,
@@ -299,4 +337,11 @@ async function completeGeneratedVideo(
       })
     }),
   })
+
+  try {
+    await captureAndPersistTailFrame(id, result.localPath)
+  } catch (err) {
+    console.warn('[automation] captureLastFrame failed', err)
+  }
+  await notifyAutomationAfterVideo(id, storyboardId ?? null, 'ok')
 }
