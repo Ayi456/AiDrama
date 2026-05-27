@@ -505,6 +505,7 @@ import { computed, ref, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import { Camera, Check, Film, History, Image as ImageIcon, Loader2, Music, RefreshCw, Trash2 } from 'lucide-vue-next'
 import { uploadAPI } from '@/composables/useApi'
+import { buildMultimodalReferenceOptions } from '@/composables/chapter/chapterShotMediaPolicy'
 import {
   getCaptureSourceVideoUrl,
   getCaptureTailFrameOptions,
@@ -699,29 +700,40 @@ const selectedReferenceAudios = computed(() => (
   selectedReferenceAudiosByShot.value[selectedShotKey.value] || []
 ))
 
+const currentMultimodalReferenceOptions = computed(() => (
+  buildMultimodalReferenceOptions({
+    storyboard: selectedShot.value,
+    chars: props.state.chars || props.state.visualChars || [],
+    scenes: props.state.scenes || [],
+  })
+))
+
 const characterReferenceOptions = computed(() => (
-  (props.state.visualChars || props.state.chars || [])
-    .map(item => ({
-      label: item.name || item.title || `角色 ${item.id || ''}`.trim(),
-      url: item.image_url || item.imageUrl || '',
-      source: 'character',
-    }))
-    .filter(item => !!item.url)
+  currentMultimodalReferenceOptions.value.filter(item => item.source === 'character')
 ))
 
 const sceneReferenceOptions = computed(() => (
-  (props.state.scenes || [])
-    .map(item => ({
-      label: item.location || item.title || `场景 ${item.id || ''}`.trim(),
-      url: item.image_url || item.imageUrl || '',
-      source: 'scene',
-    }))
-    .filter(item => !!item.url)
+  currentMultimodalReferenceOptions.value.filter(item => item.source === 'scene')
 ))
 
 const multimodalImageUrls = computed(() => (
   uniqueStrings([capturedFrameUrl.value, ...selectedReferenceImages.value.map(item => item.url)]).slice(0, 9)
 ))
+
+watch(
+  () => [selectedShotKey.value, currentMultimodalReferenceOptions.value.map(item => item.url).join('|')],
+  () => {
+    if (!selectedShot.value) return
+    const key = selectedShotKey.value
+    if (Object.prototype.hasOwnProperty.call(selectedReferenceImagesByShot.value, key)) return
+    if (!currentMultimodalReferenceOptions.value.length) return
+    selectedReferenceImagesByShot.value = {
+      ...selectedReferenceImagesByShot.value,
+      [key]: currentMultimodalReferenceOptions.value,
+    }
+  },
+  { immediate: true },
+)
 
 const multimodalVideoUrls = computed(() => (
   uniqueStrings(selectedReferenceVideos.value.map(item => item.url)).slice(0, 3)

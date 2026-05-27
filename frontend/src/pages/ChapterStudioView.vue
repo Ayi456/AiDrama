@@ -29,7 +29,7 @@
       @primary-action="panel = mergeUrl ? 'export' : (sbs.length ? 'production' : 'script')"
     />
 
-    <AutomationProgressBar v-if="epId" :episode-id="epId" />
+    <AutomationProgressBar v-if="epId" :episode-id="epId" :refresh-signal="automationProgressRefreshSignal" />
 
     <div class="studio-body">
     <!-- ========== LEFT SIDEBAR ========== -->
@@ -211,6 +211,7 @@ const characterAssetBusy = ref(false)
 
 const { running: rn, runningType: rt, run: runAgent } = useAgent()
 const scriptStep = ref(0)
+const automationProgressRefreshSignal = ref(0)
 
 const {
   imageConfigs,
@@ -256,6 +257,7 @@ const {
   lockedVideoConfigId,
   runAgent,
   refresh,
+  onAutomationStarted: () => { automationProgressRefreshSignal.value++ },
   notifySuccess: toast.success,
   notifyWarning: toast.warning,
 })

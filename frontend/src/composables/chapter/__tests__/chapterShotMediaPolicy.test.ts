@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 
 import {
   buildDefaultVideoPrompt,
+  buildMultimodalReferenceOptions,
   buildVideoGeneratePayload,
 } from '../chapterShotMediaPolicy.ts'
 
@@ -97,4 +98,30 @@ runTest('multimodal mode can include a captured frame as a reference image', () 
   assert.deepEqual(payload.reference_audio_urls, ['voice-ref.mp3'])
   assert.equal(payload.first_frame_url, undefined)
   assert.equal(payload.image_url, undefined)
+})
+
+runTest('multimodal reference options use current storyboard scene and generated character images only', () => {
+  const options = buildMultimodalReferenceOptions({
+    storyboard: {
+      id: 22,
+      scene_id: 3,
+      character_ids: [7, 8],
+    },
+    chars: [
+      { id: 7, name: 'Lead', character_asset_image_url: 'lead-asset.png', image_url: 'lead-generated.png' },
+      { id: 8, name: 'Support', image_url: 'support.png' },
+      { id: 9, name: 'Other', image_url: 'other.png' },
+    ],
+    scenes: [
+      { id: 3, location: 'Atrium', image_url: 'atrium.png' },
+      { id: 4, location: 'Street', image_url: 'street.png' },
+    ],
+  })
+
+  assert.deepEqual(options.map(item => item.url), [
+    'lead-generated.png',
+    'support.png',
+    'atrium.png',
+  ])
+  assert.deepEqual(options.map(item => item.source), ['character', 'character', 'scene'])
 })

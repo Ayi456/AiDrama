@@ -40,6 +40,8 @@ type ChapterScriptDeskOptions = {
   runAgent: RunAgent
   refresh: () => void | Promise<void>
   updateChapter?: (id: number, payload: ChapterUpdatePayload) => void | Promise<void>
+  startAutomationRequest?: (episodeId: number) => Promise<unknown>
+  onAutomationStarted?: (episodeId: number) => void
   notifySuccess?: (message: string) => void
   notifyWarning?: (message: string) => void
 }
@@ -56,6 +58,7 @@ export function useChapterScriptDesk(options: ChapterScriptDeskOptions) {
   const rawLen = computed(() => localRaw.value.replace(/\s/g, '').length || 0)
   const scriptLen = computed(() => localScript.value.replace(/\s/g, '').length || 0)
   const updateChapter = options.updateChapter || defaultUpdateChapter
+  const startAutomationRequest = options.startAutomationRequest || automationAPI.start
 
   const automationPrefs = ref<AutomationPreferences | null>(null)
   const automationStarting = ref(false)
@@ -85,13 +88,16 @@ export function useChapterScriptDesk(options: ChapterScriptDeskOptions) {
     if (automationStarting.value) return
     automationStarting.value = true
     try {
-      await automationAPI.start(id)
+      await startAutomationRequest(id)
+      options.onAutomationStarted?.(id)
       toast.success('已开始一键自动化')
       await options.refresh()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
       if (/already running|already paused|409/i.test(message)) {
         toast.warning('已在运行中或处于暂停状态')
+        options.onAutomationStarted?.(id)
+        await options.refresh()
       } else {
         toast.error(message || '启动失败')
       }

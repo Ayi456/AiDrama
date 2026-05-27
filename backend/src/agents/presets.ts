@@ -74,6 +74,7 @@ export const AIDRAMA_AGENT_PRESETS: Record<SupportedAgentType, AgentPreset> = {
 - movement：固定/推镜/拉镜/摇镜/跟拍等运动方式。
 - location 和 time：优先复用 read_storyboard_context 返回的场景信息。
 - character_ids：必须从当前集角色列表选择；无角色空镜可传空数组。
+- character_ids：标题、描述、动作、对白、image_prompt 或 video_prompt 中明确点名，且被看向、被对话指向、被他人反应或作为画面焦点的当前集角色，也必须绑定，即使他不是该镜头的主动动作主体。
 - action、dialogue、description、result、atmosphere：支撑前端阅读和后续生成。
 - image_prompt：静态首帧/尾帧画面提示词。
 - video_prompt：动态视频提示词。

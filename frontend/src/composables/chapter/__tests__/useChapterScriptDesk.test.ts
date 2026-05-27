@@ -107,3 +107,66 @@ await runTest('script desk dispatches rewrite, extraction, and breakdown agents'
   assert.deepEqual(calls.map(call => call.episodeId), [13, 13, 13])
   assert.match(calls[2]?.prompt || '', /Video Fast \(vidu\)/)
 })
+
+await runTest('script desk notifies automation progress after one-click start succeeds', async () => {
+  const episode = ref({ id: 14, content: 'raw', script_content: 'script', automation_status: 'idle' })
+  const starts: number[] = []
+  const started: number[] = []
+  let refreshes = 0
+
+  const desk = useChapterScriptDesk({
+    dramaId: 5,
+    epId: computed(() => episode.value.id),
+    episode,
+    scriptStep: ref(0),
+    videoConfigs: ref([]),
+    lockedVideoConfigId: computed(() => null),
+    runAgent: () => undefined,
+    refresh: async () => { refreshes++ },
+    updateChapter: async () => undefined,
+    startAutomationRequest: async (id) => {
+      starts.push(id)
+      return { status: 'running' }
+    },
+    onAutomationStarted: (id) => {
+      started.push(id)
+    },
+  })
+
+  await desk.startAutomation()
+
+  assert.deepEqual(starts, [14])
+  assert.deepEqual(started, [14])
+  assert.equal(refreshes, 1)
+  assert.equal(desk.automationStarting.value, false)
+})
+
+await runTest('script desk refreshes automation progress when start reports an existing run', async () => {
+  const episode = ref({ id: 15, content: 'raw', script_content: 'script', automation_status: 'idle' })
+  const started: number[] = []
+  let refreshes = 0
+
+  const desk = useChapterScriptDesk({
+    dramaId: 5,
+    epId: computed(() => episode.value.id),
+    episode,
+    scriptStep: ref(0),
+    videoConfigs: ref([]),
+    lockedVideoConfigId: computed(() => null),
+    runAgent: () => undefined,
+    refresh: async () => { refreshes++ },
+    updateChapter: async () => undefined,
+    startAutomationRequest: async () => {
+      throw new Error('409 already running')
+    },
+    onAutomationStarted: (id) => {
+      started.push(id)
+    },
+  })
+
+  await desk.startAutomation()
+
+  assert.deepEqual(started, [15])
+  assert.equal(refreshes, 1)
+  assert.equal(desk.automationStarting.value, false)
+})

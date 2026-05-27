@@ -232,6 +232,7 @@ export function buildCharacterPortraitGenerationPrompt(source: CharacterPromptSo
   const descriptionFallback = appearance
     ? ''
     : extractVisualCharacterDescription(source.description)
+  const displayName = source.name?.trim()
 
   return compactPromptParts([
     source.name,
@@ -243,7 +244,8 @@ export function buildCharacterPortraitGenerationPrompt(source: CharacterPromptSo
     style ? `项目风格： ${style}` : null,
     '高清质感',
     '三张并排的全身角色设定图，统一纯白背景',
-    '画面内只保留人物本身，不要任何文字、标签、标题、编号、水印，不要给每张图添加视图名称',
+    displayName ? `右上角清晰显示角色名称：${displayName}` : null,
+    '画面内只保留人物本身和右上角角色名称，不要其他文字、标签、标题、编号、水印',
     '统一风格、统一构图、统一角色识别',
   ])
 }
@@ -257,7 +259,16 @@ export function resolveCharacterImagePrompt(source: CharacterImagePromptSource):
   if (override) return override
   const built = buildCharacterPortraitGenerationPrompt(source)
   if (built) return built
-  return compactPromptParts([source.name, '人物立绘', '高清质感', '三张并排的全身图', '纯白背景', '无文字标签'])
+  const displayName = source.name?.trim()
+  return compactPromptParts([
+    source.name,
+    '人物立绘',
+    '高清质感',
+    '三张并排的全身图',
+    '纯白背景',
+    displayName ? `右上角清晰显示角色名称：${displayName}` : null,
+    '不要其他文字、标签、标题、编号、水印',
+  ])
 }
 
 export function buildSceneImagePrompt(source: ScenePromptSource) {

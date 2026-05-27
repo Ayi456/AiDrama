@@ -1,4 +1,6 @@
 import type {
+  ChapterCharacter,
+  ChapterScene,
   ChapterStoryboard,
   VideoGeneratePayload,
   VideoReferenceOverride,
@@ -54,6 +56,65 @@ export function normalizeUrlList(value: unknown): string[] {
     return Array.from(new Set(value.map(item => String(item || '').trim()).filter(Boolean)))
   }
   return Array.from(new Set(String(value).split(/\r?\n|,/).map(item => item.trim()).filter(Boolean)))
+}
+
+export type MultimodalReferenceOption = {
+  label: string
+  url: string
+  source: 'character' | 'scene'
+}
+
+function storyboardBindingIds(
+  storyboard: ChapterStoryboard | null | undefined,
+  snakeKey: 'character_ids' | 'scene_id',
+  camelKey: 'characterIds' | 'sceneId',
+) {
+  const raw = storyboard?.[snakeKey] ?? storyboard?.[camelKey]
+  if (Array.isArray(raw)) return raw.map(Number).filter(Number.isFinite)
+  if (raw == null || String(raw).trim() === '') return []
+  return [Number(raw)].filter(Number.isFinite)
+}
+
+function addMultimodalReference(
+  references: MultimodalReferenceOption[],
+  option: MultimodalReferenceOption,
+) {
+  const url = String(option.url || '').trim()
+  if (!url || references.some(item => item.url === url)) return
+  references.push({ ...option, url })
+}
+
+export function buildMultimodalReferenceOptions(input: {
+  storyboard: ChapterStoryboard | null | undefined
+  chars: ChapterCharacter[]
+  scenes: ChapterScene[]
+}): MultimodalReferenceOption[] {
+  const references: MultimodalReferenceOption[] = []
+  const characterIds = new Set(storyboardBindingIds(input.storyboard, 'character_ids', 'characterIds'))
+  const sceneIds = new Set(storyboardBindingIds(input.storyboard, 'scene_id', 'sceneId'))
+
+  input.chars
+    .filter(character => characterIds.has(Number(character.id)))
+    .forEach((character) => {
+      const label = character.name || `角色 ${character.id}`
+      addMultimodalReference(references, {
+        label,
+        url: character.image_url || character.imageUrl || '',
+        source: 'character',
+      })
+    })
+
+  input.scenes
+    .filter(scene => sceneIds.has(Number(scene.id)))
+    .forEach((scene) => {
+      addMultimodalReference(references, {
+        label: scene.name || scene.location || `场景 ${scene.id}`,
+        url: scene.image_url || scene.imageUrl || '',
+        source: 'scene',
+      })
+    })
+
+  return references.slice(0, 9)
 }
 
 function getStoryboardDialogue(storyboard: ChapterStoryboard | null | undefined) {

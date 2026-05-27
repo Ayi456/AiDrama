@@ -6,6 +6,12 @@ import { now } from '../../utils/response.js'
 import { logTaskProgress, logTaskSuccess } from '../../utils/task-logger.js'
 import { appendDialogueToVideoPrompt } from '../../routes/policies/storyboard-route-policy.js'
 import {
+  mergeStoryboardCharacterIds,
+  mergeStoryboardInputCharacterIds,
+  type StoryboardCharacterBindingSource,
+  type StoryboardCharacterCandidate,
+} from '../../routes/policies/storyboard-character-binding-policy.js'
+import {
   getNextStoryboardNumber,
   renumberStoryboardsForAppend,
   type StoryboardChunk,
@@ -44,6 +50,7 @@ const storyboardInputSchema = z.object({
 
 type StoryboardInput = z.infer<typeof storyboardInputSchema>['storyboards'][number]
 type StoryboardUpdateValues = Partial<typeof schema.storyboards.$inferInsert>
+type StoryboardRow = typeof schema.storyboards.$inferSelect
 
 async function syncStoryboardCharacters(storyboardId: number, characterIds: number[]) {
   await db.delete(schema.storyboardCharacters)
@@ -61,6 +68,12 @@ async function syncStoryboardCharacters(storyboardId: number, characterIds: numb
   }
 }
 
+async function getStoryboardCharacterIds(storyboardId: number) {
+  return (await db.select().from(schema.storyboardCharacters)
+    .where(eq(schema.storyboardCharacters.storyboardId, storyboardId)).all())
+    .map(link => link.characterId)
+}
+
 async function getEpisodeSceneIds(episodeId: number) {
   return new Set(
     (await db.select().from(schema.episodeScenes)
@@ -75,6 +88,27 @@ async function getEpisodeCharacterIds(episodeId: number) {
       .where(eq(schema.episodeCharacters.episodeId, episodeId)).all())
       .map(link => link.characterId),
   )
+}
+
+async function getEpisodeCharacterCandidates(
+  episodeId: number,
+  dramaId: number,
+): Promise<StoryboardCharacterCandidate[]> {
+  const linkedCharacterIds = new Set(
+    (await db.select().from(schema.episodeCharacters)
+      .where(eq(schema.episodeCharacters.episodeId, episodeId)).all())
+      .map(link => link.characterId),
+  )
+  if (!linkedCharacterIds.size) return []
+
+  return (await db.select().from(schema.characters)
+    .where(eq(schema.characters.dramaId, dramaId)).all())
+    .filter(character => !character.deletedAt)
+    .filter(character => linkedCharacterIds.has(character.id))
+    .map(character => ({
+      id: character.id,
+      name: character.name,
+    }))
 }
 
 async function validateStoryboardBindings(
@@ -109,12 +143,34 @@ async function clearExistingStoryboards(episodeId: number) {
   return existingStoryboardIds.length
 }
 
-async function insertStoryboards(episodeId: number, storyboards: StoryboardInput[]) {
+function buildStoryboardUpdateBindingSource(
+  fields: Partial<StoryboardInput>,
+  storyboard: StoryboardRow,
+): StoryboardCharacterBindingSource {
+  return {
+    title: 'title' in fields ? fields.title : storyboard.title,
+    description: 'description' in fields ? fields.description : storyboard.description,
+    action: 'action' in fields ? fields.action : storyboard.action,
+    dialogue: 'dialogue' in fields ? fields.dialogue : storyboard.dialogue,
+    result: 'result' in fields ? fields.result : storyboard.result,
+    atmosphere: 'atmosphere' in fields ? fields.atmosphere : storyboard.atmosphere,
+    image_prompt: 'image_prompt' in fields ? fields.image_prompt : storyboard.imagePrompt,
+    video_prompt: 'video_prompt' in fields ? fields.video_prompt : storyboard.videoPrompt,
+  }
+}
+
+function sameCharacterIds(left: number[], right: number[]) {
+  return left.length === right.length && left.every((id, index) => id === right[index])
+}
+
+async function insertStoryboards(episodeId: number, dramaId: number, storyboards: StoryboardInput[]) {
   const ts = now()
   let totalDuration = 0
+  const characterCandidates = await getEpisodeCharacterCandidates(episodeId, dramaId)
 
   for (const storyboard of storyboards) {
-    await validateStoryboardBindings(episodeId, storyboard.scene_id, storyboard.character_ids)
+    const characterIds = mergeStoryboardInputCharacterIds(storyboard, characterCandidates)
+    await validateStoryboardBindings(episodeId, storyboard.scene_id, characterIds)
     const duration = storyboard.duration || 10
     const res = (await db.insert(schema.storyboards).values({
       episodeId,
@@ -139,7 +195,7 @@ async function insertStoryboards(episodeId: number, storyboards: StoryboardInput
       createdAt: ts,
       updatedAt: ts,
     }).run())
-    await syncStoryboardCharacters(Number(res.lastInsertRowid), storyboard.character_ids || [])
+    await syncStoryboardCharacters(Number(res.lastInsertRowid), characterIds)
     totalDuration += duration
   }
 
@@ -286,7 +342,7 @@ export function createStoryboardTools(episodeId: number, dramaId: number, option
       })
       await clearExistingStoryboards(episodeId)
 
-      await insertStoryboards(episodeId, storyboards)
+      await insertStoryboards(episodeId, dramaId, storyboards)
       const totalDuration = await updateEpisodeDurationFromStoryboards(episodeId)
 
       logTaskSuccess('StoryboardTool', 'save-complete', {
@@ -323,7 +379,7 @@ export function createStoryboardTools(episodeId: number, dramaId: number, option
         shotNumbers: renumberedStoryboards.map(storyboard => storyboard.shot_number).join(','),
       })
 
-      await insertStoryboards(episodeId, renumberedStoryboards)
+      await insertStoryboards(episodeId, dramaId, renumberedStoryboards)
       const totalDuration = await updateEpisodeDurationFromStoryboards(episodeId)
 
       logTaskSuccess('StoryboardTool', 'append-complete', {
@@ -376,14 +432,17 @@ export function createStoryboardTools(episodeId: number, dramaId: number, option
         fields: Object.keys(fields),
       })
 
+      const currentCharacterIds = await getStoryboardCharacterIds(storyboard_id)
+      const characterIds = mergeStoryboardCharacterIds(
+        'character_ids' in fields ? fields.character_ids : currentCharacterIds,
+        buildStoryboardUpdateBindingSource(fields, storyboard),
+        await getEpisodeCharacterCandidates(episodeId, dramaId),
+      )
+
       await validateStoryboardBindings(
         episodeId,
         'scene_id' in fields ? fields.scene_id : storyboard.sceneId,
-        'character_ids' in fields
-          ? fields.character_ids
-          : (await db.select().from(schema.storyboardCharacters)
-              .where(eq(schema.storyboardCharacters.storyboardId, storyboard_id)).all())
-              .map(link => link.characterId),
+        characterIds,
       )
 
       const updates: StoryboardUpdateValues = { updatedAt: now() }
@@ -414,13 +473,15 @@ export function createStoryboardTools(episodeId: number, dramaId: number, option
       if ('duration' in fields) updates.duration = fields.duration
 
       await db.update(schema.storyboards).set(updates).where(eq(schema.storyboards.id, storyboard_id)).run()
-      if ('character_ids' in fields) await syncStoryboardCharacters(storyboard_id, fields.character_ids || [])
+      if ('character_ids' in fields || !sameCharacterIds(characterIds, currentCharacterIds)) {
+        await syncStoryboardCharacters(storyboard_id, characterIds)
+      }
 
       logTaskSuccess('StoryboardTool', 'update-complete', {
         episodeId,
         storyboardId: storyboard_id,
         updatedFields: Object.keys(updates),
-        characterIds: 'character_ids' in fields ? (fields.character_ids || []).join(',') : undefined,
+        characterIds: characterIds.join(','),
       })
       return { message: `Storyboard ${storyboard_id} updated` }
     },

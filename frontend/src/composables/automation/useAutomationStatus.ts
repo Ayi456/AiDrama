@@ -1,8 +1,8 @@
-import { ref, onUnmounted } from 'vue'
+import { ref, onUnmounted, watch, type WatchSource } from 'vue'
 import { automationAPI, type AutomationStatusPayload } from '../useApi'
 import { AUTOMATION_POLL_MS, isTerminalStatus, nextBackoffMs } from './automationPollingPolicy'
 
-export function useAutomationStatus(episodeIdRef: () => number) {
+export function useAutomationStatus(episodeIdRef: () => number, refreshSignal?: WatchSource<unknown>) {
   const status = ref<AutomationStatusPayload | null>(null)
   const loading = ref(false)
   let timer: number | null = null
@@ -36,6 +36,7 @@ export function useAutomationStatus(episodeIdRef: () => number) {
   }
 
   async function start() {
+    stop()
     stopped = false
     await fetchOnce()
     scheduleNext()
@@ -48,6 +49,11 @@ export function useAutomationStatus(episodeIdRef: () => number) {
   }
 
   onUnmounted(stop)
+  if (refreshSignal) {
+    watch(refreshSignal, () => {
+      void start()
+    })
+  }
 
   return { status, loading, start, stop, refresh: fetchOnce }
 }

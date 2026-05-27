@@ -33,11 +33,16 @@ import { automationAPI } from '@/composables/useApi'
 import { toast } from 'vue-sonner'
 import '@/assets/automation.css'
 
-const props = defineProps<{ episodeId: number }>()
+const props = withDefaults(defineProps<{ episodeId: number; refreshSignal?: number }>(), {
+  refreshSignal: 0,
+})
 const STAGE_INDEX: Record<string, number> = {
   extract: 1, character_image: 2, scene_image: 3, shot_image: 4, video: 5, merge: 6, done: 6,
 }
-const { status, start, stop, refresh } = useAutomationStatus(() => props.episodeId)
+const { status, start, stop, refresh } = useAutomationStatus(
+  () => props.episodeId,
+  () => props.refreshSignal,
+)
 
 watch(() => props.episodeId, async (v) => { stop(); if (v) await start() }, { immediate: true })
 
