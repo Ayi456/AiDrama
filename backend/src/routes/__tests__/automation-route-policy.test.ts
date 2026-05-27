@@ -1,15 +1,15 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { computeDerivedProgress, normalizePatchAction } from '../actions/automation.js'
+import { computeDerivedProgress, normalizePatchAction } from '../policies/automation-route-policy.js'
 
 test('computeDerivedProgress for extract stage returns 0/1', () => {
   const p = computeDerivedProgress({ stage: 'extract', counts: { storyboards: 0 } })
   assert.deepEqual(p, { current: 0, total: 1, label: '提取角色与分镜' })
 })
 
-test('computeDerivedProgress for shot_image returns done/total', () => {
+test('computeDerivedProgress for legacy shot_image returns skipped progress', () => {
   const p = computeDerivedProgress({ stage: 'shot_image', counts: { storyboards: 12, firstFrames: 8 } })
-  assert.deepEqual(p, { current: 8, total: 12, label: '生成镜头图' })
+  assert.deepEqual(p, { current: 12, total: 12, label: '跳过镜头图' })
 })
 
 test('computeDerivedProgress for video returns done/total', () => {

@@ -1,7 +1,7 @@
 <template>
   <div v-if="status && status.status !== 'idle'" class="automation-progress-bar" :class="{ 'is-failed': status.status === 'failed' }">
     <div class="automation-progress-bar__label">
-      {{ stageOrdinal }}/6 · {{ status.progress.label }}
+      {{ stageOrdinal }}/5 · {{ status.progress.label }}
       <span v-if="status.progress.total > 0" class="muted">
         ({{ status.progress.current }}/{{ status.progress.total }})
       </span>
@@ -37,7 +37,7 @@ const props = withDefaults(defineProps<{ episodeId: number; refreshSignal?: numb
   refreshSignal: 0,
 })
 const STAGE_INDEX: Record<string, number> = {
-  extract: 1, character_image: 2, scene_image: 3, shot_image: 4, video: 5, merge: 6, done: 6,
+  extract: 1, character_image: 2, scene_image: 3, shot_image: 4, video: 4, merge: 5, done: 5,
 }
 const { status, start, stop, refresh } = useAutomationStatus(
   () => props.episodeId,
@@ -50,8 +50,8 @@ const stageOrdinal = computed(() => status.value ? STAGE_INDEX[status.value.stag
 const percent = computed(() => {
   const s = status.value
   if (!s) return 0
-  const stageBase = (stageOrdinal.value - 1) / 6 * 100
-  const inStage = s.progress.total > 0 ? (s.progress.current / s.progress.total) * (100 / 6) : 0
+  const stageBase = (stageOrdinal.value - 1) / 5 * 100
+  const inStage = s.progress.total > 0 ? (s.progress.current / s.progress.total) * (100 / 5) : 0
   return Math.min(100, Math.round(stageBase + inStage))
 })
 

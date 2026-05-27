@@ -3,10 +3,17 @@ import { db, schema } from '../../db/index.js'
 import { runExtractorAgent, runChunkedStoryboardBreaker } from '../../routes/actions/agent.js'
 import { generateCharacterImageBatch } from '../../routes/resources/characters.js'
 import { generateSceneImage } from '../../routes/resources/scenes.js'
-import { generateStoryboardFrame } from '../../routes/actions/grid.js'
 import { generateStoryboardVideo } from '../../routes/resources/videos.js'
 import { mergeEpisodeVideos } from '../merge/ffmpeg-merge.js'
 import { imageGate, videoGate, resizeGates } from './concurrency-gate.js'
+import {
+  STAGE_ORDER,
+  isExtractCompleteFromCounts,
+  nextStage,
+  terminalStage,
+  type AutomationStage,
+} from './stage-policy.js'
+import { buildAutomationVideoReferences } from './video-reference-policy.js'
 
 type InFlightImageKeys = {
   storyboardFirst: Set<number>
@@ -47,17 +54,7 @@ async function loadInFlightImageKeys(episodeId: number): Promise<InFlightImageKe
   return result
 }
 
-export type AutomationStage = 'extract' | 'character_image' | 'scene_image' | 'shot_image' | 'video' | 'merge' | 'done'
-
-export const STAGE_ORDER: AutomationStage[] = ['extract', 'character_image', 'scene_image', 'shot_image', 'video', 'merge', 'done']
-
-export function nextStage(current: AutomationStage): AutomationStage {
-  const idx = STAGE_ORDER.indexOf(current)
-  if (idx < 0 || idx >= STAGE_ORDER.length - 1) return 'done'
-  return STAGE_ORDER[idx + 1]
-}
-
-export function terminalStage(): AutomationStage { return 'done' }
+export { STAGE_ORDER, nextStage, terminalStage, type AutomationStage }
 
 export type StageContext = { episodeId: number; dramaId: number }
 export type StageHandler = {
@@ -70,9 +67,7 @@ const noop: StageHandler = {
   isComplete: async () => true,
 }
 
-export function isExtractCompleteFromCounts(counts: { storyboards: number; episodeCharacters: number; episodeScenes: number }): boolean {
-  return counts.storyboards > 0 && counts.episodeCharacters > 0
-}
+export { isExtractCompleteFromCounts }
 
 async function loadExtractCounts(episodeId: number) {
   const [sbs, ecs, ess] = await Promise.all([
@@ -158,44 +153,7 @@ const sceneImageHandler: StageHandler = {
   },
 }
 
-const shotImageHandler: StageHandler = {
-  enter: async (ctx) => {
-    await syncGateSizes()
-    const sbs = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.episodeId, ctx.episodeId)))
-      .sort((a, b) => (a.storyboardNumber ?? 0) - (b.storyboardNumber ?? 0))
-    if (!sbs.length) return
-    const lastSb = sbs[sbs.length - 1]
-    const inFlight = await loadInFlightImageKeys(ctx.episodeId)
-
-    const firstFrameNeeds = sbs.filter(sb => !sb.firstFrameImage && !inFlight.storyboardFirst.has(sb.id))
-    const lastFrameNeeds = !lastSb.lastFrameImage && !inFlight.storyboardLast.has(lastSb.id) ? [lastSb] : []
-
-    if (!firstFrameNeeds.length && !lastFrameNeeds.length) return
-
-    await Promise.all([
-      ...firstFrameNeeds.map(async (sb) => {
-        const release = await imageGate().acquire()
-        try { await generateStoryboardFrame(sb.id, 'first', ctx.episodeId) }
-        catch (err) { console.warn('[automation] shot image first failed', sb.id, err) }
-        finally { release() }
-      }),
-      ...lastFrameNeeds.map(async (sb) => {
-        const release = await imageGate().acquire()
-        try { await generateStoryboardFrame(sb.id, 'last', ctx.episodeId) }
-        catch (err) { console.warn('[automation] shot image last failed', sb.id, err) }
-        finally { release() }
-      }),
-    ])
-  },
-  isComplete: async (ctx) => {
-    const sbs = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.episodeId, ctx.episodeId)))
-      .sort((a, b) => (a.storyboardNumber ?? 0) - (b.storyboardNumber ?? 0))
-    if (!sbs.length) return false
-    const allFirstDone = sbs.every(sb => !!sb.firstFrameImage)
-    const lastSb = sbs[sbs.length - 1]
-    return allFirstDone && !!lastSb.lastFrameImage
-  },
-}
+const shotImageHandler: StageHandler = noop
 
 async function hasInFlightVideoForStoryboard(storyboardId: number): Promise<boolean> {
   const rows = await db.select().from(schema.videoGenerations).where(eq(schema.videoGenerations.storyboardId, storyboardId))
@@ -218,32 +176,38 @@ const videoHandler: StageHandler = {
     if (await hasInFlightVideoForStoryboard(sb.id)) return
 
     const prev = firstPending > 0 ? sbs[firstPending - 1] : null
-    const next = firstPending < sbs.length - 1 ? sbs[firstPending + 1] : null
 
-    let firstFrameUrl: string | null = null
+    let previousTailFrameUrl: string | null = null
     if (prev) {
       const prevVideos = await db.select().from(schema.videoGenerations).where(eq(schema.videoGenerations.storyboardId, prev.id))
       const latest = prevVideos
         .filter(r => !r.defectCheckParentId)
         .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0]
-      firstFrameUrl = latest?.tailFrameUrl ?? null
+      previousTailFrameUrl = latest?.tailFrameUrl || prev.lastFrameImage || null
     }
-    if (!firstFrameUrl) firstFrameUrl = sb.firstFrameImage ?? null
 
-    const lastFrameUrl = next ? (next.firstFrameImage ?? null) : (sb.lastFrameImage ?? null)
+    const [characterLinks, characters, scenes] = await Promise.all([
+      db.select().from(schema.storyboardCharacters).where(eq(schema.storyboardCharacters.storyboardId, sb.id)),
+      db.select().from(schema.characters).where(eq(schema.characters.dramaId, ctx.dramaId)),
+      db.select().from(schema.scenes).where(eq(schema.scenes.dramaId, ctx.dramaId)),
+    ])
 
-    if (!firstFrameUrl || !lastFrameUrl) {
-      throw new Error(`video stage: missing frame urls for storyboard ${sb.id}`)
-    }
+    const references = buildAutomationVideoReferences({
+      storyboard: sb,
+      previousTailFrameUrl,
+      requirePreviousTailFrame: firstPending > 0,
+      characterIds: characterLinks.map(link => link.characterId),
+      characters,
+      scenes,
+    })
 
     await syncGateSizes()
     const release = await videoGate().acquire()
     try {
       await generateStoryboardVideo({
         storyboardId: sb.id,
-        firstFrameUrl,
-        lastFrameUrl,
-        referenceMode: 'first_last',
+        referenceMode: references.referenceMode,
+        referenceImageUrls: references.referenceImageUrls,
       })
     } finally { release() }
   },

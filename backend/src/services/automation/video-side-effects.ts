@@ -21,6 +21,14 @@ export async function captureAndPersistTailFrame(videoGenerationId: number, loca
   await db.update(schema.videoGenerations)
     .set({ tailFrameUrl: publicUrl, updatedAt: now() })
     .where(eq(schema.videoGenerations.id, videoGenerationId))
+  const [video] = (await db.select().from(schema.videoGenerations)
+    .where(eq(schema.videoGenerations.id, videoGenerationId))
+    .all())
+  if (video?.storyboardId) {
+    await db.update(schema.storyboards)
+      .set({ lastFrameImage: publicUrl, updatedAt: now() })
+      .where(eq(schema.storyboards.id, video.storyboardId))
+  }
 }
 
 export async function notifyAutomationAfterVideo(

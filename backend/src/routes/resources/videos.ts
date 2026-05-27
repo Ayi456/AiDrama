@@ -76,8 +76,11 @@ app.delete('/:id', async (c) => {
 
 export type GenerateStoryboardVideoInput = {
   storyboardId: number
-  firstFrameUrl: string
-  lastFrameUrl: string
+  firstFrameUrl?: string
+  lastFrameUrl?: string
+  referenceImageUrls?: string[] | string
+  referenceVideoUrls?: string[] | string
+  referenceAudioUrls?: string[] | string
   referenceMode?: string
 }
 
@@ -97,6 +100,9 @@ export async function generateStoryboardVideo(input: GenerateStoryboardVideoInpu
     referenceMode: input.referenceMode || 'first_last',
     firstFrameUrl: input.firstFrameUrl,
     lastFrameUrl: input.lastFrameUrl,
+    referenceImageUrls: input.referenceImageUrls,
+    referenceVideoUrls: input.referenceVideoUrls,
+    referenceAudioUrls: input.referenceAudioUrls,
     duration: sb.duration && sb.duration > 0 ? sb.duration : undefined,
     configId,
   })
