@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 
 import {
   mergeAgentInstructions,
+  mergeMandatoryAgentInstructions,
   resolveAgentModelName,
   resolveAgentTools,
   type CreateAgentOptions,
@@ -33,6 +34,21 @@ runTest('mergeAgentInstructions appends non-empty skill instructions with a blan
 runTest('mergeAgentInstructions ignores empty skill instructions', () => {
   assert.equal(mergeAgentInstructions('base instructions', ''), 'base instructions')
   assert.equal(mergeAgentInstructions('base instructions', '   '), 'base instructions')
+})
+
+runTest('mergeMandatoryAgentInstructions appends extractor scene prompt policy to custom prompts', () => {
+  const instructions = mergeMandatoryAgentInstructions('extractor', 'custom extractor prompt')
+
+  assert.match(instructions, /custom extractor prompt/)
+  assert.match(instructions, /scene\.prompt 是可复用的场景资产提示词/)
+  assert.match(instructions, /不要把当前剧情摘要写进 scene\.prompt/)
+})
+
+runTest('mergeMandatoryAgentInstructions keeps unrelated agents unchanged', () => {
+  assert.equal(
+    mergeMandatoryAgentInstructions('script_rewriter', 'custom script prompt'),
+    'custom script prompt',
+  )
 })
 
 runTest('resolveAgentTools dispatches storyboard options to the storyboard factory', () => {

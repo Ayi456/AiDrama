@@ -58,3 +58,20 @@ runTest('agent preset helpers validate and resolve known types only', () => {
   assert.equal(getAgentPreset('storyboard_breaker')?.name, 'AiDrama Shot Planner')
   assert.equal(getAgentPreset('unknown_agent'), null)
 })
+
+runTest('extractor preset defines scene prompts as reusable environment assets', () => {
+  const instructions = AIDRAMA_AGENT_PRESETS.extractor.instructions
+
+  assert.match(instructions, /scene\.prompt 是可复用的场景资产提示词/)
+  assert.match(instructions, /错误示例/)
+  assert.match(instructions, /正确示例/)
+  assert.match(instructions, /不要把当前剧情摘要写进 scene\.prompt/)
+})
+
+runTest('storyboard preset keeps scene asset prompt separate from shot prompts', () => {
+  const instructions = AIDRAMA_AGENT_PRESETS.storyboard_breaker.instructions
+
+  assert.match(instructions, /scene\.prompt 是纯环境资产/)
+  assert.match(instructions, /人物动作、对白和剧情变化只能写入/)
+  assert.match(instructions, /不要改写或扩展场景资产 prompt/)
+})

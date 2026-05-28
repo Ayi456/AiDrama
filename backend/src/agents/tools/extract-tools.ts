@@ -13,6 +13,7 @@ import { db, schema } from '../../db/index.js'
 import { eq, and } from 'drizzle-orm'
 import { now } from '../../utils/response.js'
 import { logTaskProgress, logTaskSuccess } from '../../utils/task-logger.js'
+import { resolveSceneEnvironmentPrompt } from '../visual-prompt-policy.js'
 
 // ─── 关联辅助 ────────────────────────────────────────────────
 async function linkCharToEpisode(episodeId: number, characterId: number) {
@@ -96,6 +97,10 @@ export function createExtractTools(episodeId: number, dramaId: number) {
       const scenes = (await db.select().from(schema.scenes)
         .where(eq(schema.scenes.dramaId, dramaId)).all())
         .filter(s => !s.deletedAt)
+        .map(scene => ({
+          ...scene,
+          prompt: resolveSceneEnvironmentPrompt(scene.prompt, scene.location),
+        }))
       const payload = {
         count: scenes.length,
         scenes,
@@ -183,9 +188,9 @@ export function createExtractTools(episodeId: number, dramaId: number) {
     description: 'Save extracted scenes with deduplication. Existing scenes (same location+time) are reused; new ones are created. All are linked to the current episode.',
     inputSchema: z.object({
       scenes: z.array(z.object({
-        location: z.string(),
-        time: z.string().optional(),
-        prompt: z.string().optional(),
+        location: z.string().describe('Scene location name, such as 云泽楼大殿.'),
+        time: z.string().optional().describe('Time period for this reusable scene asset, such as 中午 or 夜晚.'),
+        prompt: z.string().optional().describe('Reusable environment-only scene asset prompt. Describe architecture, furnishings, props, lighting, color, and atmosphere. Do not include character names, character appearance, actions, dialogue, plot events, or current-shot story summary.'),
       })),
     }),
     execute: async ({ scenes }) => {
@@ -219,7 +224,7 @@ export function createExtractTools(episodeId: number, dramaId: number) {
             dramaId,
             location: scene.location,
             time: scene.time || '',
-            prompt: scene.prompt || scene.location,
+            prompt: resolveSceneEnvironmentPrompt(scene.prompt, scene.location),
             createdAt: ts,
             updatedAt: ts,
           }).run())

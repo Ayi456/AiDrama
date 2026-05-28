@@ -14,6 +14,8 @@ import {
   type AutomationStage,
 } from './stage-policy.js'
 import { buildAutomationVideoReferences } from './video-reference-policy.js'
+import { resolvePreviousTailFrameState } from './previous-tail-frame-policy.js'
+import { captureAndPersistTailFrame } from './tail-frame-capture.js'
 
 type InFlightImageKeys = {
   storyboardFirst: Set<number>
@@ -181,9 +183,19 @@ const videoHandler: StageHandler = {
     if (prev) {
       const prevVideos = await db.select().from(schema.videoGenerations).where(eq(schema.videoGenerations.storyboardId, prev.id))
       const latest = prevVideos
-        .filter(r => !r.defectCheckParentId)
+        .filter(r => !r.defectCheckParentId && r.status === 'completed')
         .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0]
-      previousTailFrameUrl = latest?.tailFrameUrl || prev.lastFrameImage || null
+      const previousTailFrame = resolvePreviousTailFrameState({
+        storyboardLastFrameImage: prev.lastFrameImage,
+        videoGeneration: latest,
+      })
+      previousTailFrameUrl = previousTailFrame.url
+      if (!previousTailFrameUrl && previousTailFrame.captureVideoGenerationId && previousTailFrame.captureLocalPath) {
+        previousTailFrameUrl = await captureAndPersistTailFrame(
+          previousTailFrame.captureVideoGenerationId,
+          previousTailFrame.captureLocalPath,
+        )
+      }
     }
 
     const [characterLinks, characters, scenes] = await Promise.all([

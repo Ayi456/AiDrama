@@ -4,7 +4,7 @@ import { db, schema } from '../../db/index.js'
 import { success, badRequest, notFound, created, now } from '../../utils/response.js'
 import { toSnakeCase, toSnakeCaseArray } from '../../utils/transform.js'
 import { readJsonBody } from '../shared/route-body.js'
-import { resolveCharacterImagePrompt } from '../../agents/visual-prompt-policy.js'
+import { resolveCharacterImagePrompt, resolveSceneEnvironmentPrompt } from '../../agents/visual-prompt-policy.js'
 import {
   buildDramaCreateValues,
   buildDramaEpisodeValues,
@@ -16,11 +16,19 @@ import {
 const app = new Hono()
 
 type CharacterRow = typeof schema.characters.$inferSelect
+type SceneRow = typeof schema.scenes.$inferSelect
 
 function enrichCharactersWithImagePrompt(chars: CharacterRow[], dramaStyle: string | null | undefined) {
   return chars.map((char) => ({
     ...char,
     imagePrompt: resolveCharacterImagePrompt({ ...char, style: dramaStyle || '' }),
+  }))
+}
+
+function enrichScenesWithEnvironmentPrompt(scenes: SceneRow[]) {
+  return scenes.map((scene) => ({
+    ...scene,
+    prompt: resolveSceneEnvironmentPrompt(scene.prompt, scene.location),
   }))
 }
 
@@ -53,7 +61,7 @@ app.get('/', async (c) => {
       automation_running_count: automationRunningCount,
       episodes: toSnakeCaseArray(eps),
       characters: toSnakeCaseArray(enrichCharactersWithImagePrompt(chars, drama.style)),
-      scenes: toSnakeCaseArray(scns),
+      scenes: toSnakeCaseArray(enrichScenesWithEnvironmentPrompt(scns)),
     }
   }))
 
@@ -119,7 +127,7 @@ app.get('/:id', async (c) => {
     tags: drama.tags ? JSON.parse(drama.tags) : [],
     episodes: toSnakeCaseArray(eps),
     characters: toSnakeCaseArray(enrichCharactersWithImagePrompt(chars, drama.style)),
-    scenes: toSnakeCaseArray(scns),
+    scenes: toSnakeCaseArray(enrichScenesWithEnvironmentPrompt(scns)),
     props: toSnakeCaseArray(prps),
   })
 })

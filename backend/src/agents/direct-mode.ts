@@ -5,6 +5,7 @@ import { joinProviderUrl } from '../services/adapters/url.js'
 import { logTaskProgress, logTaskSuccess } from '../utils/task-logger.js'
 import { now } from '../utils/response.js'
 import type { NormalizedToolResult } from './result-normalizer.js'
+import { resolveSceneEnvironmentPrompt } from './visual-prompt-policy.js'
 
 type DirectAgentName = 'script_rewriter' | 'extractor'
 type DirectMessage = {
@@ -304,7 +305,10 @@ function slimScene(row: unknown) {
     id: record.id,
     location: record.location,
     time: record.time,
-    prompt: record.prompt,
+    prompt: resolveSceneEnvironmentPrompt(
+      typeof record.prompt === 'string' ? record.prompt : null,
+      typeof record.location === 'string' ? record.location : null,
+    ),
   }
 }
 
@@ -424,7 +428,7 @@ async function defaultSaveScenes(
         dramaId,
         location: scene.location,
         time: scene.time,
-        prompt: scene.prompt || scene.location,
+        prompt: resolveSceneEnvironmentPrompt(scene.prompt, scene.location),
         createdAt: ts,
         updatedAt: ts,
       }).run()
@@ -498,7 +502,12 @@ function buildExtractorMessages(
         '- Only extract characters and scenes that appear in the current episode.',
         '- Prefer existing character names and existing location/time pairs when they match.',
         '- appearance must contain visible traits only.',
-        '- scene prompt must be Chinese and describe light, color, space atmosphere, and visual elements.',
+        '- scene.prompt is a reusable environment asset prompt for an empty scene/background image, not a plot summary.',
+        '- scene prompt must be Chinese and describe only environment: location, time, architecture, furnishings, light, color, spatial atmosphere, and visual props.',
+        '- scene prompt must not include named characters, character appearance, dialogue, plot events, or action details.',
+        '- If the source sentence mixes environment with character actions, keep only the environment portion in scene.prompt.',
+        '- Bad scene.prompt: 商会会长走向青云宗席位，询问陆尘天赋，众人看向陆尘。',
+        '- Good scene.prompt: 中午的云泽楼大殿，梁柱高阔，宴席铺陈整齐，灵茶与灵果摆在桌案上，光线充足，气氛热烈但暗藏玄机。',
         '',
         `Existing characters:\n${JSON.stringify(existingCharacters.map(slimCharacter), null, 2)}`,
         '',

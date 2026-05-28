@@ -57,25 +57,55 @@ function uniqueTextParts(parts: string[]) {
   return Array.from(new Set(parts.map(part => part.trim()).filter(Boolean)))
 }
 
-const projectStyleLabelMap: Record<string, string> = {
-  realistic: '写实',
-  cinematic: '电影感',
-  guofeng: '国风写实',
-  anime: '动漫',
-  ink_wash: '水墨风',
-  cyberpunk: '赛博朋克',
+const sceneEnvironmentKeywords = [
+  '光', '光线', '灯光', '日光', '月光', '阴影', '明暗', '照明',
+  '色', '色调', '冷色', '暖色', '金色', '冷蓝', '霓虹',
+  '氛围', '气氛', '热闹', '静谧', '压抑', '庄严', '幽深', '暗藏玄机',
+  '空间', '背景', '场景', '大厅', '大殿', '楼', '阁', '殿', '庭院', '街', '巷', '屋', '房', '山', '林', '水', '云', '雾',
+  '建筑', '梁柱', '门窗', '台阶', '屏风', '帷幔', '桌案', '案几', '桌椅', '座席', '席位', '宴席', '宴会', '茶盏', '灵茶', '灵果', '陈设', '摆设', '道具', '装饰', '布置',
+]
+
+const sceneCharacterOrPlotCues: Array<string | RegExp> = [
+  '陆尘', '顾玄', '商会会长', '会长', '侍女', '侍从', '弟子', '长老', '众人', '宾客', '宾客们',
+  '圆脸中年人', '少年', '少女', '青年', '中年人', '老人', '人物', '角色',
+  '笑容', '神情', '目光', '眼底', '穿金戴玉', '木剑',
+  '奉上', '现身', '走向', '面朝', '落在', '看向', '望向', '站在', '坐在', '称赞', '询问', '识破', '触发', '外露', '闪过', '引起', '关注',
+  '对白', '台词', '说话', '询问', '回答', '对话', '剧情', '事件', '能力', '天赋',
+  /[一-龥]{1,8}(?:说道|说|问道|问|看向|望向|走向|面朝|站在|坐在|端起|举起|拿起|触发|露出|奉上|现身|称赞|询问|关注)/,
+]
+
+function splitScenePromptClauses(prompt: string) {
+  return prompt
+    .split(/[。！？!?；;，,\n]+/)
+    .map(sentence => sentence.trim().replace(/^[、]+|[、]+$/g, ''))
+    .filter(Boolean)
 }
 
-const legacyProjectStyleMap: Record<string, string> = {
-  二次元: 'anime',
-  二次元动漫: 'anime',
+function hasCue(text: string, cues: Array<string | RegExp>) {
+  return cues.some(cue => typeof cue === 'string' ? text.includes(cue) : cue.test(text))
 }
 
-function getStyleText(style?: string | null, useLabel = false) {
+export function sanitizeSceneEnvironmentPrompt(prompt?: string | null): string {
+  const raw = String(prompt || '').trim()
+  if (!raw) return ''
+
+  const clauses = splitScenePromptClauses(raw)
+  const environmentClauses = clauses.filter(sentence => {
+    if (hasCue(sentence, sceneCharacterOrPlotCues)) return false
+    return hasCue(sentence, sceneEnvironmentKeywords)
+  })
+
+  return uniqueTextParts(environmentClauses).join('；')
+}
+
+export function resolveSceneEnvironmentPrompt(prompt?: string | null, fallback?: string | null): string {
+  return sanitizeSceneEnvironmentPrompt(prompt) || String(fallback || '').trim()
+}
+
+function getStyleText(style?: string | null, _useLabel = false) {
   const normalized = style?.trim()
   if (!normalized) return ''
-  const legacyValue = legacyProjectStyleMap[normalized]
-  return useLabel ? (projectStyleLabelMap[normalized] || projectStyleLabelMap[legacyValue] || normalized) : (legacyValue || normalized)
+  return normalized
 }
 
 const visualDescriptionKeywords = [
@@ -241,12 +271,11 @@ export function buildCharacterPortraitGenerationPrompt(source: CharacterPromptSo
     descriptionFallback,
     personality,
     role || descriptionIdentity ? `身份：${role || descriptionIdentity}` : null,
-    style ? `项目风格： ${style}` : null,
+    style ? `项目风格:${style}` : null,
     '高清质感',
-    '三张并排的全身角色设定图，统一纯白背景',
+    '三视图，白色背景',
     displayName ? `右上角清晰显示角色名称：${displayName}` : null,
     '画面内只保留人物本身和右上角角色名称，不要其他文字、标签、标题、编号、水印',
-    '统一风格、统一构图、统一角色识别',
   ])
 }
 
@@ -264,7 +293,7 @@ export function resolveCharacterImagePrompt(source: CharacterImagePromptSource):
     source.name,
     '人物立绘',
     '高清质感',
-    '三张并排的全身图',
+    '三视图',
     '纯白背景',
     displayName ? `右上角清晰显示角色名称：${displayName}` : null,
     '不要其他文字、标签、标题、编号、水印',
@@ -273,11 +302,13 @@ export function resolveCharacterImagePrompt(source: CharacterImagePromptSource):
 
 export function buildSceneImagePrompt(source: ScenePromptSource) {
   const style = getStyleText(source.style, true)
+  const environmentPrompt = sanitizeSceneEnvironmentPrompt(source.prompt)
   return compactPromptParts([
     source.location,
     source.time,
-    source.prompt,
+    environmentPrompt,
     style ? `项目风格： ${style}` : null,
+    '只描述环境、建筑、陈设、光线、色调、空间氛围和镜头质感，不描写具体人物、剧情动作、对白或事件',
     '电影感场景',
     '氛围光影',
     '高质量',

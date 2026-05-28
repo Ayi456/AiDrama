@@ -15,6 +15,7 @@ import { getTextConfig, getTextProviderBaseUrl, getTextProviderProtocol } from '
 import { logTaskProgress } from '../utils/task-logger.js'
 import {
   mergeAgentInstructions,
+  mergeMandatoryAgentInstructions,
   resolveAgentModelName,
   resolveAgentTools,
   type CreateAgentOptions,
@@ -86,7 +87,8 @@ export async function createAgent(
 
   const dbConfig = await getAgentConfig(type)
   const model = await getModel(dbConfig)
-  const baseInstructions = dbConfig?.systemPrompt?.trim() || preset.instructions
+  const configuredBaseInstructions = dbConfig?.systemPrompt?.trim() || preset.instructions
+  const baseInstructions = mergeMandatoryAgentInstructions(type, configuredBaseInstructions)
   const skillInstructions = loadAgentSkills(type)
   const instructions = mergeAgentInstructions(baseInstructions, skillInstructions)
   const name = dbConfig?.name || preset.name

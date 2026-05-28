@@ -13,6 +13,16 @@ type AgentModelConfig = {
   model?: string | null
 }
 
+const mandatoryAgentInstructions: Partial<Record<SupportedAgentType, string>> = {
+  extractor: [
+    '## Mandatory Scene Prompt Policy',
+    '- scene.prompt 是可复用的场景资产提示词，用于生成空场景/环境图，不是当前剧情摘要。',
+    '- scene.prompt 只能描述地点、时间、建筑结构、陈设道具、光线、色调、空间氛围和镜头质感。',
+    '- scene.prompt 不得包含具体人物、人物外貌、人物动作、对白、剧情事件、谁看向谁、谁询问谁、能力触发等内容。',
+    '- 不要把当前剧情摘要写进 scene.prompt；如果原文同时出现人物动作和环境，只保留环境部分。',
+  ].join('\n'),
+}
+
 type AgentToolFactorySet<TScriptTools, TExtractTools, TStoryboardTools, TGridPromptTools> = {
   script_rewriter: (episodeId: number) => TScriptTools
   extractor: (episodeId: number, dramaId: number) => TExtractTools
@@ -36,6 +46,13 @@ export function mergeAgentInstructions(baseInstructions: string, skillInstructio
   const normalizedSkills = skillInstructions.trim()
   if (!normalizedSkills) return baseInstructions
   return [baseInstructions, '', normalizedSkills].join('\n')
+}
+
+export function mergeMandatoryAgentInstructions(type: string, baseInstructions: string) {
+  const mandatory = mandatoryAgentInstructions[type as SupportedAgentType]?.trim()
+  if (!mandatory) return baseInstructions
+  if (baseInstructions.includes(mandatory)) return baseInstructions
+  return [baseInstructions, '', mandatory].join('\n')
 }
 
 export function resolveAgentTools<TScriptTools, TExtractTools, TStoryboardTools, TGridPromptTools>(

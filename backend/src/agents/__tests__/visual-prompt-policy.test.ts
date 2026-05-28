@@ -6,6 +6,8 @@ import {
   buildSceneImagePrompt,
   buildVisualGridPromptPlan,
   normalizeVisualGridMode,
+  resolveSceneEnvironmentPrompt,
+  sanitizeSceneEnvironmentPrompt,
 } from '../visual-prompt-policy.js'
 
 function runTest(name: string, fn: () => void) {
@@ -54,7 +56,7 @@ runTest('buildCharacterPortraitGenerationPrompt keeps portrait prompts visual', 
   assert.match(prompt, /黑眼圈/)
   assert.match(prompt, /青色道袍/)
   assert.match(prompt, /疲惫但镇定/)
-  assert.match(prompt, /项目风格[:：]\s*电影感/)
+  assert.match(prompt, /项目风格[:：]\s*cinematic/)
   assert.doesNotMatch(prompt, /穿越者/)
   assert.doesNotMatch(prompt, /系统/)
   assert.doesNotMatch(prompt, /秩序之眼/)
@@ -62,21 +64,22 @@ runTest('buildCharacterPortraitGenerationPrompt keeps portrait prompts visual', 
   assert.doesNotMatch(prompt, /玉牌/)
 })
 
-runTest('buildCharacterPortraitGenerationPrompt labels anime project style as 动漫', () => {
+runTest('buildCharacterPortraitGenerationPrompt keeps user-entered project style text', () => {
   const prompt = buildCharacterPortraitGenerationPrompt({
     name: '阿宁',
     description: '年轻女孩，黑色长发，青色修炼服，神情专注',
     style: 'anime',
   } as any)
-  const legacyPrompt = buildCharacterPortraitGenerationPrompt({
+  const customPrompt = buildCharacterPortraitGenerationPrompt({
     name: '阿宁',
     description: '年轻女孩，黑色长发，青色修炼服，神情专注',
     style: '二次元',
   } as any)
 
-  assert.match(prompt, /项目风格[:：]\s*动漫/)
+  assert.match(prompt, /项目风格[:：]\s*anime/)
   assert.doesNotMatch(prompt, /二次元动漫/)
-  assert.match(legacyPrompt, /项目风格[:：]\s*动漫/)
+  assert.match(customPrompt, /项目风格[:：]\s*二次元/)
+  assert.doesNotMatch(customPrompt, /项目风格[:：]\s*动漫/)
 })
 
 runTest('buildCharacterPortraitGenerationPrompt falls back to visual description clauses', () => {
@@ -89,7 +92,7 @@ runTest('buildCharacterPortraitGenerationPrompt falls back to visual description
   assert.match(prompt, /二十岁出头/)
   assert.match(prompt, /黑眼圈/)
   assert.match(prompt, /疲惫/)
-  assert.match(prompt, /项目风格[:：]\s*写实/)
+  assert.match(prompt, /项目风格[:：]\s*realistic/)
   assert.doesNotMatch(prompt, /穿越者/)
   assert.doesNotMatch(prompt, /系统/)
   assert.doesNotMatch(prompt, /玉牌/)
@@ -124,7 +127,7 @@ runTest('buildCharacterPortraitGenerationPrompt filters non-visual role appearan
   assert.match(prompt, /疲惫但镇定/)
   assert.match(prompt, /三张并排的全身角色设定图/)
   assert.match(prompt, /纯白背景/)
-  assert.match(prompt, /项目风格[:：]\s*写实/)
+  assert.match(prompt, /项目风格[:：]\s*realistic/)
   assert.match(prompt, /右上角/)
   assert.match(prompt, /顾玄/)
   assert.doesNotMatch(prompt, /不要给每张图添加视图名称/)
@@ -185,7 +188,7 @@ runTest('buildSceneImagePrompt uses Chinese scene guidance and project style', (
   assert.match(prompt, /雨夜楼顶/)
   assert.match(prompt, /夜晚/)
   assert.match(prompt, /冷蓝霓虹/)
-  assert.match(prompt, /项目风格[:：]\s*电影感/)
+  assert.match(prompt, /项目风格[:：]\s*cinematic/)
   assert.match(prompt, /电影感场景/)
   assert.match(prompt, /统一画风/)
   assert.match(prompt, /高质量/)
@@ -193,6 +196,55 @@ runTest('buildSceneImagePrompt uses Chinese scene guidance and project style', (
   assert.doesNotMatch(prompt, /atmospheric lighting/)
   assert.doesNotMatch(prompt, /cinematic scene/)
   assert.doesNotMatch(prompt, /high quality/)
+})
+
+runTest('buildSceneImagePrompt keeps scene guidance focused on environment', () => {
+  const sourcePrompt = '中午的云泽楼大殿，光线充足，气氛热烈。宴席开始，侍女奉上灵茶与灵果。商会会长亲自现身，圆脸中年人，笑容和气，穿金戴玉。他专门走向青云宗席位，称赞顾玄识破封图，询问陆尘天赋。陆尘因灵茶触发雷意外露，木剑表面闪过细电，引起众人关注。整体氛围既热闹又暗藏玄机。'
+  const prompt = buildSceneImagePrompt({
+    location: '云泽楼大殿',
+    time: '中午',
+    prompt: sourcePrompt,
+    style: 'guofeng',
+  } as any)
+
+  assert.match(prompt, /云泽楼大殿/)
+  assert.match(prompt, /光线充足/)
+  assert.match(prompt, /气氛热烈/)
+  assert.match(prompt, /整体氛围既热闹又暗藏玄机/)
+  assert.match(prompt, /只描述环境/)
+  assert.doesNotMatch(prompt, /侍女奉上/)
+  assert.doesNotMatch(prompt, /商会会长/)
+  assert.doesNotMatch(prompt, /顾玄/)
+  assert.doesNotMatch(prompt, /陆尘/)
+  assert.doesNotMatch(prompt, /木剑/)
+})
+
+runTest('sanitizeSceneEnvironmentPrompt removes character action clauses from scene text', () => {
+  const prompt = sanitizeSceneEnvironmentPrompt('古风大殿，木质梁柱，暖色光线。陆尘站在席位旁，众人看向他。桌案上摆着灵茶与灵果。')
+
+  assert.match(prompt, /古风大殿/)
+  assert.match(prompt, /木质梁柱/)
+  assert.match(prompt, /暖色光线/)
+  assert.match(prompt, /桌案上摆着灵茶与灵果/)
+  assert.doesNotMatch(prompt, /陆尘/)
+  assert.doesNotMatch(prompt, /众人看向/)
+})
+
+runTest('sanitizeSceneEnvironmentPrompt keeps environment clauses from mixed scene text', () => {
+  const prompt = sanitizeSceneEnvironmentPrompt('云泽楼大殿，梁柱高阔，侍女奉上灵茶与灵果。背景是热闹宴会场景，宾客们关注这边的对话。')
+
+  assert.match(prompt, /云泽楼大殿/)
+  assert.match(prompt, /梁柱高阔/)
+  assert.match(prompt, /热闹宴会场景/)
+  assert.doesNotMatch(prompt, /侍女/)
+  assert.doesNotMatch(prompt, /宾客们/)
+  assert.doesNotMatch(prompt, /对话/)
+})
+
+runTest('resolveSceneEnvironmentPrompt falls back to location when prompt has no environment text', () => {
+  const prompt = resolveSceneEnvironmentPrompt('陆尘站在席位旁，众人看向他。', '云泽楼大殿')
+
+  assert.equal(prompt, '云泽楼大殿')
 })
 
 runTest('normalizeVisualGridMode falls back to first_frame for unknown values', () => {

@@ -54,7 +54,12 @@ export const AIDRAMA_AGENT_PRESETS: Record<SupportedAgentType, AgentPreset> = {
 
 场景规则：
 - 按“地点 + 时间段”精确去重；同地点不同时间段视为不同场景。
-- prompt 必须使用中文描述，包含光线、色调、空间氛围和关键视觉元素。
+- scene.prompt 是可复用的场景资产提示词，用于生成“空场景/环境图”，不是当前剧情摘要。
+- prompt 必须使用中文描述，且只描述环境本身：地点、时间、建筑结构、陈设道具、光线、色调、空间氛围和镜头质感。
+- prompt 不要写具体人物、人物外貌、人物动作、对白、剧情事件、谁看向谁、谁询问谁、能力触发等内容；这些属于分镜/视频提示词，不属于场景图提示词。
+- 不要把当前剧情摘要写进 scene.prompt；如果原文同时出现人物动作和环境，只提取环境部分。
+- 错误示例：商会会长走向青云宗席位，询问陆尘天赋，众人看向陆尘。
+- 正确示例：中午的云泽楼大殿，梁柱高阔，宴席铺陈整齐，灵茶与灵果摆在桌案上，光线充足，气氛热烈但暗藏玄机。
 - 不要遗漏有台词、关键动作或重要转场的角色与场景。`,
   },
   storyboard_breaker: {
@@ -82,6 +87,8 @@ export const AIDRAMA_AGENT_PRESETS: Record<SupportedAgentType, AgentPreset> = {
 - duration：优先 10-15 秒。
 - scene_id：能匹配已有场景时必须填写正确 ID。
 - 如果 read_storyboard_context 返回 project.style，image_prompt 和 video_prompt 必须继承该风格，保持整集画风、镜头质感和角色识别一致。
+- scene.prompt 是纯环境资产，只作为场景背景参考；不要改写或扩展场景资产 prompt。
+- 人物动作、对白和剧情变化只能写入 title、description、action、dialogue、image_prompt、video_prompt、result 或 atmosphere，不能塞回场景资产 prompt。
 
 视频提示词规范：
 - 按 3 秒为一段写清画面变化。

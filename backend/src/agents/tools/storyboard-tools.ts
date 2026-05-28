@@ -16,7 +16,7 @@ import {
   renumberStoryboardsForAppend,
   type StoryboardChunk,
 } from '../storyboard-chunks.js'
-import { buildVisualGridPromptPlan } from '../visual-prompt-policy.js'
+import { buildVisualGridPromptPlan, resolveSceneEnvironmentPrompt } from '../visual-prompt-policy.js'
 
 type StoryboardToolOptions = {
   scriptChunk?: StoryboardChunk
@@ -282,7 +282,7 @@ export function createStoryboardTools(episodeId: number, dramaId: number, option
           id: scene.id,
           location: scene.location,
           time: scene.time,
-          prompt: scene.prompt || '',
+          prompt: resolveSceneEnvironmentPrompt(scene.prompt, scene.location),
           image_url: scene.imageUrl || '',
           storyboard_count: scene.storyboardCount || 0,
         }))

@@ -4,7 +4,7 @@ import { db, schema } from '../../db/index.js'
 import { success, notFound, badRequest, now } from '../../utils/response.js'
 import { toSnakeCaseArray, toSnakeCase } from '../../utils/transform.js'
 import { readJsonBody } from '../shared/route-body.js'
-import { resolveCharacterImagePrompt } from '../../agents/visual-prompt-policy.js'
+import { resolveCharacterImagePrompt, resolveSceneEnvironmentPrompt } from '../../agents/visual-prompt-policy.js'
 import {
   buildChapterCreateValues,
   buildChapterUpdatePatch,
@@ -126,7 +126,10 @@ app.get('/:id/scenes', async (c) => {
 
   const allScenes = await db.select().from(schema.scenes).all()
   const result = allScenes.filter((scene) => sceneIds.includes(scene.id) && !scene.deletedAt)
-  return success(c, toSnakeCaseArray(result))
+  return success(c, toSnakeCaseArray(result.map(scene => ({
+    ...scene,
+    prompt: resolveSceneEnvironmentPrompt(scene.prompt, scene.location),
+  }))))
 })
 
 // GET /chapters/:episode_id/storyboards

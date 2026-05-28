@@ -6,6 +6,7 @@ import {
   buildCharacterImagePrompt,
   buildSceneImagePrompt,
   buildVisualGridPromptPlan,
+  resolveSceneEnvironmentPrompt,
 } from '../visual-prompt-policy.js'
 
 export function createGridPromptTools(episodeId: number, dramaId: number) {
@@ -69,7 +70,7 @@ export function createGridPromptTools(episodeId: number, dramaId: number) {
           id: scene.id,
           location: scene.location,
           time: scene.time || '',
-          prompt: scene.prompt || '',
+          prompt: resolveSceneEnvironmentPrompt(scene.prompt, scene.location),
         })),
       }
     },

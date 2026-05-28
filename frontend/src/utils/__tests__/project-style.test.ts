@@ -16,16 +16,19 @@ function runTest(name: string, fn: () => void) {
   }
 }
 
-runTest('anime preset is displayed as 动漫', () => {
-  assert.equal(getProjectStyleLabel('anime'), '动漫')
-  assert.equal(getProjectStyleInputValue('anime'), '动漫')
+runTest('project style helpers preserve literal style text', () => {
+  assert.equal(normalizeProjectStyleInput('anime'), 'anime')
+  assert.equal(getProjectStyleLabel('anime'), 'anime')
+  assert.equal(getProjectStyleInputValue('anime'), 'anime')
+  assert.equal(normalizeProjectStyleInput(' 动漫 '), '动漫')
 })
 
-runTest('legacy 二次元 input maps to the anime preset', () => {
-  assert.equal(normalizeProjectStyleInput('二次元'), 'anime')
-  assert.equal(normalizeProjectStyleInput('二次元动漫'), 'anime')
-  assert.equal(getProjectStyleLabel('二次元'), '动漫')
-  assert.equal(getProjectStyleLabel('二次元动漫'), '动漫')
+runTest('user-entered 二次元 styles are preserved as custom styles', () => {
+  assert.equal(normalizeProjectStyleInput('二次元'), '二次元')
+  assert.equal(normalizeProjectStyleInput('二次元动漫'), '二次元动漫')
+  assert.equal(getProjectStyleLabel('二次元'), '二次元')
+  assert.equal(getProjectStyleLabel('二次元动漫'), '二次元动漫')
+  assert.equal(getProjectStyleInputValue('二次元'), '二次元')
 })
 
 runTest('custom project styles are preserved', () => {

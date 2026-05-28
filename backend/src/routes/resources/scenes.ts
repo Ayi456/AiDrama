@@ -4,7 +4,7 @@ import { db, schema } from '../../db/index.js'
 import { success, created, badRequest, now } from '../../utils/response.js'
 import { generateImage } from '../../services/generation/image-generation.js'
 import { logTaskError, logTaskStart, logTaskSuccess } from '../../utils/task-logger.js'
-import { buildSceneImagePrompt } from '../../agents/visual-prompt-policy.js'
+import { buildSceneImagePrompt, resolveSceneEnvironmentPrompt } from '../../agents/visual-prompt-policy.js'
 import { errorMessageFromUnknown } from '../../utils/error.js'
 import { hasOwn, readJsonBody } from '../shared/route-body.js'
 
@@ -25,12 +25,13 @@ type SceneUpdatePatch = {
 app.post('/', async (c) => {
   const body = await readJsonBody(c)
   const ts = now()
+  const location = typeof body.location === 'string' ? body.location : ''
   const res = (await db.insert(schema.scenes).values({
     dramaId: Number(body.drama_id),
     episodeId: body.episode_id == null ? null : Number(body.episode_id),
-    location: typeof body.location === 'string' ? body.location : '',
+    location,
     time: typeof body.time === 'string' ? body.time : '',
-    prompt: typeof body.prompt === 'string' ? body.prompt : (typeof body.location === 'string' ? body.location : ''),
+    prompt: resolveSceneEnvironmentPrompt(typeof body.prompt === 'string' ? body.prompt : null, location),
     createdAt: ts,
     updatedAt: ts,
   }).run())
@@ -46,7 +47,16 @@ app.put('/:id', async (c) => {
   const updates: SceneUpdatePatch = { updatedAt: now() }
   if (hasOwn(body, 'location')) updates.location = body.location as string
   if (hasOwn(body, 'time')) updates.time = body.time as string
-  if (hasOwn(body, 'prompt')) updates.prompt = body.prompt as string
+  if (hasOwn(body, 'prompt')) {
+    let fallbackLocation = typeof updates.location === 'string' ? updates.location : ''
+    if (!fallbackLocation) {
+      const [scene] = await db.select({ location: schema.scenes.location }).from(schema.scenes)
+        .where(eq(schema.scenes.id, id))
+        .all()
+      fallbackLocation = scene?.location || ''
+    }
+    updates.prompt = resolveSceneEnvironmentPrompt(body.prompt as string, fallbackLocation)
+  }
   if (hasOwn(body, 'image_url')) updates.imageUrl = body.image_url as string | null
   if (hasOwn(body, 'imageUrl')) updates.imageUrl = body.imageUrl as string | null
   if (hasOwn(body, 'local_path')) updates.localPath = body.local_path as string | null
