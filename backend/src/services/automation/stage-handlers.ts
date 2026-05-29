@@ -16,6 +16,7 @@ import {
 import { buildAutomationVideoReferences } from './video-reference-policy.js'
 import { resolvePreviousTailFrameState } from './previous-tail-frame-policy.js'
 import { captureAndPersistTailFrame } from './tail-frame-capture.js'
+import { setAutomationProgress } from './progress-state.js'
 
 type InFlightImageKeys = {
   storyboardFirst: Set<number>
@@ -88,9 +89,37 @@ export async function isExtractComplete(ctx: StageContext): Promise<boolean> {
 const extractHandler: StageHandler = {
   enter: async (ctx) => {
     const counts = await loadExtractCounts(ctx.episodeId)
+    setAutomationProgress(ctx.episodeId, {
+      stage: 'extract',
+      current: counts.episodeCharacters > 0 || counts.episodeScenes > 0 ? 1 : 0,
+      total: 2,
+      label: '提取角色与场景',
+    })
     if (counts.episodeCharacters === 0) await runExtractorAgent(ctx.dramaId, ctx.episodeId)
     const after = await loadExtractCounts(ctx.episodeId)
-    if (after.storyboards === 0) await runChunkedStoryboardBreaker(ctx.dramaId, ctx.episodeId)
+    setAutomationProgress(ctx.episodeId, {
+      stage: 'extract',
+      current: 1,
+      total: 2,
+      label: '提取角色与场景',
+    })
+    if (after.storyboards === 0) {
+      await runChunkedStoryboardBreaker(ctx.dramaId, ctx.episodeId, undefined, undefined, {
+        onProgress: progress => setAutomationProgress(ctx.episodeId, {
+          stage: 'extract',
+          current: progress.current,
+          total: progress.total,
+          label: '拆解分镜',
+        }),
+      })
+    } else {
+      setAutomationProgress(ctx.episodeId, {
+        stage: 'extract',
+        current: 2,
+        total: 2,
+        label: '提取角色与场景',
+      })
+    }
   },
   isComplete: isExtractComplete,
 }

@@ -29,7 +29,12 @@
       @primary-action="panel = mergeUrl ? 'export' : (sbs.length ? 'production' : 'script')"
     />
 
-    <AutomationProgressBar v-if="epId" :episode-id="epId" :refresh-signal="automationProgressRefreshSignal" />
+    <AutomationProgressBar
+      v-if="epId"
+      :episode-id="epId"
+      :refresh-signal="automationProgressRefreshSignal"
+      @status-change="handleAutomationStatusChange"
+    />
 
     <div class="studio-body">
     <!-- ========== LEFT SIDEBAR ========== -->
@@ -180,6 +185,7 @@ import ChapterStudioTopbar from '@/components/chapter/ChapterStudioTopbar.vue'
 import ChapterStoryboardEditor from '@/components/chapter/ChapterStoryboardEditor.vue'
 import AutomationProgressBar from '@/components/automation/AutomationProgressBar.vue'
 import { useChapterExportDesk } from '@/composables/chapter/useChapterExportDesk'
+import { shouldRefreshChapterForAutomationStatus } from '@/composables/automation/automationRefreshPolicy'
 import { useChapterGridTool } from '@/composables/chapter/useChapterGridTool'
 import { useChapterImageViewer } from '@/composables/chapter/useChapterImageViewer'
 import { useChapterMediaPipeline } from '@/composables/chapter/useChapterMediaPipeline'
@@ -208,10 +214,40 @@ const mergeData = ref(null)
 const selectedSb = ref(null)
 const characterAssets = ref([])
 const characterAssetBusy = ref(false)
+const manualAssetBusy = ref(false)
 
 const { running: rn, runningType: rt, run: runAgent } = useAgent()
 const scriptStep = ref(0)
 const automationProgressRefreshSignal = ref(0)
+const automationDataRefreshSignature = ref('')
+let automationDataRefreshRunning = false
+let automationDataRefreshQueued = false
+
+async function refreshChapterAfterAutomationProgress() {
+  if (automationDataRefreshRunning) {
+    automationDataRefreshQueued = true
+    return
+  }
+  automationDataRefreshRunning = true
+  try {
+    do {
+      automationDataRefreshQueued = false
+      await refresh()
+    } while (automationDataRefreshQueued)
+  } finally {
+    automationDataRefreshRunning = false
+  }
+}
+
+function handleAutomationStatusChange(nextStatus) {
+  const decision = shouldRefreshChapterForAutomationStatus(
+    automationDataRefreshSignature.value,
+    nextStatus,
+  )
+  automationDataRefreshSignature.value = decision.signature
+  if (!decision.shouldRefresh) return
+  void refreshChapterAfterAutomationProgress()
+}
 
 const {
   imageConfigs,
@@ -418,6 +454,73 @@ async function handleCharacterAssetBind(payload) {
     toast.error(error?.message || '角色形象绑定失败')
   } finally {
     characterAssetBusy.value = false
+  }
+}
+
+async function handleManualCharacterAdd(payload) {
+  if (!payload?.name || !epId.value) return
+  manualAssetBusy.value = true
+  try {
+    let uploaded = null
+    if (payload.file) {
+      if (!payload.file.type?.startsWith('image/')) {
+        toast.error('请选择图片文件')
+        return
+      }
+      uploaded = await uploadAPI.image(payload.file)
+    }
+
+    await characterAPI.create({
+      drama_id: dramaId,
+      episode_id: epId.value,
+      name: payload.name,
+      role: payload.role || '',
+      description: payload.description || '',
+      appearance: payload.appearance || '',
+      personality: payload.personality || '',
+      image_prompt: payload.image_prompt || payload.imagePrompt || '',
+      character_asset_id: payload.character_asset_id || payload.characterAssetId || undefined,
+      image_url: uploaded?.url || undefined,
+      local_path: uploaded?.path || undefined,
+    })
+    await refresh()
+    toast.success('角色已手动添加')
+  } catch (error) {
+    toast.error(error?.message || '手动添加角色失败')
+  } finally {
+    manualAssetBusy.value = false
+  }
+}
+
+async function handleManualSceneAdd(payload) {
+  if (!payload?.location || !epId.value) return
+  manualAssetBusy.value = true
+  try {
+    let uploaded = null
+    if (payload.file) {
+      if (!payload.file.type?.startsWith('image/')) {
+        toast.error('请选择图片文件')
+        return
+      }
+      uploaded = await uploadAPI.image(payload.file)
+    }
+
+    await sceneAPI.create({
+      drama_id: dramaId,
+      episode_id: epId.value,
+      location: payload.location,
+      time: payload.time || '',
+      prompt: payload.prompt || '',
+      image_url: uploaded?.url || undefined,
+      local_path: uploaded?.path || undefined,
+      status: uploaded?.url ? 'completed' : 'pending',
+    })
+    await refresh()
+    toast.success('场景已手动添加')
+  } catch (error) {
+    toast.error(error?.message || '手动添加场景失败')
+  } finally {
+    manualAssetBusy.value = false
   }
 }
 
@@ -714,6 +817,7 @@ const {
   visualChars,
   characterAssets,
   characterAssetBusy,
+  manualAssetBusy,
   chars,
   scenes,
   lockedImageConfigLabel,
@@ -801,6 +905,7 @@ const {
   buildDefaultVideoPrompt,
   batchCharImages,
   genCharImg: handleCharacterGenerate,
+  handleManualCharacterAdd,
   replaceCharImage,
   handleCharacterDescriptionUpdate,
   handleCharacterAssetUpload,
@@ -808,6 +913,7 @@ const {
   handleGalleryViewerOpen,
   batchSceneImages,
   genSceneImg,
+  handleManualSceneAdd,
   replaceSceneImage,
   uploadSceneReference,
   clearSceneReference,

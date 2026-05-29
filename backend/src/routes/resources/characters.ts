@@ -1,13 +1,14 @@
 import { Hono } from 'hono'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db, schema } from '../../db/index.js'
-import { success, badRequest, now } from '../../utils/response.js'
+import { success, created, badRequest, now } from '../../utils/response.js'
 import { generateImage } from '../../services/generation/image-generation.js'
 import { resolveCharacterAssetReferenceImages } from '../../services/assets/character-asset-generation.js'
 import { logTaskError, logTaskStart, logTaskSuccess } from '../../utils/task-logger.js'
 import { resolveCharacterImagePrompt } from '../../agents/visual-prompt-policy.js'
 import { errorMessageFromUnknown } from '../../utils/error.js'
 import { hasOwn, readJsonBody } from '../shared/route-body.js'
+import { toSnakeCase } from '../../utils/transform.js'
 
 const app = new Hono()
 
@@ -23,6 +24,79 @@ type CharacterUpdatePatch = {
   localPath?: string | null
   characterAssetId?: number | null
 }
+
+function readBodyText(body: Record<string, unknown>, ...keys: string[]) {
+  for (const key of keys) {
+    const value = body[key]
+    if (typeof value === 'string') return value.trim()
+  }
+  return ''
+}
+
+function readBodyId(body: Record<string, unknown>, ...keys: string[]) {
+  for (const key of keys) {
+    const value = body[key]
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+    if (typeof value === 'string' && value.trim()) {
+      const parsed = Number(value)
+      if (Number.isFinite(parsed)) return parsed
+    }
+  }
+  return 0
+}
+
+async function linkCharacterToEpisode(episodeId: number, characterId: number) {
+  const existing = await db.select().from(schema.episodeCharacters)
+    .where(and(eq(schema.episodeCharacters.episodeId, episodeId), eq(schema.episodeCharacters.characterId, characterId)))
+    .all()
+  if (existing.length) return
+  await db.insert(schema.episodeCharacters).values({ episodeId, characterId, createdAt: now() }).run()
+}
+
+// POST /characters
+app.post('/', async (c) => {
+  const body = await readJsonBody(c)
+  const dramaId = readBodyId(body, 'drama_id', 'dramaId')
+  const episodeId = readBodyId(body, 'episode_id', 'episodeId')
+  const characterAssetId = readBodyId(body, 'character_asset_id', 'characterAssetId')
+  const name = readBodyText(body, 'name')
+
+  if (!dramaId) return badRequest(c, 'drama_id is required')
+  if (!name) return badRequest(c, '角色名不能为空')
+
+  if (episodeId) {
+    const [episode] = await db.select().from(schema.episodes).where(eq(schema.episodes.id, episodeId)).all()
+    if (!episode) return badRequest(c, 'Episode not found')
+    if (episode.dramaId !== dramaId) return badRequest(c, 'episode_id does not belong to drama_id')
+  }
+
+  if (characterAssetId) {
+    const [asset] = await db.select().from(schema.characterAssets).where(eq(schema.characterAssets.id, characterAssetId)).all()
+    if (!asset || asset.deletedAt || asset.isActive === false) return badRequest(c, '角色形象未找到')
+  }
+
+  const ts = now()
+  const res = await db.insert(schema.characters).values({
+    dramaId,
+    name,
+    role: readBodyText(body, 'role'),
+    description: readBodyText(body, 'description'),
+    appearance: readBodyText(body, 'appearance'),
+    personality: readBodyText(body, 'personality'),
+    imagePrompt: readBodyText(body, 'image_prompt', 'imagePrompt') || null,
+    imageUrl: readBodyText(body, 'image_url', 'imageUrl') || null,
+    localPath: readBodyText(body, 'local_path', 'localPath') || null,
+    characterAssetId: characterAssetId || null,
+    createdAt: ts,
+    updatedAt: ts,
+  }).run()
+
+  const characterId = Number(res.lastInsertRowid)
+  if (episodeId) await linkCharacterToEpisode(episodeId, characterId)
+
+  const [character] = await db.select().from(schema.characters).where(eq(schema.characters.id, characterId)).all()
+  return created(c, toSnakeCase(character))
+})
 
 // PUT /characters/:id
 app.put('/:id', async (c) => {

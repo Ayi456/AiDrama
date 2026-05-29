@@ -102,6 +102,26 @@ export type SceneReferenceImagePayload = {
   file?: File
 }
 
+export type ManualCharacterPayload = {
+  name?: string
+  role?: string
+  description?: string
+  appearance?: string
+  personality?: string
+  image_prompt?: string
+  imagePrompt?: string
+  character_asset_id?: number | null
+  characterAssetId?: number | null
+  file?: File | null
+}
+
+export type ManualScenePayload = {
+  location?: string
+  time?: string
+  prompt?: string
+  file?: File | null
+}
+
 export type VideoReferenceOverride = {
   reference_mode?: string
   image_url?: string

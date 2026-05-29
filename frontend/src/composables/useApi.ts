@@ -33,6 +33,10 @@ export type CharacterAsset = ApiEntity & {
 }
 export type DramaCharacter = ApiEntity & {
   name?: string
+  role?: string
+  description?: string
+  appearance?: string
+  personality?: string
   image_url?: string
   imageUrl?: string
   image_prompt?: string | null
@@ -44,7 +48,7 @@ export type DramaCharacter = ApiEntity & {
   character_asset_image_url?: string | null
   characterAssetImageUrl?: string | null
 }
-export type Scene = ApiEntity & { location?: string; time?: string; image_url?: string; imageUrl?: string; reference_image?: string | null; referenceImage?: string | null }
+export type Scene = ApiEntity & { location?: string; time?: string; prompt?: string; image_url?: string; imageUrl?: string; reference_image?: string | null; referenceImage?: string | null }
 export type Storyboard = ApiEntity & {
   storyboard_number?: number
   storyboardNumber?: number
@@ -276,6 +280,7 @@ export const storyboardAPI = {
 }
 
 export const characterAPI = {
+  create: (data: ApiRequestBody) => api.post<DramaCharacter>('/characters', data),
   update: (id: number, data: ApiRequestBody) => api.put<DramaCharacter>(`/characters/${id}`, data),
   bindAsset: (id: number, assetId: number) => api.post(`/characters/${id}/bind-asset`, { character_asset_id: assetId }),
   unbindAsset: (id: number) => api.del(`/characters/${id}/bind-asset`),
@@ -292,6 +297,7 @@ export const characterAssetAPI = {
 }
 
 export const sceneAPI = {
+  create: (data: ApiRequestBody) => api.post<Scene>('/scenes', data),
   update: (id: number, data: ApiRequestBody) => api.put<Scene>(`/scenes/${id}`, data),
   generateImage: (id: number, episodeId: number) => api.post<ImageGenerationStart>(`/scenes/${id}/generate-image`, { episode_id: episodeId }),
 }

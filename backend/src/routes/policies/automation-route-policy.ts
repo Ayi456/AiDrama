@@ -1,4 +1,5 @@
 export type DerivedProgress = { current: number; total: number; label: string }
+export type LiveProgressSnapshot = DerivedProgress & { stage: ProgressInput['stage'] }
 export type ProgressInput =
   | { stage: 'extract'; counts: { storyboards: number } }
   | { stage: 'character_image'; counts: { characters: number; charactersWithImage: number } }
@@ -18,6 +19,19 @@ export function computeDerivedProgress(input: ProgressInput): DerivedProgress {
     case 'merge': return { current: input.counts.merged ? 1 : 0, total: 1, label: '拼接视频' }
     case 'done': return { current: 1, total: 1, label: '已完成' }
   }
+}
+
+function normalizeProgress(progress: DerivedProgress): DerivedProgress {
+  const total = Math.max(0, Math.floor(progress.total || 0))
+  const current = Math.max(0, Math.min(total, Math.floor(progress.current || 0)))
+  return { current, total, label: progress.label }
+}
+
+export function resolveProgress(input: ProgressInput, liveProgress?: LiveProgressSnapshot | null): DerivedProgress {
+  if (liveProgress?.stage === input.stage) {
+    return normalizeProgress(liveProgress)
+  }
+  return computeDerivedProgress(input)
 }
 
 export function normalizePatchAction(action: string): 'cancel' | 'resume' | 'abort' | null {

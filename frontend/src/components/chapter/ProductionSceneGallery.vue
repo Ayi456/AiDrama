@@ -10,11 +10,61 @@
       </div>
       <div class="scene-gallery__actions">
         <span class="tag">{{ lockedImageConfigLabel }}</span>
+        <button
+          type="button"
+          class="btn btn-sm scene-gallery__manual-btn"
+          :disabled="manualBusy"
+          @click="openManualDialog"
+        >
+          <MapPlus :size="12" />
+          手动添加
+        </button>
         <button class="btn btn-sm" @click="emit('batch-generate')">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
           批量生成
         </button>
       </div>
+    </div>
+
+    <div v-if="manualDialogOpen" class="scene-gallery__dialog" @click.self="closeManualDialog">
+      <form class="scene-gallery__dialog-card" @submit.prevent="submitManualScene">
+        <div class="scene-gallery__dialog-head">
+          <div>
+            <span class="scene-gallery__kicker">Manual Scene</span>
+            <h3>手动添加场景</h3>
+          </div>
+          <button class="scene-gallery__dialog-close" type="button" title="关闭" @click="closeManualDialog">×</button>
+        </div>
+
+        <div class="scene-gallery__form-grid">
+          <label class="scene-gallery__field">
+            <span>场景地点</span>
+            <input v-model.trim="manualForm.location" type="text" placeholder="例如：云泽楼大殿" required />
+          </label>
+          <label class="scene-gallery__field">
+            <span>时间段</span>
+            <input v-model.trim="manualForm.time" type="text" placeholder="例如：夜晚 / 清晨" />
+          </label>
+        </div>
+
+        <label class="scene-gallery__field">
+          <span>场景提示词</span>
+          <textarea v-model.trim="manualForm.prompt" rows="5" placeholder="建筑、陈设、光线、天气、材质和整体氛围" />
+        </label>
+
+        <label class="scene-gallery__file-field">
+          <input type="file" accept="image/*" @change="handleManualFile" />
+          <Upload :size="14" />
+          <span>{{ manualFileName || '上传场景图片（可选）' }}</span>
+        </label>
+
+        <div class="scene-gallery__dialog-actions">
+          <button class="btn btn-sm" type="button" @click="closeManualDialog">取消</button>
+          <button class="btn btn-sm btn-primary" type="submit" :disabled="manualBusy || !manualForm.location.trim()">
+            {{ manualBusy ? '保存中' : '保存场景' }}
+          </button>
+        </div>
+      </form>
     </div>
 
     <div class="scene-gallery__grid">
@@ -157,6 +207,8 @@
 </template>
 
 <script setup>
+import { ref } from 'vue'
+import { MapPlus, Upload } from 'lucide-vue-next'
 import { assetUrl } from '@/utils/asset-url'
 
 const props = defineProps({
@@ -180,9 +232,14 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  manualBusy: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 const emit = defineEmits([
+  'manual-add',
   'batch-generate',
   'generate',
   'replace-image',
@@ -191,6 +248,47 @@ const emit = defineEmits([
   'upload-scene-reference',
   'clear-scene-reference',
 ])
+
+const emptyManualForm = () => ({
+  location: '',
+  time: '',
+  prompt: '',
+  file: null,
+})
+
+const manualDialogOpen = ref(false)
+const manualForm = ref(emptyManualForm())
+const manualFileName = ref('')
+
+function openManualDialog() {
+  manualDialogOpen.value = true
+}
+
+function closeManualDialog() {
+  manualDialogOpen.value = false
+  manualForm.value = emptyManualForm()
+  manualFileName.value = ''
+}
+
+function handleManualFile(event) {
+  const input = event.target
+  const file = input?.files?.[0] || null
+  manualForm.value.file = file
+  manualFileName.value = file?.name || ''
+  if (input) input.value = ''
+}
+
+function submitManualScene() {
+  const location = manualForm.value.location.trim()
+  if (!location) return
+  emit('manual-add', {
+    location,
+    time: manualForm.value.time.trim(),
+    prompt: manualForm.value.prompt.trim(),
+    file: manualForm.value.file,
+  })
+  closeManualDialog()
+}
 
 function getSceneImage(scene) {
   return scene?.image_url || scene?.imageUrl || ''

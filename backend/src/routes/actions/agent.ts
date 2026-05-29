@@ -26,6 +26,16 @@ function getErrorStack(error: unknown) {
 export const DEFAULT_EXTRACTOR_MESSAGE = '请从剧本中提取所有角色和场景信息，提取时自动与项目已有数据进行去重合并。'
 export const DEFAULT_STORYBOARD_BREAKER_MESSAGE = '请拆解分镜并生成视频提示词。'
 
+export type StoryboardBreakerProgress = {
+  current: number
+  total: number
+  chunkIndex?: number
+}
+
+type StoryboardBreakerOptions = {
+  onProgress?: (progress: StoryboardBreakerProgress) => void | Promise<void>
+}
+
 export async function runExtractorAgent(
   dramaId: number,
   episodeId: number,
@@ -59,6 +69,7 @@ export async function runChunkedStoryboardBreaker(
   episodeId: number,
   message: string = DEFAULT_STORYBOARD_BREAKER_MESSAGE,
   chunkChars?: number,
+  options: StoryboardBreakerOptions = {},
 ) {
   const [episode] = (await db.select().from(schema.episodes)
     .where(eq(schema.episodes.id, episodeId)).all())
@@ -76,6 +87,7 @@ export async function runChunkedStoryboardBreaker(
     chunks: chunks.length,
     chunkChars: maxChars,
   })
+  await options.onProgress?.({ current: 0, total: chunks.length })
 
   const chunkResults: Array<{
     chunkIndex: number
@@ -94,6 +106,11 @@ export async function runChunkedStoryboardBreaker(
       chunkIndex: chunk.index,
       chunkTotal: chunk.total,
       chunkLength: chunk.script.length,
+    })
+    await options.onProgress?.({
+      current: Math.max(0, chunk.index - 1),
+      total: chunk.total,
+      chunkIndex: chunk.index,
     })
 
     const chunkAgent = await createAgent('storyboard_breaker', episodeId, dramaId, {
@@ -141,6 +158,11 @@ export async function runChunkedStoryboardBreaker(
     if (!wasToolUsed(normalized, 'append_storyboards')) {
       throw new Error(`Storyboard chunk ${chunk.index}/${chunk.total} did not call append_storyboards`)
     }
+    await options.onProgress?.({
+      current: chunk.index,
+      total: chunk.total,
+      chunkIndex: chunk.index,
+    })
   }
 
   return {

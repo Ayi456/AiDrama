@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db, schema } from '../../db/index.js'
 import { success, created, badRequest, now } from '../../utils/response.js'
 import { generateImage } from '../../services/generation/image-generation.js'
@@ -7,6 +7,7 @@ import { logTaskError, logTaskStart, logTaskSuccess } from '../../utils/task-log
 import { buildSceneImagePrompt, resolveSceneEnvironmentPrompt } from '../../agents/visual-prompt-policy.js'
 import { errorMessageFromUnknown } from '../../utils/error.js'
 import { hasOwn, readJsonBody } from '../shared/route-body.js'
+import { toSnakeCase } from '../../utils/transform.js'
 
 const app = new Hono()
 
@@ -21,23 +22,71 @@ type SceneUpdatePatch = {
   referenceImage?: string | null
 }
 
+function readBodyText(body: Record<string, unknown>, ...keys: string[]) {
+  for (const key of keys) {
+    const value = body[key]
+    if (typeof value === 'string') return value.trim()
+  }
+  return ''
+}
+
+function readBodyId(body: Record<string, unknown>, ...keys: string[]) {
+  for (const key of keys) {
+    const value = body[key]
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+    if (typeof value === 'string' && value.trim()) {
+      const parsed = Number(value)
+      if (Number.isFinite(parsed)) return parsed
+    }
+  }
+  return 0
+}
+
+async function linkSceneToEpisode(episodeId: number, sceneId: number) {
+  const existing = await db.select().from(schema.episodeScenes)
+    .where(and(eq(schema.episodeScenes.episodeId, episodeId), eq(schema.episodeScenes.sceneId, sceneId)))
+    .all()
+  if (existing.length) return
+  await db.insert(schema.episodeScenes).values({ episodeId, sceneId, createdAt: now() }).run()
+}
+
 // POST /scenes
 app.post('/', async (c) => {
   const body = await readJsonBody(c)
   const ts = now()
-  const location = typeof body.location === 'string' ? body.location : ''
+  const dramaId = readBodyId(body, 'drama_id', 'dramaId')
+  const episodeId = readBodyId(body, 'episode_id', 'episodeId')
+  const location = readBodyText(body, 'location')
+  const imageUrl = readBodyText(body, 'image_url', 'imageUrl')
+
+  if (!dramaId) return badRequest(c, 'drama_id is required')
+  if (!location) return badRequest(c, '场景地点不能为空')
+
+  if (episodeId) {
+    const [episode] = await db.select().from(schema.episodes).where(eq(schema.episodes.id, episodeId)).all()
+    if (!episode) return badRequest(c, 'Episode not found')
+    if (episode.dramaId !== dramaId) return badRequest(c, 'episode_id does not belong to drama_id')
+  }
+
   const res = (await db.insert(schema.scenes).values({
-    dramaId: Number(body.drama_id),
-    episodeId: body.episode_id == null ? null : Number(body.episode_id),
+    dramaId,
+    episodeId: episodeId || null,
     location,
-    time: typeof body.time === 'string' ? body.time : '',
-    prompt: resolveSceneEnvironmentPrompt(typeof body.prompt === 'string' ? body.prompt : null, location),
+    time: readBodyText(body, 'time'),
+    prompt: resolveSceneEnvironmentPrompt(readBodyText(body, 'prompt') || null, location),
+    imageUrl: imageUrl || null,
+    localPath: readBodyText(body, 'local_path', 'localPath') || null,
+    referenceImage: readBodyText(body, 'reference_image', 'referenceImage') || null,
+    status: readBodyText(body, 'status') || (imageUrl ? 'completed' : 'pending'),
     createdAt: ts,
     updatedAt: ts,
   }).run())
-  const [result] = (await db.select().from(schema.scenes)
-    .where(eq(schema.scenes.id, Number(res.lastInsertRowid))).all())
-  return created(c, result)
+  const sceneId = Number(res.lastInsertRowid)
+  if (episodeId) await linkSceneToEpisode(episodeId, sceneId)
+
+  const [result] = await db.select().from(schema.scenes)
+    .where(eq(schema.scenes.id, sceneId)).all()
+  return created(c, toSnakeCase(result))
 })
 
 // PUT /scenes/:id

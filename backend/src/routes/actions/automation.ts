@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { and, eq } from 'drizzle-orm'
 import { db, schema } from '../../db/index.js'
 import { start, cancel, resume, abort } from '../../services/automation/episode-orchestrator.js'
+import { getAutomationProgress } from '../../services/automation/progress-state.js'
 import * as automationRoutePolicy from '../policies/automation-route-policy.js'
 
 export type DerivedProgress = automationRoutePolicy.DerivedProgress
@@ -44,11 +45,12 @@ app.get('/episodes/:id/automation', async (c) => {
   if (!epRows.length) return c.json({ code: 404, data: null, message: 'episode not found' }, 404)
   const ep = epRows[0]
   const stage = (ep.automationStage ?? 'extract') as ProgressInput['stage']
+  const liveProgress = getAutomationProgress(episodeId)
 
   let progress: DerivedProgress
   if (stage === 'extract') {
     const sbs = await db.select().from(schema.storyboards).where(eq(schema.storyboards.episodeId, episodeId))
-    progress = automationRoutePolicy.computeDerivedProgress({ stage, counts: { storyboards: sbs.length } })
+    progress = automationRoutePolicy.resolveProgress({ stage, counts: { storyboards: sbs.length } }, liveProgress)
   } else if (stage === 'character_image') {
     const ec = await db.select().from(schema.episodeCharacters).where(eq(schema.episodeCharacters.episodeId, episodeId))
     const charIds = ec.map(r => r.characterId)
@@ -60,7 +62,7 @@ app.get('/episodes/:id/automation', async (c) => {
       total = filtered.length
       done = filtered.filter(c => !!c.imageUrl).length
     }
-    progress = automationRoutePolicy.computeDerivedProgress({ stage, counts: { characters: total, charactersWithImage: done } })
+    progress = automationRoutePolicy.resolveProgress({ stage, counts: { characters: total, charactersWithImage: done } }, liveProgress)
   } else if (stage === 'scene_image') {
     const es = await db.select().from(schema.episodeScenes).where(eq(schema.episodeScenes.episodeId, episodeId))
     const sceneIds = es.map(r => r.sceneId)
@@ -72,24 +74,24 @@ app.get('/episodes/:id/automation', async (c) => {
       total = filtered.length
       done = filtered.filter(s => !!s.imageUrl).length
     }
-    progress = automationRoutePolicy.computeDerivedProgress({ stage, counts: { scenes: total, scenesWithImage: done } })
+    progress = automationRoutePolicy.resolveProgress({ stage, counts: { scenes: total, scenesWithImage: done } }, liveProgress)
   } else if (stage === 'shot_image') {
     const sbs = await db.select().from(schema.storyboards).where(eq(schema.storyboards.episodeId, episodeId))
-    progress = automationRoutePolicy.computeDerivedProgress({ stage, counts: {
+    progress = automationRoutePolicy.resolveProgress({ stage, counts: {
       storyboards: sbs.length,
       firstFrames: sbs.filter(sb => !!sb.firstFrameImage).length,
-    } })
+    } }, liveProgress)
   } else if (stage === 'video') {
     const sbs = await db.select().from(schema.storyboards).where(eq(schema.storyboards.episodeId, episodeId))
-    progress = automationRoutePolicy.computeDerivedProgress({ stage, counts: {
+    progress = automationRoutePolicy.resolveProgress({ stage, counts: {
       storyboards: sbs.length,
       videos: sbs.filter(sb => !!sb.videoUrl).length,
-    } })
+    } }, liveProgress)
   } else if (stage === 'merge') {
     const mr = await db.select().from(schema.videoMerges).where(and(eq(schema.videoMerges.episodeId, episodeId), eq(schema.videoMerges.status, 'completed')))
-    progress = automationRoutePolicy.computeDerivedProgress({ stage, counts: { merged: mr.length > 0 } })
+    progress = automationRoutePolicy.resolveProgress({ stage, counts: { merged: mr.length > 0 } }, liveProgress)
   } else {
-    progress = automationRoutePolicy.computeDerivedProgress({ stage: 'done', counts: {} })
+    progress = automationRoutePolicy.resolveProgress({ stage: 'done', counts: {} }, liveProgress)
   }
 
   return c.json({ code: 0, data: {

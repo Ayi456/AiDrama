@@ -29,13 +29,16 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
 import { useAutomationStatus } from '@/composables/automation/useAutomationStatus'
-import { automationAPI } from '@/composables/useApi'
+import { automationAPI, type AutomationStatusPayload } from '@/composables/useApi'
 import { toast } from 'vue-sonner'
 import '@/assets/automation.css'
 
 const props = withDefaults(defineProps<{ episodeId: number; refreshSignal?: number }>(), {
   refreshSignal: 0,
 })
+const emit = defineEmits<{
+  (event: 'status-change', status: AutomationStatusPayload): void
+}>()
 const STAGE_INDEX: Record<string, number> = {
   extract: 1, character_image: 2, scene_image: 3, shot_image: 4, video: 4, merge: 5, done: 5,
 }
@@ -45,6 +48,7 @@ const { status, start, stop, refresh } = useAutomationStatus(
 )
 
 watch(() => props.episodeId, async (v) => { stop(); if (v) await start() }, { immediate: true })
+watch(status, value => { if (value) emit('status-change', value) })
 
 const stageOrdinal = computed(() => status.value ? STAGE_INDEX[status.value.stage] ?? 0 : 0)
 const percent = computed(() => {

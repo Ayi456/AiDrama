@@ -12,6 +12,16 @@
         <span class="tag">{{ lockedImageConfigLabel }}</span>
         <span v-if="hasNarratorOnly" class="tag">旁白仅保留声音</span>
 
+        <button
+          type="button"
+          class="btn btn-sm character-gallery__manual-btn"
+          :disabled="assetBusy || manualBusy"
+          @click="openManualDialog"
+        >
+          <UserPlus :size="12" />
+          手动添加
+        </button>
+
         <div class="character-gallery__asset-upload">
           <label :class="['btn btn-sm character-gallery__upload-btn', assetBusy && 'is-disabled']" title="上传默认男主形象">
             <input
@@ -53,6 +63,67 @@
           批量生成
         </button>
       </div>
+    </div>
+
+    <div v-if="manualDialogOpen" class="character-gallery__dialog" @click.self="closeManualDialog">
+      <form class="character-gallery__dialog-card" @submit.prevent="submitManualCharacter">
+        <div class="character-gallery__dialog-head">
+          <div>
+            <span class="character-gallery__kicker">Manual Character</span>
+            <h3>手动添加角色</h3>
+          </div>
+          <button class="character-gallery__dialog-close" type="button" title="关闭" @click="closeManualDialog">×</button>
+        </div>
+
+        <div class="character-gallery__form-grid">
+          <label class="character-gallery__field">
+            <span>角色名</span>
+            <input v-model.trim="manualForm.name" type="text" placeholder="例如：沈知意" required />
+          </label>
+          <label class="character-gallery__field">
+            <span>身份</span>
+            <input v-model.trim="manualForm.role" type="text" placeholder="例如：女主 / 管家 / 反派" />
+          </label>
+        </div>
+
+        <label class="character-gallery__field">
+          <span>绑定形象</span>
+          <select v-model="manualForm.characterAssetId">
+            <option value="">不绑定形象库</option>
+            <option v-for="asset in characterAssets" :key="asset.id" :value="asset.id">
+              {{ asset.name || '未命名形象' }} · {{ rolePresetLabel(asset.role_preset || asset.rolePreset) }}
+            </option>
+          </select>
+        </label>
+
+        <label class="character-gallery__field">
+          <span>角色描述</span>
+          <textarea v-model.trim="manualForm.description" rows="3" placeholder="人物关系、身份背景、气质关键词" />
+        </label>
+
+        <label class="character-gallery__field">
+          <span>外貌设定</span>
+          <textarea v-model.trim="manualForm.appearance" rows="3" placeholder="发型、服装、年龄感、辨识物件" />
+        </label>
+
+        <label class="character-gallery__field">
+          <span>图片提示词</span>
+          <textarea v-model.trim="manualForm.imagePrompt" rows="4" placeholder="留空时后续生成会使用系统兜底提示词" />
+        </label>
+
+        <label class="character-gallery__file-field">
+          <input type="file" accept="image/*" @change="handleManualFile" />
+          <Upload :size="14" />
+          <span>{{ manualFileName || '上传角色形象图（可选）' }}</span>
+        </label>
+
+        <div class="character-gallery__dialog-actions">
+          <button class="btn btn-sm" type="button" @click="closeManualDialog">取消</button>
+          <button class="btn btn-sm btn-primary" type="submit" :disabled="assetBusy || manualBusy || !manualForm.name.trim()">
+            {{ manualBusy ? '保存中' : '保存角色' }}
+          </button>
+        </div>
+      </form>
     </div>
 
     <div class="character-gallery__grid">
@@ -163,7 +234,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { ImagePlus, Upload } from 'lucide-vue-next'
+import { ImagePlus, Upload, UserPlus } from 'lucide-vue-next'
 import { assetUrl } from '@/utils/asset-url'
 
 const props = defineProps({
@@ -195,9 +266,14 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  manualBusy: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 const emit = defineEmits([
+  'manual-add',
   'batch-generate',
   'generate',
   'replace-image',
@@ -206,6 +282,55 @@ const emit = defineEmits([
   'update-character-description',
   'open-image-viewer',
 ])
+
+const emptyManualForm = () => ({
+  name: '',
+  role: '',
+  description: '',
+  appearance: '',
+  personality: '',
+  imagePrompt: '',
+  characterAssetId: '',
+  file: null,
+})
+
+const manualDialogOpen = ref(false)
+const manualForm = ref(emptyManualForm())
+const manualFileName = ref('')
+
+function openManualDialog() {
+  manualDialogOpen.value = true
+}
+
+function closeManualDialog() {
+  manualDialogOpen.value = false
+  manualForm.value = emptyManualForm()
+  manualFileName.value = ''
+}
+
+function handleManualFile(event) {
+  const input = event.target
+  const file = input?.files?.[0] || null
+  manualForm.value.file = file
+  manualFileName.value = file?.name || ''
+  if (input) input.value = ''
+}
+
+function submitManualCharacter() {
+  const name = manualForm.value.name.trim()
+  if (!name) return
+  emit('manual-add', {
+    name,
+    role: manualForm.value.role.trim(),
+    description: manualForm.value.description.trim(),
+    appearance: manualForm.value.appearance.trim(),
+    personality: manualForm.value.personality.trim(),
+    image_prompt: manualForm.value.imagePrompt.trim(),
+    character_asset_id: manualForm.value.characterAssetId ? Number(manualForm.value.characterAssetId) : null,
+    file: manualForm.value.file,
+  })
+  closeManualDialog()
+}
 
 function getCharacterImage(character) {
   return character?.image_url || character?.imageUrl || ''

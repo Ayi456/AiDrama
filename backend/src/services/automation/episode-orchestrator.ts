@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../db/index.js'
 import { AutomationStage, handlers, nextStage } from './stage-handlers.js'
+import { clearAutomationProgress, setAutomationProgress } from './progress-state.js'
 
 export type AutomationStatus = 'idle' | 'running' | 'paused' | 'failed' | 'done'
 
@@ -44,6 +45,13 @@ export async function start(episodeId: number): Promise<{ ok: boolean; status: A
     return { ok: false, status: (ep.automationStatus ?? 'idle') as AutomationStatus, message: 'already running or paused' }
   }
   const now = new Date().toISOString()
+  clearAutomationProgress(episodeId)
+  setAutomationProgress(episodeId, {
+    stage: 'extract',
+    current: 0,
+    total: 1,
+    label: '准备自动化',
+  })
   await db.update(schema.episodes).set({
     automationStatus: 'running',
     automationStage: 'extract',
@@ -103,6 +111,7 @@ export async function advance(episodeId: number): Promise<void> {
 
       const now = new Date().toISOString()
       if (decision.type === 'transition') {
+        clearAutomationProgress(episodeId)
         await db.update(schema.episodes).set({
           automationStage: decision.toStage,
           automationAttempt: 0,
@@ -112,6 +121,7 @@ export async function advance(episodeId: number): Promise<void> {
         continue
       }
       if (decision.type === 'finish') {
+        clearAutomationProgress(episodeId)
         await db.update(schema.episodes).set({
           automationStage: 'done',
           automationStatus: 'done',
@@ -129,6 +139,7 @@ export async function advance(episodeId: number): Promise<void> {
         continue
       }
       if (decision.type === 'fail') {
+        clearAutomationProgress(episodeId)
         await db.update(schema.episodes).set({
           automationStatus: 'failed',
           automationError: stageError ?? 'unknown',
@@ -170,6 +181,7 @@ export async function resume(episodeId: number) {
   void advance(episodeId)
 }
 export async function abort(episodeId: number) {
+  clearAutomationProgress(episodeId)
   await mutate(episodeId, 'abort')
 }
 

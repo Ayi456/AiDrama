@@ -12,6 +12,7 @@ type ProductionPanelBridgeOptions = {
   visualChars: ValueRef<unknown[]>
   characterAssets: ValueRef<unknown[]>
   characterAssetBusy: ValueRef<boolean>
+  manualAssetBusy: ValueRef<boolean>
   chars: ValueRef<unknown[]>
   scenes: ValueRef<unknown[]>
   lockedImageConfigLabel: ValueRef<string>
@@ -99,6 +100,7 @@ type ProductionPanelBridgeOptions = {
   buildDefaultVideoPrompt: BridgeHandler
   batchCharImages: BridgeHandler
   genCharImg: BridgeHandler
+  handleManualCharacterAdd: BridgeHandler
   replaceCharImage: BridgeHandler
   handleCharacterDescriptionUpdate: BridgeHandler
   handleCharacterAssetUpload: BridgeHandler
@@ -106,6 +108,7 @@ type ProductionPanelBridgeOptions = {
   handleGalleryViewerOpen: BridgeHandler
   batchSceneImages: BridgeHandler
   genSceneImg: BridgeHandler
+  handleManualSceneAdd: BridgeHandler
   replaceSceneImage: BridgeHandler
   uploadSceneReference: BridgeHandler
   clearSceneReference: BridgeHandler
@@ -149,6 +152,7 @@ export function useChapterProductionPanelBridge(options: ProductionPanelBridgeOp
     visualChars: options.visualChars.value,
     characterAssets: options.characterAssets.value,
     characterAssetBusy: options.characterAssetBusy.value,
+    manualAssetBusy: options.manualAssetBusy.value,
     chars: options.chars.value,
     scenes: options.scenes.value,
     lockedImageConfigLabel: options.lockedImageConfigLabel.value,
@@ -241,6 +245,7 @@ export function useChapterProductionPanelBridge(options: ProductionPanelBridgeOp
     setProdTab: (value: string) => { options.prodTab.value = value },
     batchCharImages: options.batchCharImages,
     genCharImg: options.genCharImg,
+    handleManualCharacterAdd: options.handleManualCharacterAdd,
     replaceCharImage: options.replaceCharImage,
     handleCharacterDescriptionUpdate: options.handleCharacterDescriptionUpdate,
     handleCharacterAssetUpload: options.handleCharacterAssetUpload,
@@ -248,6 +253,7 @@ export function useChapterProductionPanelBridge(options: ProductionPanelBridgeOp
     handleGalleryViewerOpen: options.handleGalleryViewerOpen,
     batchSceneImages: options.batchSceneImages,
     genSceneImg: options.genSceneImg,
+    handleManualSceneAdd: options.handleManualSceneAdd,
     replaceSceneImage: options.replaceSceneImage,
     uploadSceneReference: options.uploadSceneReference,
     clearSceneReference: options.clearSceneReference,
