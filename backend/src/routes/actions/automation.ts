@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { and, eq } from 'drizzle-orm'
 import { db, schema } from '../../db/index.js'
-import { start, cancel, resume, abort } from '../../services/automation/episode-orchestrator.js'
+import { start, cancel, resume, abort, advance } from '../../services/automation/episode-orchestrator.js'
 import { getAutomationProgress } from '../../services/automation/progress-state.js'
 import * as automationRoutePolicy from '../policies/automation-route-policy.js'
 
@@ -44,6 +44,9 @@ app.get('/episodes/:id/automation', async (c) => {
   const epRows = await db.select().from(schema.episodes).where(eq(schema.episodes.id, episodeId))
   if (!epRows.length) return c.json({ code: 404, data: null, message: 'episode not found' }, 404)
   const ep = epRows[0]
+  if (ep.automationStatus === 'running') {
+    void advance(episodeId).catch(err => console.warn('[automation] advance after status read failed', err))
+  }
   const stage = (ep.automationStage ?? 'extract') as ProgressInput['stage']
   const liveProgress = getAutomationProgress(episodeId)
 

@@ -45,6 +45,7 @@ import { buildDefectCheckCallback } from './video-defect-check-binding.js'
 import { captureAndPersistTailFrame, notifyAutomationAfterVideo } from '../automation/video-side-effects.js'
 
 type GenerateVideoParams = VideoGenerationEnqueueParams
+export type VideoGenerationRefreshResult = 'missing' | 'idle' | 'processing' | 'completed' | 'failed'
 
 export async function generateVideo(params: GenerateVideoParams): Promise<number> {
   const ts = now()
@@ -261,6 +262,73 @@ async function pollVideoTask(id: number, config: AIConfig, taskId: string, story
     persistFailure: persistence.persistFailure,
   })
   await notifyAutomationAfterVideo(id, storyboardId ?? null, 'failed')
+}
+
+export async function refreshVideoGenerationStatus(id: number): Promise<VideoGenerationRefreshResult> {
+  const [record] = await db.select().from(schema.videoGenerations).where(eq(schema.videoGenerations.id, id))
+  if (!record) return 'missing'
+
+  const status = record.status ?? 'pending'
+  if (status !== 'pending' && status !== 'processing') return 'idle'
+  if (!record.taskId) return 'processing'
+
+  const config = await getActiveConfig('video')
+  if (!config) throw new Error('No active video AI config')
+  if (record.provider && config.provider && record.provider !== config.provider) {
+    throw new Error(`Active video provider ${config.provider} does not match generation provider ${record.provider}`)
+  }
+
+  const adapter = getVideoAdapter(config.provider)
+  const persistence = createVideoGenerationDbPersistence(id)
+  const preparedPoll = prepareProviderPollAttempt({
+    id,
+    taskId: record.taskId,
+    attemptNumber: 1,
+    config,
+    adapter,
+    redactUrl,
+  })
+  logTaskProgress('VideoTask', 'resume-poll-request', preparedPoll.logContext)
+
+  const providerPoll = await submitProviderPollAttempt({
+    providerRequest: preparedPoll.providerRequest,
+  }, {
+    now,
+    isProviderApiError,
+    sendJsonRequest: sendProviderJsonRequest,
+    persistSnapshot: persistence.persistSnapshot,
+  })
+  if (providerPoll.type === 'continue') return 'processing'
+
+  const pollDecision = interpretVideoPollResult(adapter, providerPoll.result)
+  if (pollDecision.type === 'completed-url') {
+    logTaskSuccess('VideoTask', 'resume-poll-complete', {
+      id,
+      taskId: record.taskId,
+      videoUrl: pollDecision.videoUrl,
+    })
+    await completeGeneratedVideo(id, { type: 'url', videoUrl: pollDecision.videoUrl }, record.duration, record.storyboardId)
+    return 'completed'
+  }
+
+  if (pollDecision.type === 'failed') {
+    logTaskError('VideoTask', 'resume-poll-failed', { id, taskId: record.taskId, error: pollDecision.error })
+    await recordMediaJobFailure({
+      taskName: 'VideoTask',
+      event: 'resume-poll-failed',
+      id,
+      provider: config.provider,
+      error: new Error(pollDecision.error),
+      failedAt: now(),
+    }, {
+      logError: logTaskError,
+      persistFailure: persistence.persistFailure,
+    })
+    await notifyAutomationAfterVideo(id, record.storyboardId ?? null, 'failed')
+    return 'failed'
+  }
+
+  return 'processing'
 }
 
 async function completeGeneratedVideo(

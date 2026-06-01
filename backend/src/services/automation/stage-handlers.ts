@@ -4,6 +4,7 @@ import { runExtractorAgent, runChunkedStoryboardBreaker } from '../../routes/act
 import { generateCharacterImageBatch } from '../../routes/resources/characters.js'
 import { generateSceneImage } from '../../routes/resources/scenes.js'
 import { generateStoryboardVideo } from '../../routes/resources/videos.js'
+import { refreshVideoGenerationStatus } from '../generation/video-generation.js'
 import { mergeEpisodeVideos } from '../merge/ffmpeg-merge.js'
 import { imageGate, videoGate, resizeGates } from './concurrency-gate.js'
 import {
@@ -18,6 +19,7 @@ import { resolvePreviousTailFrameState } from './previous-tail-frame-policy.js'
 import { captureAndPersistTailFrame } from './tail-frame-capture.js'
 import { setAutomationProgress } from './progress-state.js'
 import { getVideoGenerationInFlightState } from './video-generation-staleness-policy.js'
+import { selectRefreshableVideoGeneration } from './video-task-refresh-policy.js'
 
 type InFlightImageKeys = {
   storyboardFirst: Set<number>
@@ -222,6 +224,17 @@ async function expireStaleVideoGenerationsForStoryboard(storyboardId: number): P
   }))
 }
 
+async function refreshInFlightVideoForStoryboard(storyboardId: number): Promise<boolean> {
+  const rows = await db.select().from(schema.videoGenerations).where(eq(schema.videoGenerations.storyboardId, storyboardId))
+  const target = selectRefreshableVideoGeneration(rows)
+  if (!target) return false
+
+  const result = await refreshVideoGenerationStatus(target.id)
+  if (result === 'completed') return true
+  if (result === 'failed') throw new Error(`Video generation ${target.id} failed`)
+  return false
+}
+
 const videoHandler: StageHandler = {
   enter: async (ctx) => {
     const sbs = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.episodeId, ctx.episodeId)))
@@ -232,6 +245,7 @@ const videoHandler: StageHandler = {
     if (firstPending < 0) return
     const sb = sbs[firstPending]
     await expireStaleVideoGenerationsForStoryboard(sb.id)
+    if (await refreshInFlightVideoForStoryboard(sb.id)) return
     if (await hasInFlightVideoForStoryboard(sb.id)) return
 
     const prev = firstPending > 0 ? sbs[firstPending - 1] : null
