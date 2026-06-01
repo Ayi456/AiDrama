@@ -36,6 +36,7 @@ export function computeAdvanceDecision(input: AdvanceInput): AdvanceDecision {
 }
 
 const inFlight = new Set<number>()
+const pendingAdvance = new Set<number>()
 
 export async function start(episodeId: number): Promise<{ ok: boolean; status: AutomationStatus; message?: string }> {
   const rows = await db.select().from(schema.episodes).where(eq(schema.episodes.id, episodeId))
@@ -70,7 +71,10 @@ async function loadMaxRetries(): Promise<number> {
 }
 
 export async function advance(episodeId: number): Promise<void> {
-  if (inFlight.has(episodeId)) return
+  if (inFlight.has(episodeId)) {
+    pendingAdvance.add(episodeId)
+    return
+  }
   inFlight.add(episodeId)
   try {
     while (true) {
@@ -151,6 +155,9 @@ export async function advance(episodeId: number): Promise<void> {
     }
   } finally {
     inFlight.delete(episodeId)
+    if (pendingAdvance.delete(episodeId)) {
+      void advance(episodeId).catch(err => console.warn('[automation] pending advance failed for episode', episodeId, err))
+    }
   }
 }
 

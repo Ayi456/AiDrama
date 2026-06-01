@@ -17,6 +17,7 @@ import { buildAutomationVideoReferences } from './video-reference-policy.js'
 import { resolvePreviousTailFrameState } from './previous-tail-frame-policy.js'
 import { captureAndPersistTailFrame } from './tail-frame-capture.js'
 import { setAutomationProgress } from './progress-state.js'
+import { getVideoGenerationInFlightState } from './video-generation-staleness-policy.js'
 
 type InFlightImageKeys = {
   storyboardFirst: Set<number>
@@ -188,11 +189,37 @@ const shotImageHandler: StageHandler = noop
 
 async function hasInFlightVideoForStoryboard(storyboardId: number): Promise<boolean> {
   const rows = await db.select().from(schema.videoGenerations).where(eq(schema.videoGenerations.storyboardId, storyboardId))
+  const nowMs = Date.now()
   return rows.some(r => {
-    if (r.defectCheckParentId) return false
-    const status = r.status ?? 'pending'
-    return status === 'pending' || status === 'processing'
+    return getVideoGenerationInFlightState(r, nowMs).inFlight
   })
+}
+
+async function expireStaleVideoGenerationsForStoryboard(storyboardId: number): Promise<void> {
+  const rows = await db.select().from(schema.videoGenerations).where(eq(schema.videoGenerations.storyboardId, storyboardId))
+  const nowMs = Date.now()
+  const staleRows = rows
+    .map(row => ({ row, state: getVideoGenerationInFlightState(row, nowMs) }))
+    .filter(({ state }) => state.stale)
+
+  if (!staleRows.length) return
+
+  const updatedAt = new Date(nowMs).toISOString()
+  await Promise.all(staleRows.map(async ({ row, state }) => {
+    await db.update(schema.videoGenerations)
+      .set({
+        status: 'failed',
+        errorMsg: `Automation reset stale video generation: ${state.reason ?? 'stale in-flight video generation'}`,
+        updatedAt,
+      })
+      .where(eq(schema.videoGenerations.id, row.id))
+      .run()
+    console.warn('[automation] expired stale video generation', {
+      storyboardId,
+      videoGenerationId: row.id,
+      reason: state.reason,
+    })
+  }))
 }
 
 const videoHandler: StageHandler = {
@@ -204,6 +231,7 @@ const videoHandler: StageHandler = {
     const firstPending = sbs.findIndex(sb => !sb.videoUrl)
     if (firstPending < 0) return
     const sb = sbs[firstPending]
+    await expireStaleVideoGenerationsForStoryboard(sb.id)
     if (await hasInFlightVideoForStoryboard(sb.id)) return
 
     const prev = firstPending > 0 ? sbs[firstPending - 1] : null
