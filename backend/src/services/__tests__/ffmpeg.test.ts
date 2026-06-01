@@ -8,6 +8,7 @@ import {
   escapeConcatPath,
   firstExistingPath,
 } from '../ffmpeg/ffmpeg.js'
+import { ensureTailFrameInputFile, type TailFrameInputDownload } from '../automation/tail-frame-input.js'
 import { ensureMergeInputFiles, type MergeInputFile, requireExistingMergeInputFiles } from '../merge/merge-inputs.js'
 import { selectMergeClipStoryboards } from '../merge/merge-clips.js'
 import { ffmpegMergeOutputOptions, ffmpegMergeStrategies, resolveFfmpegMergeTimeoutMs } from '../merge/merge-ffmpeg-strategy.js'
@@ -145,6 +146,95 @@ await runTest('ensureMergeInputFiles restores missing videos with bounded concur
 
   assert.equal(maxActive, 2)
   assert.equal(files.length, 3)
+})
+
+await runTest('ensureTailFrameInputFile restores a missing source video before ffmpeg runs', async () => {
+  const existing = new Set<string>()
+  const downloads: string[] = []
+
+  const input = await ensureTailFrameInputFile({
+    source: {
+      localPath: 'static/videos/b.mp4',
+      minioUrl: 'https://cdn.example.com/videos/b.mp4',
+    },
+    dataRoot: 'C:/repo/data',
+    storageRoot: 'C:/repo/data/static',
+  }, {
+    exists: (filePath: string) => existing.has(filePath),
+    download: async (item: TailFrameInputDownload) => {
+      downloads.push(`${item.sourceUrl} -> ${item.localPath}`)
+      existing.add(item.localPath)
+      return true
+    },
+  })
+
+  assert.equal(input, path.join('C:/repo/data', 'static/videos/b.mp4'))
+  assert.deepEqual(downloads, [
+    `https://cdn.example.com/videos/b.mp4 -> ${path.join('C:/repo/data', 'static/videos/b.mp4')}`,
+  ])
+})
+
+await runTest('ensureTailFrameInputFile maps configured COS URLs back to local video paths', async () => {
+  const previous = {
+    secretId: process.env.TENCENT_SECRET_ID,
+    secretKey: process.env.TENCENT_SECRET_KEY,
+    bucket: process.env.TENCENT_COS_BUCKET,
+    region: process.env.TENCENT_COS_REGION,
+  }
+  process.env.TENCENT_SECRET_ID = 'sid'
+  process.env.TENCENT_SECRET_KEY = 'skey'
+  process.env.TENCENT_COS_BUCKET = 'tail-frame-test'
+  process.env.TENCENT_COS_REGION = 'ap-shanghai'
+  try {
+    const input = await ensureTailFrameInputFile({
+      source: {
+        localPath: 'https://tail-frame-test.cos.ap-shanghai.myqcloud.com/seedance/videos/c.mp4',
+        minioUrl: 'https://tail-frame-test.cos.ap-shanghai.myqcloud.com/seedance/videos/c.mp4',
+      },
+      dataRoot: 'C:/repo/data',
+      storageRoot: 'C:/repo/data/static',
+    }, {
+      exists: (filePath: string) => filePath === path.join('C:/repo/data', 'static/videos/c.mp4'),
+    })
+
+    assert.equal(input, path.join('C:/repo/data', 'static/videos/c.mp4'))
+  } finally {
+    if (previous.secretId == null) delete process.env.TENCENT_SECRET_ID
+    else process.env.TENCENT_SECRET_ID = previous.secretId
+    if (previous.secretKey == null) delete process.env.TENCENT_SECRET_KEY
+    else process.env.TENCENT_SECRET_KEY = previous.secretKey
+    if (previous.bucket == null) delete process.env.TENCENT_COS_BUCKET
+    else process.env.TENCENT_COS_BUCKET = previous.bucket
+    if (previous.region == null) delete process.env.TENCENT_COS_REGION
+    else process.env.TENCENT_COS_REGION = previous.region
+  }
+})
+
+await runTest('ensureTailFrameInputFile restores remote-only video urls into a stable cache path', async () => {
+  const existing = new Set<string>()
+  const downloads: string[] = []
+
+  const input = await ensureTailFrameInputFile({
+    source: {
+      localPath: null,
+      videoUrl: 'https://provider.example.com/videos/remote-only.mp4',
+    },
+    dataRoot: 'C:/repo/data',
+    storageRoot: 'C:/repo/data/static',
+  }, {
+    exists: (filePath: string) => existing.has(filePath),
+    download: async (item: TailFrameInputDownload) => {
+      downloads.push(`${item.sourceUrl} -> ${item.localPath}`)
+      existing.add(item.localPath)
+      return true
+    },
+  })
+
+  assert.ok(input?.includes(path.join('static', 'videos', 'tail-frame-sources')))
+  assert.ok(input?.endsWith('.mp4'))
+  assert.deepEqual(downloads, [
+    `https://provider.example.com/videos/remote-only.mp4 -> ${input}`,
+  ])
 })
 
 await runTest('ffmpeg merge strategies try stream copy before transcoding fallback', () => {

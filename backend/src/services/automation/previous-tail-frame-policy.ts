@@ -2,6 +2,8 @@ export type PreviousTailFrameVideoGeneration = {
   id?: number | null
   tailFrameUrl?: string | null
   localPath?: string | null
+  videoUrl?: string | null
+  minioUrl?: string | null
 }
 
 export type PreviousTailFrameState = {
@@ -39,6 +41,8 @@ export function resolvePreviousTailFrameState(input: {
 
   const videoGenerationId = Number(input.videoGeneration?.id)
   const localPath = nonEmpty(input.videoGeneration?.localPath)
+    || nonEmpty(input.videoGeneration?.minioUrl)
+    || nonEmpty(input.videoGeneration?.videoUrl)
   if (Number.isFinite(videoGenerationId) && videoGenerationId > 0 && localPath) {
     return {
       url: null,

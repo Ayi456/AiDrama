@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { eq, isNull, desc } from 'drizzle-orm'
 import { db, schema } from '../../db/index.js'
-import { success, badRequest, notFound, created, now } from '../../utils/response.js'
+import { success, notFound, created, now } from '../../utils/response.js'
 import { toSnakeCase, toSnakeCaseArray } from '../../utils/transform.js'
 import { readJsonBody } from '../shared/route-body.js'
 import { resolveCharacterImagePrompt, resolveSceneEnvironmentPrompt } from '../../agents/visual-prompt-policy.js'

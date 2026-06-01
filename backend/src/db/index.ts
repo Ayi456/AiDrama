@@ -2,7 +2,6 @@ import mysql, { type Pool, type PoolOptions, type RowDataPacket } from 'mysql2/p
 import { drizzle } from 'drizzle-orm/mysql2'
 import * as schema from './schema.js'
 import { eq } from 'drizzle-orm'
-import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { backfillPersistedAssetUrls } from './asset-url-backfill.js'

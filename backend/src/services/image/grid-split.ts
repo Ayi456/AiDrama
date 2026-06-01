@@ -1,7 +1,6 @@
 import sharp from 'sharp'
 import fs from 'fs'
 import path from 'path'
-import { now } from '../../utils/response.js'
 import { getAbsolutePath } from '../../utils/storage.js'
 
 const DATA_DIR = getAbsolutePath('grid-cells')

@@ -43,3 +43,20 @@ test('resolvePreviousTailFrameState requests capture when completed video has no
     captureLocalPath: 'static/videos/source.mp4',
   })
 })
+
+test('resolvePreviousTailFrameState can request capture from a completed video url', () => {
+  assert.deepEqual(resolvePreviousTailFrameState({
+    storyboardLastFrameImage: null,
+    videoGeneration: {
+      id: 452,
+      tailFrameUrl: null,
+      localPath: null,
+      minioUrl: 'https://cdn.example.com/source.mp4',
+      videoUrl: 'https://provider.example.com/source.mp4',
+    },
+  }), {
+    url: null,
+    captureVideoGenerationId: 452,
+    captureLocalPath: 'https://cdn.example.com/source.mp4',
+  })
+})

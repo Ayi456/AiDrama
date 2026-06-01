@@ -7,7 +7,7 @@ import type {
   ImagePollResponse,
 } from './types.js'
 import { joinProviderUrl } from './url.js'
-import { isRecord, readRecord } from './adapter-utils.js'
+import { isRecord } from './adapter-utils.js'
 
 export class VolcEngineImageAdapter implements ImageProviderAdapter {
   provider = 'volcengine'

@@ -1,5 +1,3 @@
-import { eq } from 'drizzle-orm'
-import { db, schema } from '../../db/index.js'
 import { onResourceCompleted } from './automation-hook.js'
 export { captureAndPersistTailFrame } from './tail-frame-capture.js'
 

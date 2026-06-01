@@ -38,13 +38,7 @@ type GridPayload = {
   cell_prompts: GridCellPrompt[]
 }
 
-const POSITIONS = [
-  'top-left', 'top-right', 'top-center',
-  'center-left', 'center', 'center-right',
-  'bottom-left', 'bottom-center', 'bottom-right',
-]
-
-function posLabel(i: number, rows: number, cols: number) {
+function posLabel(i: number, _rows: number, cols: number) {
   const r = Math.floor(i / cols), c = i % cols
   return `row ${r + 1} col ${c + 1}`
 }

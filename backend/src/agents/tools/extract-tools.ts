@@ -214,12 +214,6 @@ export function createExtractTools(episodeId: number, dramaId: number) {
           linkSceneToEpisode(episodeId, existing.id)
           results.reused++
         } else {
-          // 检查是否有同地点不同时段（保留现有，新增独立场景）
-          const sameLocation = (await db.select().from(schema.scenes)
-            .where(eq(schema.scenes.dramaId, dramaId)).all())
-            .filter(s => !s.deletedAt)
-            .find(s => s.location === scene.location)
-
           const res = (await db.insert(schema.scenes).values({
             dramaId,
             location: scene.location,
