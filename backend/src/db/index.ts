@@ -226,6 +226,8 @@ const tableStatements = [
     subtitle_url TEXT,
     composed_video_url TEXT,
     status VARCHAR(32) DEFAULT 'pending',
+    transition_type VARCHAR(32),
+    transition_duration_ms INT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT
@@ -497,6 +499,8 @@ async function initializeDatabase(pool: Pool, database: string) {
   await ensureColumn(pool, database, 'video_generations', 'defect_check_result', 'TEXT')
   await ensureColumn(pool, database, 'video_generations', 'tail_frame_url', 'TEXT')
   await ensureColumn(pool, database, 'scenes', 'reference_image', 'TEXT')
+  await ensureColumn(pool, database, 'storyboards', 'transition_type', 'VARCHAR(32)')
+  await ensureColumn(pool, database, 'storyboards', 'transition_duration_ms', 'INT')
 }
 
 await ensureDatabaseExists(mysqlConfig)

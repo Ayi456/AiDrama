@@ -37,6 +37,8 @@ export type EpisodeStoryboardRecord = {
   storyboardNumber: number | null
   videoUrl?: string | null
   composedVideoUrl?: string | null
+  transitionType?: string | null
+  transitionDurationMs?: number | null
 }
 
 type VideoMergeUpdatePatch = Partial<typeof dbSchema.videoMerges.$inferInsert>

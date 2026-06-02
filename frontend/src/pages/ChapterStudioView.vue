@@ -136,6 +136,7 @@
         @update:selected-storyboard-ids="handleMergeSelectionUpdate"
         @merge="handleMergeSelected"
         @save-transition="handleSaveTransition"
+        @save-seam-transition="handleSaveSeamTransition"
       />
 
       <ChapterBottomBubble
@@ -171,7 +172,7 @@ import { toast } from 'vue-sonner'
 import { Loader2 } from 'lucide-vue-next'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { chapterAPI, dramaAPI, characterAPI, sceneAPI, mergeAPI, characterAssetAPI, uploadAPI } from '@/composables/useApi'
+import { chapterAPI, dramaAPI, characterAPI, sceneAPI, mergeAPI, characterAssetAPI, uploadAPI, storyboardAPI } from '@/composables/useApi'
 import { useAgent } from '@/composables/useAgent'
 import { useConfirm } from '@/composables/useConfirm'
 import ChapterBottomBubble from '@/components/chapter/ChapterBottomBubble.vue'
@@ -676,6 +677,28 @@ async function handleSaveTransition(payload) {
     if (episode.value) {
       episode.value.transition_type = payload.type
       episode.value.transition_duration_ms = payload.durationMs
+    }
+    toast.success('过渡设置已保存')
+  } catch (error) {
+    toast.error(error?.message || '保存过渡设置失败')
+  } finally {
+    transitionSaving.value = false
+  }
+}
+
+async function handleSaveSeamTransition(payload) {
+  const id = Number(payload?.storyboardId)
+  if (!id) return
+  transitionSaving.value = true
+  try {
+    await storyboardAPI.update(id, {
+      transition_type: payload.type ?? null,
+      transition_duration_ms: payload.durationMs ?? null,
+    })
+    const sb = sbs.value.find(item => Number(item.id) === id)
+    if (sb) {
+      sb.transition_type = payload.type ?? null
+      sb.transition_duration_ms = payload.durationMs ?? null
     }
     toast.success('过渡设置已保存')
   } catch (error) {

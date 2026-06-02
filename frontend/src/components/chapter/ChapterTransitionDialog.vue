@@ -11,7 +11,7 @@
             </svg>
             <div>
               <div class="trans-modal__title">镜头过渡效果</div>
-              <div class="trans-modal__desc">设置同一集所有相邻镜头之间的过渡，保存后下次拼接生效。</div>
+              <div class="trans-modal__desc">{{ headerDesc }}</div>
             </div>
           </div>
           <button type="button" class="trans-modal__close" @click="emit('close')" aria-label="关闭">
@@ -19,11 +19,26 @@
           </button>
         </header>
 
-        <section class="trans-modal__section">
+        <section v-if="mode === 'seam'" class="trans-modal__section">
+          <div class="trans-modal__section-head">
+            <span class="trans-modal__section-title">继承全局默认</span>
+            <label class="trans-toggle">
+              <input type="checkbox" :checked="inheritGlobal" @change="onToggleInherit" />
+              <span class="trans-toggle__track">
+                <span class="trans-toggle__thumb" />
+              </span>
+            </label>
+          </div>
+          <p class="trans-modal__section-hint">
+            开启后该接缝跟随全局默认过渡；关闭后可单独设置这一处的过渡。
+          </p>
+        </section>
+
+        <section class="trans-modal__section" :class="{ 'is-dim': inheritGlobal }">
           <div class="trans-modal__section-head">
             <span class="trans-modal__section-title">是否启用过渡</span>
             <label class="trans-toggle">
-              <input type="checkbox" :checked="enabled" @change="onToggleEnabled" />
+              <input type="checkbox" :checked="enabled" :disabled="inheritGlobal" @change="onToggleEnabled" />
               <span class="trans-toggle__track">
                 <span class="trans-toggle__thumb" />
               </span>
@@ -34,7 +49,7 @@
           </p>
         </section>
 
-        <section class="trans-modal__section" :class="{ 'is-dim': !enabled }">
+        <section class="trans-modal__section" :class="{ 'is-dim': !enabled || inheritGlobal }">
           <div class="trans-modal__section-head">
             <span class="trans-modal__section-title">过渡类型</span>
           </div>
@@ -46,7 +61,7 @@
                 :key="opt.value"
                 type="button"
                 :class="['trans-card', { selected: localType === opt.value }]"
-                :disabled="!enabled"
+                :disabled="!enabled || inheritGlobal"
                 @click="localType = opt.value"
               >
                 <span class="trans-card__icon" v-html="opt.icon" />
@@ -56,11 +71,11 @@
           </div>
         </section>
 
-        <section class="trans-modal__section" :class="{ 'is-dim': !enabled }">
+        <section class="trans-modal__section" :class="{ 'is-dim': !enabled || inheritGlobal }">
           <div class="trans-modal__section-head">
             <span class="trans-modal__section-title">
               过渡时长
-              <span class="trans-modal__section-value">{{ enabled ? `${localDurationMs} ms` : '—' }}</span>
+              <span class="trans-modal__section-value">{{ enabled && !inheritGlobal ? `${localDurationMs} ms` : '—' }}</span>
             </span>
           </div>
           <input
@@ -68,8 +83,8 @@
             min="100"
             max="1000"
             step="50"
-            :value="enabled ? localDurationMs : 0"
-            :disabled="!enabled"
+            :value="enabled && !inheritGlobal ? localDurationMs : 0"
+            :disabled="!enabled || inheritGlobal"
             class="trans-slider"
             @input="onSliderInput"
           />
@@ -78,8 +93,8 @@
               v-for="preset in durationPresets"
               :key="preset"
               type="button"
-              :class="['trans-preset', { selected: enabled && localDurationMs === preset }]"
-              :disabled="!enabled"
+              :class="['trans-preset', { selected: enabled && !inheritGlobal && localDurationMs === preset }]"
+              :disabled="!enabled || inheritGlobal"
               @click="localDurationMs = preset"
             >{{ preset }} ms</button>
           </div>
@@ -104,6 +119,9 @@ const props = defineProps({
   type: { type: String, default: 'fade' },
   durationMs: { type: Number, default: 500 },
   saving: { type: Boolean, default: false },
+  mode: { type: String, default: 'global' },
+  seamLabel: { type: String, default: '' },
+  inherited: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['close', 'save'])
@@ -159,6 +177,13 @@ const durationPresets = [300, 500, 700, 1000]
 const localType = ref(props.type || 'fade')
 const localDurationMs = ref(Number(props.durationMs) > 0 ? Number(props.durationMs) : 500)
 const enabled = ref(Number(props.durationMs) > 0)
+const inheritGlobal = ref(false)
+
+const headerDesc = computed(() => (
+  props.mode === 'seam'
+    ? `设置${props.seamLabel || '该接缝'}的过渡，保存后下次拼接生效。`
+    : '设置同一集所有相邻镜头之间的过渡，保存后下次拼接生效。'
+))
 
 watch(() => props.open, isOpen => {
   if (isOpen) {
@@ -166,6 +191,7 @@ watch(() => props.open, isOpen => {
     enabled.value = incomingDur > 0
     localDurationMs.value = incomingDur > 0 ? incomingDur : 500
     localType.value = props.type || 'fade'
+    inheritGlobal.value = props.mode === 'seam' && props.inherited
   }
 })
 
@@ -173,11 +199,19 @@ function onToggleEnabled(event) {
   enabled.value = !!event.target.checked
 }
 
+function onToggleInherit(event) {
+  inheritGlobal.value = !!event.target.checked
+}
+
 function onSliderInput(event) {
   localDurationMs.value = Number(event.target.value) || 0
 }
 
 function onSave() {
+  if (props.mode === 'seam' && inheritGlobal.value) {
+    emit('save', { inherit: true })
+    return
+  }
   emit('save', {
     type: enabled.value ? localType.value : null,
     durationMs: enabled.value ? localDurationMs.value : 0,

@@ -13,7 +13,8 @@ import { selectMergeClipStoryboards } from './merge-clips.js'
 import { createMergeJobDbPersistence, normalizeMergeErrorMessage } from './merge-job-state.js'
 import { runFfmpegMergeStrategies } from './merge-ffmpeg-execution.js'
 import {
-  isTransitionEnabled,
+  isAnyTransitionEnabled,
+  resolveSeamTransitions,
   resolveTransitionConfig,
   type TransitionConfig,
 } from './merge-transition-policy.js'
@@ -72,11 +73,20 @@ export async function mergeEpisodeVideos(
   }
 
   const [episodeRow] = await db.select().from(schema.episodes).where(eq(schema.episodes.id, episodeId)).all()
-  const transition = resolveTransitionConfig({
+  const globalTransition = resolveTransitionConfig({
     type: episodeRow?.transitionType ?? null,
     durationMs: episodeRow?.transitionDurationMs ?? null,
   })
-  const transitionForSnapshot = isTransitionEnabled(transition, videos.length) ? transition : null
+  // One seam per adjacent clip pair (clipCount - 1). Each seam inherits the episode default
+  // unless that clip carries its own override (the transition into the next clip).
+  const seamOverrides = mergeStoryboards.slice(0, -1).map(storyboard => ({
+    type: storyboard.transitionType ?? null,
+    durationMs: storyboard.transitionDurationMs ?? null,
+  }))
+  const seamTransitions = resolveSeamTransitions(globalTransition, seamOverrides)
+  const transitionsEnabled = isAnyTransitionEnabled(seamTransitions, videos.length)
+  const seamTransitionsForMerge = transitionsEnabled ? seamTransitions : null
+  const transitionForSnapshot = transitionsEnabled ? globalTransition : null
 
   logTaskStart('MergeTask', 'episode-merge', {
     episodeId,
@@ -85,8 +95,8 @@ export async function mergeEpisodeVideos(
     storyboardIds: options.storyboardIds,
     ffmpegPath: FFMPEG_PATH,
     ffprobePath: FFPROBE_PATH,
-    transitionType: transitionForSnapshot?.type ?? null,
-    transitionDurationMs: transitionForSnapshot?.durationMs ?? null,
+    transitionEnabled: transitionsEnabled,
+    seamTransitions: seamTransitionsForMerge?.map(seam => `${seam.type}:${seam.durationMs}`) ?? null,
   })
 
   await clearPreviousEpisodeMerge(episodeId, mergeState)
@@ -100,7 +110,7 @@ export async function mergeEpisodeVideos(
     transition: transitionForSnapshot,
   })
 
-  doMerge(mergeId, episodeId, videos, mergeState, transitionForSnapshot).catch(async (error: unknown) => {
+  doMerge(mergeId, episodeId, videos, mergeState, seamTransitionsForMerge).catch(async (error: unknown) => {
     const message = normalizeMergeErrorMessage(error)
     logTaskError('MergeTask', 'episode-merge', { mergeId, episodeId, error: message })
     console.error('[Merge] Failed:', error)
@@ -116,7 +126,7 @@ async function doMerge(
   episodeId: number,
   videos: string[],
   mergeState: MergeJobPersistence,
-  transition: TransitionConfig | null,
+  seamTransitions: TransitionConfig[] | null,
 ) {
   const listDir = path.join(STORAGE_ROOT, 'temp')
   fs.mkdirSync(listDir, { recursive: true })
@@ -163,7 +173,7 @@ async function doMerge(
       outputPath,
       clipCount: videos.length,
       clipPaths: inputFiles,
-      transition: transition ?? undefined,
+      seamTransitions: seamTransitions ?? undefined,
     })
   } finally {
     if (fs.existsSync(listPath)) fs.unlinkSync(listPath)

@@ -7,9 +7,11 @@ import {
   MAX_TRANSITION_DURATION_MS,
   buildXfadeFilter,
   computeSeamDurations,
+  isAnyTransitionEnabled,
   isTransitionEnabled,
   normalizeTransitionDurationMs,
   normalizeTransitionType,
+  resolveSeamTransitions,
   resolveTransitionConfig,
 } from '../merge/merge-transition-policy.js'
 
@@ -66,42 +68,80 @@ await runTest('isTransitionEnabled needs 2+ clips and positive duration', () => 
   assert.equal(isTransitionEnabled({ type: 'fade', durationMs: 500 }, 2), true)
 })
 
+await runTest('isAnyTransitionEnabled is true when any seam has positive duration', () => {
+  assert.equal(isAnyTransitionEnabled([{ type: 'fade', durationMs: 0 }], 2), false)
+  assert.equal(isAnyTransitionEnabled([{ type: 'fade', durationMs: 0 }], 1), false)
+  assert.equal(
+    isAnyTransitionEnabled([{ type: 'fade', durationMs: 0 }, { type: 'pixelize', durationMs: 500 }], 3),
+    true,
+  )
+})
+
+await runTest('resolveSeamTransitions inherits the global default and applies per-seam overrides', () => {
+  const global = { type: 'fade' as const, durationMs: 500 }
+  const seams = resolveSeamTransitions(global, [
+    null,
+    { type: 'pixelize', durationMs: 800 },
+    { type: 'bogus', durationMs: null },
+    { type: null, durationMs: 200 },
+  ])
+  assert.deepEqual(seams[0], { type: 'fade', durationMs: 500 })
+  assert.deepEqual(seams[1], { type: 'pixelize', durationMs: 800 })
+  // invalid type falls back to global type; missing duration falls back to global duration
+  assert.deepEqual(seams[2], { type: 'fade', durationMs: 500 })
+  // missing type falls back to global type; explicit duration kept
+  assert.deepEqual(seams[3], { type: 'fade', durationMs: 200 })
+})
+
 await runTest('computeSeamDurations caps each seam by half of the shorter neighbour', () => {
-  const { seamDurations } = computeSeamDurations([10, 10, 10], 500)
+  const { seamDurations } = computeSeamDurations([10, 10, 10], [500, 500])
   assert.deepEqual(seamDurations, [0.5, 0.5])
 
-  const { seamDurations: degraded } = computeSeamDurations([10, 0.5, 10], 500)
+  const { seamDurations: degraded } = computeSeamDurations([10, 0.5, 10], [500, 500])
   // Middle clip is 0.5s → both seams capped at 0.25s
   assert.deepEqual(degraded, [0.25, 0.25])
 
-  const { seamDurations: tooShort } = computeSeamDurations([0.2, 0.2], 500)
+  const { seamDurations: tooShort } = computeSeamDurations([0.2, 0.2], [500])
   assert.deepEqual(tooShort, [0.1])
 })
 
+await runTest('computeSeamDurations honours different per-seam durations', () => {
+  const { seamDurations } = computeSeamDurations([10, 10, 10], [500, 200])
+  assert.deepEqual(seamDurations, [0.5, 0.2])
+})
+
 await runTest('computeSeamDurations offsets track cumulative visible time', () => {
-  const { seamOffsets } = computeSeamDurations([5, 5, 5], 500)
+  const { seamOffsets } = computeSeamDurations([5, 5, 5], [500, 500])
   // First seam: cumulative 5 - 0.5 = 4.5; second seam: 4.5 + 5 - 0.5 = 9.0
   assert.equal(seamOffsets[0], 4.5)
   assert.equal(seamOffsets[1], 9)
 })
 
 await runTest('buildXfadeFilter returns null for single clip', () => {
-  const result = buildXfadeFilter([10], 'fade', 500, ['[0:a]'])
+  const result = buildXfadeFilter([10], [], ['[0:a]'])
   assert.equal(result, null)
 })
 
+await runTest('buildXfadeFilter throws when seam config count does not match', () => {
+  assert.throws(() => buildXfadeFilter([5, 5, 5], [{ type: 'fade', durationMs: 500 }], ['[0:a]', '[1:a]', '[2:a]']))
+})
+
 await runTest('buildXfadeFilter returns null when every seam degrades to zero', () => {
-  const result = buildXfadeFilter([0.1, 0.1], 'fade', 500, ['[0:a]', '[1:a]'])
+  const result = buildXfadeFilter([0.1, 0.1], [{ type: 'fade', durationMs: 500 }], ['[0:a]', '[1:a]'])
   // half of 0.1 rounded to seam duration 0.05 → not zero, so this stays
-  // Use an even smaller clip to force degenerate case via 0-duration seam:
-  const degenerate = buildXfadeFilter([10, 10], 'fade', 0, ['[0:a]', '[1:a]'])
+  // Use a 0-duration seam to force degenerate case:
+  const degenerate = buildXfadeFilter([10, 10], [{ type: 'fade', durationMs: 0 }], ['[0:a]', '[1:a]'])
   assert.equal(degenerate, null)
   // The first call would actually still produce a filter (seam 0.05s); confirm types
   assert.ok(result === null || typeof result.filter === 'string')
 })
 
 await runTest('buildXfadeFilter emits N-1 xfade + acrossfade steps for N clips', () => {
-  const result = buildXfadeFilter([5, 5, 5], 'fade', 500, ['[0:a]', '[1:a]', '[2:a]'])
+  const result = buildXfadeFilter(
+    [5, 5, 5],
+    [{ type: 'fade', durationMs: 500 }, { type: 'fade', durationMs: 500 }],
+    ['[0:a]', '[1:a]', '[2:a]'],
+  )
   assert.ok(result, 'filter result expected')
   // Two seams → two xfade + two acrossfade
   const xfadeCount = (result!.filter.match(/xfade=/g) || []).length
@@ -115,9 +155,29 @@ await runTest('buildXfadeFilter emits N-1 xfade + acrossfade steps for N clips',
   assert.ok(result!.filter.includes('[aout]'))
 })
 
+await runTest('buildXfadeFilter applies a different transition type per seam', () => {
+  // seam 0 (clip1↔clip2) fade, seam 2 (clip3↔clip4) pixelize
+  const result = buildXfadeFilter(
+    [5, 5, 5, 5],
+    [
+      { type: 'fade', durationMs: 500 },
+      { type: 'fade', durationMs: 500 },
+      { type: 'pixelize', durationMs: 500 },
+    ],
+    ['[0:a]', '[1:a]', '[2:a]', '[3:a]'],
+  )
+  assert.ok(result)
+  assert.ok(result!.filter.includes('transition=fade'))
+  assert.ok(result!.filter.includes('transition=pixelize'))
+})
+
 await runTest('buildXfadeFilter degrades short seams to concat hard cut', () => {
   // First seam normal (5s+5s → 0.5s xfade), second seam degenerate (5s+0.001s)
-  const result = buildXfadeFilter([5, 5, 0.001], 'fade', 500, ['[0:a]', '[1:a]', '[2:a]'])
+  const result = buildXfadeFilter(
+    [5, 5, 0.001],
+    [{ type: 'fade', durationMs: 500 }, { type: 'fade', durationMs: 500 }],
+    ['[0:a]', '[1:a]', '[2:a]'],
+  )
   assert.ok(result)
   assert.ok(result!.filter.includes('xfade='))
   assert.ok(result!.filter.includes('concat=n=2:v=1:a=0'))
@@ -125,7 +185,7 @@ await runTest('buildXfadeFilter degrades short seams to concat hard cut', () => 
 })
 
 await runTest('buildXfadeFilter honors custom audio labels for anullsrc backfill', () => {
-  const result = buildXfadeFilter([5, 5], 'fadeblack', 400, ['[0:a]', '[anull1]'])
+  const result = buildXfadeFilter([5, 5], [{ type: 'fadeblack', durationMs: 400 }], ['[0:a]', '[anull1]'])
   assert.ok(result)
   assert.ok(result!.filter.includes('[anull1]'))
   assert.ok(result!.filter.includes('transition=fadeblack'))

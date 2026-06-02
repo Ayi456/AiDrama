@@ -145,6 +145,8 @@ export const storyboards = mysqlTable('storyboards', {
   subtitleUrl: text('subtitle_url'),
   composedVideoUrl: text('composed_video_url'),
   status: varchar('status', { length: 32 }).default('pending'),
+  transitionType: varchar('transition_type', { length: 32 }),
+  transitionDurationMs: int('transition_duration_ms'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
   deletedAt: text('deleted_at'),

@@ -9,7 +9,7 @@ import {
 } from './merge-ffmpeg-strategy.js'
 import {
   buildXfadeFilter,
-  isTransitionEnabled,
+  isAnyTransitionEnabled,
   type TransitionConfig,
 } from './merge-transition-policy.js'
 import { logTaskProgress, logTaskStart, logTaskSuccess, logTaskWarn } from '../../utils/task-logger.js'
@@ -24,8 +24,8 @@ export type RunFfmpegMergeStrategiesInput = {
   clipCount: number
   /** Source clip absolute paths (only required for xfade) */
   clipPaths?: string[]
-  /** Effective transition config (defaults already resolved) */
-  transition?: TransitionConfig
+  /** Per-seam transition configs (clipCount - 1 entries, defaults already resolved) */
+  seamTransitions?: TransitionConfig[]
 }
 
 export type RunFfmpegConcatInput = RunFfmpegMergeStrategiesInput & {
@@ -45,10 +45,11 @@ function normalizeError(error: unknown) {
 
 function resolveStrategiesForInput(input: RunFfmpegMergeStrategiesInput): readonly FfmpegMergeStrategy[] {
   const canXfade =
-    !!input.transition &&
+    Array.isArray(input.seamTransitions) &&
+    input.seamTransitions.length === input.clipCount - 1 &&
     Array.isArray(input.clipPaths) &&
     input.clipPaths.length === input.clipCount &&
-    isTransitionEnabled(input.transition, input.clipCount)
+    isAnyTransitionEnabled(input.seamTransitions, input.clipCount)
   return canXfade ? resolveStrategyChain(true) : ffmpegMergeStrategies
 }
 
@@ -175,8 +176,13 @@ async function runFfmpegConcatDemuxer(input: RunFfmpegConcatInput) {
 }
 
 async function runFfmpegXfade(input: RunFfmpegConcatInput) {
-  if (!input.transition || !input.clipPaths || input.clipPaths.length !== input.clipCount) {
-    throw new Error('xfade strategy requires transition config and clipPaths')
+  if (
+    !input.seamTransitions ||
+    input.seamTransitions.length !== input.clipCount - 1 ||
+    !input.clipPaths ||
+    input.clipPaths.length !== input.clipCount
+  ) {
+    throw new Error('xfade strategy requires per-seam transition configs and clipPaths')
   }
 
   const timeoutMs = resolveFfmpegMergeTimeoutMs()
@@ -192,8 +198,7 @@ async function runFfmpegXfade(input: RunFfmpegConcatInput) {
 
   const built = buildXfadeFilter(
     clipDurations,
-    input.transition.type,
-    input.transition.durationMs,
+    input.seamTransitions,
     audioLabels,
   )
 
@@ -205,8 +210,7 @@ async function runFfmpegXfade(input: RunFfmpegConcatInput) {
     mergeId: input.mergeId,
     episodeId: input.episodeId,
     clips: input.clipCount,
-    transitionType: input.transition.type,
-    transitionDurationMs: input.transition.durationMs,
+    seamTransitions: input.seamTransitions.map(seam => `${seam.type}:${seam.durationMs}`),
     clipDurations: clipDurations.map(value => Math.round(value * 1000) / 1000),
     filter: built.filter,
     timeoutSeconds: Math.round(timeoutMs / 1000),

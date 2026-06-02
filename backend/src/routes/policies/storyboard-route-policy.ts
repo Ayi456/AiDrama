@@ -32,6 +32,8 @@ export type StoryboardUpdateBody = RouteBody & {
   bgm_prompt?: string | null
   sound_effect?: string | null
   video_url?: string | null
+  transition_type?: string | null
+  transition_duration_ms?: number | null
   character_ids?: number[] | null
 }
 
@@ -68,6 +70,8 @@ type StoryboardPatchField =
   | 'bgmPrompt'
   | 'soundEffect'
   | 'videoUrl'
+  | 'transitionType'
+  | 'transitionDurationMs'
 
 export type StoryboardUpdatePatch = {
   updatedAt: string
@@ -89,6 +93,8 @@ export type StoryboardUpdatePatch = {
   bgmPrompt?: string | null
   soundEffect?: string | null
   videoUrl?: string | null
+  transitionType?: string | null
+  transitionDurationMs?: number | null
 }
 
 type StoryboardUpdateKey = Exclude<keyof StoryboardUpdateBody, 'character_ids'>
@@ -112,6 +118,8 @@ const STORYBOARD_UPDATE_FIELDS = [
   ['bgm_prompt', 'bgmPrompt'],
   ['sound_effect', 'soundEffect'],
   ['video_url', 'videoUrl'],
+  ['transition_type', 'transitionType'],
+  ['transition_duration_ms', 'transitionDurationMs'],
 ] as const satisfies readonly (readonly [StoryboardUpdateKey, StoryboardPatchField])[]
 
 function hasOwn(body: RouteBody, key: string) {

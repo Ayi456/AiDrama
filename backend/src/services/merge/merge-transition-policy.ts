@@ -53,6 +53,34 @@ export function isTransitionEnabled(config: TransitionConfig, clipCount: number)
   return clipCount >= 2 && config.durationMs > 0
 }
 
+export type SeamOverrideInput = {
+  type?: string | null
+  durationMs?: number | null
+} | null | undefined
+
+/**
+ * Resolve one transition config per seam (clipCount - 1 entries).
+ * Each seam either uses its own override or inherits the global default.
+ */
+export function resolveSeamTransitions(
+  globalDefault: TransitionConfig,
+  seamOverrides: SeamOverrideInput[],
+): TransitionConfig[] {
+  return seamOverrides.map((override) => {
+    if (!override) return { ...globalDefault }
+    const type = normalizeTransitionType(override.type) ?? globalDefault.type
+    const durationMs = override.durationMs == null
+      ? globalDefault.durationMs
+      : normalizeTransitionDurationMs(override.durationMs) ?? globalDefault.durationMs
+    return { type, durationMs }
+  })
+}
+
+/** Transitions are worth running when there are 2+ clips and at least one seam has a positive duration. */
+export function isAnyTransitionEnabled(seamTransitions: TransitionConfig[], clipCount: number): boolean {
+  return clipCount >= 2 && seamTransitions.some((seam) => seam.durationMs > 0)
+}
+
 export type SeamDurations = {
   /** per-seam transition duration in seconds, length = clipCount - 1 */
   seamDurations: number[]
@@ -64,14 +92,16 @@ export type SeamDurations = {
 const MIN_SEAM_DURATION_SECONDS = 0.05
 
 /**
- * Per-seam max transition duration: bounded by configured d, and by half of each adjacent clip.
- * If a seam ends up below MIN_SEAM_DURATION_SECONDS (clip too short), it degrades to a hard cut.
+ * Per-seam max transition duration: bounded by each seam's configured duration, and by half of
+ * each adjacent clip. If a seam ends up below MIN_SEAM_DURATION_SECONDS (clip too short), it
+ * degrades to a hard cut.
+ *
+ * `seamDurationsMs` has one entry per seam (clipCount - 1).
  */
 export function computeSeamDurations(
   clipDurationsSeconds: number[],
-  configDurationMs: number,
+  seamDurationsMs: number[],
 ): SeamDurations {
-  const d = configDurationMs / 1000
   const seamDurations: number[] = []
   const seamOffsets: number[] = []
 
@@ -79,6 +109,7 @@ export function computeSeamDurations(
   for (let k = 0; k < clipDurationsSeconds.length - 1; k++) {
     const left = clipDurationsSeconds[k]
     const right = clipDurationsSeconds[k + 1]
+    const d = (seamDurationsMs[k] ?? 0) / 1000
     const rawSeam = Math.min(d, left / 2, right / 2)
     const seamD = rawSeam < MIN_SEAM_DURATION_SECONDS ? 0 : rawSeam
     cumulative += left
@@ -91,8 +122,10 @@ export function computeSeamDurations(
 }
 
 /**
- * Build the filter_complex string for xfade + acrossfade.
+ * Build the filter_complex string for xfade + acrossfade, using a per-seam transition config.
  * Returns null when there is nothing to transition (clipCount < 2 or all seams degraded to 0).
+ *
+ * `seamTransitions` has one entry per seam (clipCount - 1), each with its own type and duration.
  *
  * Stream labels:
  *   inputs:  [0:v], [0:a], [1:v], [1:a], ...
@@ -102,8 +135,7 @@ export function computeSeamDurations(
  */
 export function buildXfadeFilter(
   clipDurationsSeconds: number[],
-  type: TransitionType,
-  configDurationMs: number,
+  seamTransitions: TransitionConfig[],
   audioLabels: string[],
 ): { filter: string; videoOutLabel: string; audioOutLabel: string } | null {
   const n = clipDurationsSeconds.length
@@ -111,8 +143,14 @@ export function buildXfadeFilter(
   if (audioLabels.length !== n) {
     throw new Error(`audioLabels length ${audioLabels.length} != clipCount ${n}`)
   }
+  if (seamTransitions.length !== n - 1) {
+    throw new Error(`seamTransitions length ${seamTransitions.length} != seams ${n - 1}`)
+  }
 
-  const { seamDurations, seamOffsets } = computeSeamDurations(clipDurationsSeconds, configDurationMs)
+  const { seamDurations, seamOffsets } = computeSeamDurations(
+    clipDurationsSeconds,
+    seamTransitions.map((seam) => seam.durationMs),
+  )
   if (seamDurations.every(seam => seam <= 0)) return null
 
   // xfade / acrossfade require all inputs to share fps / pixel format / sample rate / channel layout
@@ -145,6 +183,7 @@ export function buildXfadeFilter(
     const aLabel = k === n - 2 ? '[aout]' : `[a${k}]`
 
     if (seamD > 0) {
+      const type = seamTransitions[k].type
       videoSteps.push(`${prevV}${inputV}xfade=transition=${type}:duration=${seamD.toFixed(3)}:offset=${offset.toFixed(3)}${vLabel}`)
       audioSteps.push(`${prevA}${inputA}acrossfade=d=${seamD.toFixed(3)}${aLabel}`)
     } else {
