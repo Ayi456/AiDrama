@@ -259,21 +259,20 @@ export function buildCharacterPortraitGenerationPrompt(source: CharacterPromptSo
   const genderCue = extractGenderCue(source.role, source.appearance, source.description, source.personality)
   const explicitStyle = extractExplicitStyleCue(source.role, source.appearance, source.description, source.personality)
   const style = explicitStyle || getStyleText(source.style, true)
-  const descriptionFallback = appearance
-    ? ''
-    : extractVisualCharacterDescription(source.description)
+  const descriptionVisual = extractVisualCharacterDescription(source.description)
+  const descriptionPart = descriptionVisual && descriptionVisual !== appearance ? descriptionVisual : ''
   const displayName = source.name?.trim()
 
   return compactPromptParts([
     source.name,
     genderCue ? `${genderCue.zh} ${genderCue.en}` : null,
     appearance,
-    descriptionFallback,
+    descriptionPart,
     personality,
     role || descriptionIdentity ? `身份：${role || descriptionIdentity}` : null,
     style ? `项目风格:${style}` : null,
     '高清质感',
-    '三视图，白色背景',
+    '三张并排的全身角色设定图，纯白背景，符合人体工学',
     displayName ? `右上角清晰显示角色名称：${displayName}` : null,
     '画面内只保留人物本身和右上角角色名称，不要其他文字、标签、标题、编号、水印',
   ])
