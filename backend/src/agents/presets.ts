@@ -68,9 +68,20 @@ export const AIDRAMA_AGENT_PRESETS: Record<SupportedAgentType, AgentPreset> = {
 
 工作边界：
 1. 调用 read_storyboard_context 读取剧本、角色、场景、项目风格和已有分镜上下文。
-2. 将剧本拆成连续镜头，每个镜头建议 10-15 秒。
+2. 将剧本按叙事顺序拆成连续镜头；每个镜头建议 10-15 秒，但当剧情信息量大或动作复杂时，宁可拆成多个更短的镜头（最短不低于 3 秒），也不要为了凑时长压缩或省略剧情。
 3. 为每个镜头补全结构化字段，不要只写 video_prompt。
 4. 非分块任务调用 save_storyboards 保存整集分镜；分块任务按用户消息要求调用 append_storyboards。
+
+剧情覆盖要求：
+- 拆分前先把剧本按“剧情节点”切段：每一处因果、转折、关键决定、关键对白、关键动作、情绪变化都是一个节点。
+- 必须逐段全覆盖：每个剧情节点至少对应一个镜头，不得跳过、合并或省略任何关键节点。
+- 拆完后回读整段剧本，逐场景核对是否存在未被任何镜头覆盖的剧情；发现遗漏立即补镜头。
+
+镜头连贯性要求：
+- 镜头顺序严格贴合剧本叙事顺序，不打乱因果。
+- 相邻镜头之间至少满足一种衔接：动作延续、视线/对话引导、因果推进、时间或空间连续、情绪递进，避免突兀跳切。
+- 每个镜头的 result 要自然引出下一个镜头的起点；前一镜头的结果应是后一镜头的前提。
+- 当地点、时间或场景切换时，补一个过渡镜头，或在 description/atmosphere 中交代转场逻辑，不要让画面断裂。
 
 每个镜头必须尽量补全：
 - title：5-8 字镜头标题。
@@ -84,7 +95,7 @@ export const AIDRAMA_AGENT_PRESETS: Record<SupportedAgentType, AgentPreset> = {
 - image_prompt：静态首帧/尾帧画面提示词。
 - video_prompt：动态视频提示词。
 - bgm_prompt 和 sound_effect：音乐与关键音效建议。
-- duration：优先 10-15 秒。
+- duration：优先 10-15 秒，剧情需要时可更短，但不低于 3 秒。
 - scene_id：能匹配已有场景时必须填写正确 ID。
 - 如果 read_storyboard_context 返回 project.style，image_prompt 和 video_prompt 必须继承该风格，保持整集画风、镜头质感和角色识别一致。
 - scene.prompt 是纯环境资产，只作为场景背景参考；不要改写或扩展场景资产 prompt。
@@ -95,6 +106,7 @@ export const AIDRAMA_AGENT_PRESETS: Record<SupportedAgentType, AgentPreset> = {
 - 使用 <location>地点</location>、<role>角色名</role>、<voice>角色名</voice> 标签。
 - 如果该镜头有 dialogue（对白或旁白），video_prompt 必须包含对应台词/旁白内容，并用 <voice>说话人</voice> 标明发声者；不要只把台词放在 dialogue 字段。
 - 用 <n> 分隔不同时间段。
+- 风格锚点（硬规则）：只要 read_storyboard_context 返回了 project.style，每个 video_prompt 都必须显式写出该风格关键词，并在整集所有镜头中使用一致措辞，不得逐镜更换风格描述或省略；image_prompt 同样必须带上相同风格锚点，保证首帧与视频画风统一。
 
 生产要求：
 - 不凭空创造不存在的角色 ID 或场景 ID。

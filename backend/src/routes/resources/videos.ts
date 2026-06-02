@@ -5,6 +5,7 @@ import { success, created, badRequest } from '../../utils/response.js'
 import { generateVideo } from '../../services/generation/video-generation.js'
 import { logTaskError, logTaskPayload, logTaskStart, logTaskSuccess } from '../../utils/task-logger.js'
 import { presentVideoGenerationAsset, presentVideoGenerationAssets } from '../../utils/public-asset.js'
+import { appendProjectStyleToVideoPrompt } from '../../agents/visual-prompt-policy.js'
 import {
   buildVideoGenerationInput,
   buildVideoRouteLogContext,
@@ -90,12 +91,18 @@ export async function generateStoryboardVideo(input: GenerateStoryboardVideoInpu
   const [ep] = (await db.select().from(schema.episodes).where(eq(schema.episodes.id, sb.episodeId)).all())
   if (!ep) throw new Error('Episode not found')
 
-  const prompt = sb.videoPrompt || sb.imagePrompt || sb.description || sb.title || `镜头 ${sb.storyboardNumber ?? sb.id}`
+  const dramaId = typeof ep.dramaId === 'number' ? ep.dramaId : undefined
+  const [drama] = dramaId
+    ? (await db.select().from(schema.dramas).where(eq(schema.dramas.id, dramaId)).all())
+    : []
+
+  const basePrompt = sb.videoPrompt || sb.imagePrompt || sb.description || sb.title || `镜头 ${sb.storyboardNumber ?? sb.id}`
+  const prompt = appendProjectStyleToVideoPrompt(basePrompt, drama?.style)
   const configId = typeof ep.videoConfigId === 'number' ? ep.videoConfigId : undefined
 
   const id = await generateVideo({
     storyboardId: input.storyboardId,
-    dramaId: typeof ep.dramaId === 'number' ? ep.dramaId : undefined,
+    dramaId,
     prompt,
     referenceMode: input.referenceMode || 'first_last',
     firstFrameUrl: input.firstFrameUrl,

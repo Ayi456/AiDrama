@@ -300,6 +300,15 @@ export function resolveCharacterImagePrompt(source: CharacterImagePromptSource):
   ])
 }
 
+export function appendProjectStyleToVideoPrompt(prompt?: string | null, style?: string | null): string {
+  const base = String(prompt || '').trim()
+  const styleText = getStyleText(style)
+  if (!styleText) return base
+  if (base.includes(styleText)) return base
+  const anchor = `项目风格：${styleText}，保持整集统一画风、镜头质感与角色识别一致`
+  return base ? `${base}\n${anchor}` : anchor
+}
+
 export function buildSceneImagePrompt(source: ScenePromptSource) {
   const style = getStyleText(source.style, true)
   const environmentPrompt = sanitizeSceneEnvironmentPrompt(source.prompt)

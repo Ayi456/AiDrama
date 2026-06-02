@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 
 import {
+  appendProjectStyleToVideoPrompt,
   buildCharacterImagePrompt,
   buildCharacterPortraitGenerationPrompt,
   buildSceneImagePrompt,
@@ -297,4 +298,22 @@ runTest('buildVisualGridPromptPlan reuses the first shot for multi-reference gri
   assert.equal(plan.cell_prompts.length, 3)
   assert.deepEqual(plan.cell_prompts.map(cell => cell.shot_number), [3, 3, 3])
   assert.deepEqual(plan.cell_prompts.map(cell => cell.frame_type), ['reference', 'reference', 'reference'])
+})
+
+runTest('appendProjectStyleToVideoPrompt appends a consistent style anchor', () => {
+  const result = appendProjectStyleToVideoPrompt('<location>大殿</location> 镜头推进', '国风水墨')
+
+  assert.match(result, /<location>大殿<\/location> 镜头推进/)
+  assert.match(result, /项目风格：国风水墨/)
+})
+
+runTest('appendProjectStyleToVideoPrompt leaves prompt untouched when style is empty', () => {
+  assert.equal(appendProjectStyleToVideoPrompt('原始提示词', ''), '原始提示词')
+  assert.equal(appendProjectStyleToVideoPrompt('原始提示词', null), '原始提示词')
+})
+
+runTest('appendProjectStyleToVideoPrompt does not duplicate an already present style', () => {
+  const once = appendProjectStyleToVideoPrompt('画面，项目风格：国风水墨', '国风水墨')
+
+  assert.equal(once.match(/国风水墨/g)?.length, 1)
 })
