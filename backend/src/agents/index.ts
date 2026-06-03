@@ -23,6 +23,7 @@ import {
 } from './agent-factory-helpers.js'
 import { getAgentPreset } from './presets.js'
 import { loadAgentSkills } from './skills.js'
+import { normalizeAgentResult } from './result-normalizer.js'
 import { createExtractTools } from './tools/extract-tools.js'
 import { createGridPromptTools } from './tools/grid-prompt-tools.js'
 import { createScriptTools } from './tools/script-tools.js'
@@ -111,4 +112,34 @@ export async function createAgent(
     model,
     tools: toToolsInput(resolvedTools),
   })
+}
+
+// 直连(无工具)文本生成：复用模型与基础指令，但不挂任何工具、不注入 skill，单轮返回纯文本。
+// 适用于"剧本→结构化输出"这类确定性转换任务，对模型的 tool-calling 能力无要求。
+export async function generateAgentTextWithoutTools(
+  type: string,
+  systemSuffix: string,
+  userContent: string,
+  options: { abortSignal?: AbortSignal } = {},
+): Promise<string> {
+  const preset = getAgentPreset(type)
+  if (!preset) throw new Error(`Unknown agent type: ${type}`)
+
+  const dbConfig = await getAgentConfig(type)
+  const model = await getModel(dbConfig)
+  const baseInstructions = dbConfig?.systemPrompt?.trim() || preset.instructions
+  const instructions = systemSuffix ? `${baseInstructions}\n\n${systemSuffix}` : baseInstructions
+
+  const agent = new Agent({
+    id: type,
+    name: dbConfig?.name || preset.name,
+    instructions,
+    model,
+  })
+
+  const result = await agent.generate(
+    [{ role: 'user', content: userContent }],
+    options.abortSignal ? { abortSignal: options.abortSignal } : {},
+  )
+  return normalizeAgentResult(result).text
 }

@@ -1,14 +1,15 @@
 import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
-import { createAgent, isValidAgentType } from '../../agents/index.js'
+import { createAgent, generateAgentTextWithoutTools, isValidAgentType } from '../../agents/index.js'
 import { runDirectAgentIfNeeded } from '../../agents/direct-mode.js'
 import { splitScriptIntoStoryboardChunks, type StoryboardChunk } from '../../agents/storyboard-chunks.js'
+import { parseStoryboardsFromText } from '../../agents/storyboard-parse.js'
+import { buildStoryboardContext, appendStoryboardChunk } from '../../agents/tools/storyboard-tools.js'
 import { db, schema } from '../../db/index.js'
 import { success, badRequest } from '../../utils/response.js'
 import { logTaskError, logTaskPayload, logTaskProgress, logTaskStart, logTaskSuccess } from '../../utils/task-logger.js'
 import {
   normalizeAgentResult,
-  wasToolUsed,
   type NormalizedToolCall,
   type NormalizedToolResult,
 } from '../../agents/result-normalizer.js'
@@ -26,17 +27,25 @@ function getErrorStack(error: unknown) {
 export const DEFAULT_EXTRACTOR_MESSAGE = '请从剧本中提取所有角色和场景信息，提取时自动与项目已有数据进行去重合并。'
 export const DEFAULT_STORYBOARD_BREAKER_MESSAGE = '请拆解分镜并生成视频提示词。'
 
-// 单个分镜 chunk 的整体硬截止。必须明显低于 SCF 900s 函数上限，保证 chunk 请求总能在被平台
-// 静默杀掉之前返回一个可读的错误（abortSignal 会中断进行中的模型调用并停止工具循环）。
+// 单个分镜 chunk 的整体硬截止。直连模式下这就是单次模型调用的上限；必须明显低于 SCF 900s
+// 函数上限，保证 chunk 请求总能在被平台静默杀掉之前返回一个可读的错误。
 const STORYBOARD_CHUNK_TIMEOUT_MS = (() => {
   const raw = Number(process.env.STORYBOARD_CHUNK_TIMEOUT_MS)
   return Number.isFinite(raw) && raw > 0 ? raw : 600_000 // 10 min total per chunk
 })()
 
-// 拆分镜的核心流程是 read_storyboard_context → append_storyboards（约 2-3 步），但部分模型会
-// 多读几次或先输出文本，需要一定步数余量才能走到 append。总时长已由 STORYBOARD_CHUNK_TIMEOUT_MS
-// 的 abortSignal 硬兜底，所以这里可以放宽步数而不必担心撞 SCF 上限。
-const STORYBOARD_CHUNK_MAX_STEPS = 10
+// 直连模式的输出约束：覆盖预设里的工具步骤，要求模型只输出严格 JSON。对任何能产出 JSON 的模型通用，
+// 不依赖 tool-calling。
+const STORYBOARD_DIRECT_DIRECTIVE = [
+  '================ 输出格式（最高优先级）================',
+  '本次为直连模式：不存在、也不要调用任何工具（read_storyboard_context / save_storyboards / append_storyboards 等都不可用）。请忽略上文中任何“调用工具/使用步骤”的说明。',
+  '所需的剧本、角色（含 id）、场景（含 id）、项目风格、已有分镜，都已在用户消息的 JSON 中直接给出。',
+  '你必须只输出一个 JSON 对象，不要任何解释文字，不要 markdown 代码块（不要 ```）。结构严格如下：',
+  '{"storyboards":[{"shot_number":1,"title":"","shot_type":"","angle":"","movement":"","location":"","time":"","action":"","dialogue":"","description":"","result":"","atmosphere":"","image_prompt":"","video_prompt":"","bgm_prompt":"","sound_effect":"","duration":10,"scene_id":null,"character_ids":[]}]}',
+  '- shot_number 从 1 开始递增即可（系统会自动续接整集真实编号）。',
+  '- scene_id 与 character_ids 必须取自用户消息中提供的 scenes / characters 的 id；没有合适的就用 null / 空数组，禁止编造 id。',
+  '- storyboards 至少包含 1 个镜头。',
+].join('\n')
 
 export type StoryboardBreakerProgress = {
   current: number
@@ -102,6 +111,8 @@ export async function getStoryboardChunks(episodeId: number, chunkChars?: number
   return { chunks, maxChars }
 }
 
+// 直连模式处理单个 chunk：服务端拼好上下文 → 模型一次性输出 JSON → 解析校验 → 复用入库逻辑。
+// 不走 agent 工具循环，因此对模型的 tool-calling 能力无要求，任何能输出 JSON 的模型都适用。
 export async function runStoryboardChunk(
   dramaId: number,
   episodeId: number,
@@ -115,58 +126,44 @@ export async function runStoryboardChunk(
     chunkLength: chunk.script.length,
   })
 
-  const chunkAgent = await createAgent('storyboard_breaker', episodeId, dramaId, {
-    storyboard: {
-      scriptChunk: chunk,
-      appendMode: true,
-      clearBeforeAppend: chunk.index === 1,
-    },
-  })
-  if (!chunkAgent) throw new Error('Agent not found')
-
-  const chunkMessage = [
+  const context = await buildStoryboardContext(episodeId, dramaId, chunk)
+  const userContent = [
     message,
-    `This is storyboard chunk ${chunk.index}/${chunk.total}.`,
-    'Only process the script returned by read_storyboard_context for this chunk. Do not invent or cover other chunks.',
-    'Required workflow: call read_storyboard_context first, then call append_storyboards to save only this chunk.',
-    'Do not call save_storyboards. Temporary shot_number values may start at 1; append_storyboards will continue the real numbering.',
-    'Generate at least 1 shot for this chunk, including an empty/environment shot when the chunk is transitional.',
+    `这是分镜 chunk ${chunk.index}/${chunk.total}，只处理本 chunk 的剧本，不要覆盖其他 chunk。`,
+    '上下文（剧本/角色/场景/风格/已有分镜）如下 JSON：',
+    JSON.stringify(context),
   ].join('\n\n')
 
   const deadline = AbortSignal.timeout(STORYBOARD_CHUNK_TIMEOUT_MS)
-  let result
+  let rawText: string
   try {
-    result = await chunkAgent.generate(
-      [{ role: 'user', content: chunkMessage }],
-      { maxSteps: STORYBOARD_CHUNK_MAX_STEPS, abortSignal: deadline },
-    )
+    rawText = await generateAgentTextWithoutTools('storyboard_breaker', STORYBOARD_DIRECT_DIRECTIVE, userContent, {
+      abortSignal: deadline,
+    })
   } catch (err) {
     if (deadline.aborted) {
       const seconds = Math.round(STORYBOARD_CHUNK_TIMEOUT_MS / 1000)
-      throw new Error(`Storyboard chunk ${chunk.index}/${chunk.total} timed out after ${seconds}s — the text model is too slow for the serverless time budget. Use a faster model, shrink storyboard_chunk_chars, or enable streaming.`)
+      throw new Error(`分镜 chunk ${chunk.index}/${chunk.total} 在 ${seconds}s 内未完成，请改用更快的文本模型或减小 storyboard_chunk_chars。`)
     }
     throw err
   }
-  const normalized = normalizeAgentResult(result)
+
+  const storyboards = parseStoryboardsFromText(rawText)
+  const saved = await appendStoryboardChunk(episodeId, dramaId, storyboards, chunk.index === 1, chunk)
 
   logTaskProgress('Agent', 'storyboard-chunk-tools', {
     episodeId,
     chunkIndex: chunk.index,
-    toolCalls: normalized.toolCalls.map((toolCall) => toolCall.toolName),
+    shots: saved.count,
   })
-
-  if (!wasToolUsed(normalized, 'append_storyboards')) {
-    const calledTools = normalized.toolCalls.map((toolCall) => toolCall.toolName).join(', ') || '无'
-    throw new Error(`分镜 chunk ${chunk.index}/${chunk.total} 未调用 append_storyboards（实际调用的工具：${calledTools}）。模型可能没有按工具流程输出——请改用 tool-calling 更强的文本模型。`)
-  }
 
   return {
     chunkIndex: chunk.index,
     chunkTotal: chunk.total,
     chunkLength: chunk.script.length,
-    text: normalized.text,
-    toolCalls: normalized.toolCalls,
-    toolResults: normalized.toolResults,
+    text: `已生成 ${saved.count} 个镜头`,
+    toolCalls: [],
+    toolResults: [],
   }
 }
 

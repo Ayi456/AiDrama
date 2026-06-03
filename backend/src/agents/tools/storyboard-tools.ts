@@ -17,6 +17,7 @@ import {
   type StoryboardChunk,
 } from '../storyboard-chunks.js'
 import { buildVisualGridPromptPlan, resolveSceneEnvironmentPrompt } from '../visual-prompt-policy.js'
+import { storyboardInputSchema, type StoryboardInput } from '../storyboard-parse.js'
 
 type StoryboardToolOptions = {
   scriptChunk?: StoryboardChunk
@@ -24,31 +25,6 @@ type StoryboardToolOptions = {
   clearBeforeAppend?: boolean
 }
 
-const storyboardInputSchema = z.object({
-  storyboards: z.array(z.object({
-    shot_number: z.number(),
-    title: z.string().optional(),
-    shot_type: z.string().optional(),
-    angle: z.string().optional(),
-    movement: z.string().optional(),
-    location: z.string().optional(),
-    time: z.string().optional(),
-    action: z.string().optional(),
-    dialogue: z.string().optional(),
-    description: z.string().optional(),
-    result: z.string().optional(),
-    atmosphere: z.string().optional(),
-    image_prompt: z.string().optional(),
-    video_prompt: z.string().optional(),
-    bgm_prompt: z.string().optional(),
-    sound_effect: z.string().optional(),
-    duration: z.number().optional(),
-    scene_id: z.number().nullable().optional(),
-    character_ids: z.array(z.number()).optional(),
-  })).min(1),
-})
-
-type StoryboardInput = z.infer<typeof storyboardInputSchema>['storyboards'][number]
 type StoryboardUpdateValues = Partial<typeof schema.storyboards.$inferInsert>
 type StoryboardRow = typeof schema.storyboards.$inferSelect
 
@@ -232,100 +208,150 @@ async function buildExistingStoryboardPayload(episodeId: number) {
     })))
 }
 
+export async function buildStoryboardContext(episodeId: number, dramaId: number, scriptChunk?: StoryboardChunk) {
+  const [episode] = (await db.select().from(schema.episodes)
+    .where(eq(schema.episodes.id, episodeId)).all())
+  if (!episode) throw new Error('Episode not found')
+  const [drama] = (await db.select().from(schema.dramas)
+    .where(eq(schema.dramas.id, dramaId)).all())
+  const fullScript = episode.scriptContent || episode.content
+  if (!fullScript) throw new Error('Episode has no script')
+  const script = scriptChunk?.script || fullScript
+
+  const charLinks = (await db.select().from(schema.episodeCharacters)
+    .where(eq(schema.episodeCharacters.episodeId, episodeId)).all())
+  const sceneLinks = (await db.select().from(schema.episodeScenes)
+    .where(eq(schema.episodeScenes.episodeId, episodeId)).all())
+
+  const linkedCharacterIds = new Set(charLinks.map(link => link.characterId))
+  const linkedSceneIds = new Set(sceneLinks.map(link => link.sceneId))
+
+  const chars = (await db.select().from(schema.characters)
+    .where(eq(schema.characters.dramaId, dramaId)).all())
+  const scns = (await db.select().from(schema.scenes)
+    .where(eq(schema.scenes.dramaId, dramaId)).all())
+  const existingStoryboards = await buildExistingStoryboardPayload(episodeId)
+
+  const characters = chars
+    .filter(character => !character.deletedAt)
+    .filter(character => !linkedCharacterIds.size || linkedCharacterIds.has(character.id))
+    .map(character => ({
+      id: character.id,
+      name: character.name,
+      role: character.role || '',
+      description: character.description || '',
+      appearance: character.appearance || '',
+      personality: character.personality || '',
+      image_url: character.imageUrl || '',
+      reference_images: character.referenceImages || '',
+    }))
+
+  const scenes = scns
+    .filter(scene => !scene.deletedAt)
+    .filter(scene => !linkedSceneIds.size || linkedSceneIds.has(scene.id))
+    .map(scene => ({
+      id: scene.id,
+      location: scene.location,
+      time: scene.time,
+      prompt: resolveSceneEnvironmentPrompt(scene.prompt, scene.location),
+      image_url: scene.imageUrl || '',
+      storyboard_count: scene.storyboardCount || 0,
+    }))
+
+  const payload = {
+    project: {
+      id: dramaId,
+      title: drama?.title || '',
+      style: drama?.style || '',
+    },
+    episode: {
+      id: episode.id,
+      title: episode.title,
+      episode_number: episode.episodeNumber,
+      description: episode.description || '',
+    },
+    script,
+    chunk: scriptChunk
+      ? {
+          index: scriptChunk.index,
+          total: scriptChunk.total,
+          is_chunked: true,
+          full_script_length: fullScript.length,
+          chunk_script_length: script.length,
+        }
+      : null,
+    characters,
+    scenes,
+    existing_storyboards: existingStoryboards,
+  }
+
+  logTaskSuccess('StoryboardTool', 'read-context', {
+    episodeId,
+    dramaId,
+    characters: characters.length,
+    scenes: scenes.length,
+    existingStoryboards: payload.existing_storyboards.length,
+    scriptLength: fullScript.length,
+    chunkIndex: scriptChunk?.index,
+    chunkTotal: scriptChunk?.total,
+    chunkScriptLength: script.length,
+  })
+  return payload
+}
+
+export async function appendStoryboardChunk(
+  episodeId: number,
+  dramaId: number,
+  storyboards: StoryboardInput[],
+  clearBeforeAppend: boolean,
+  scriptChunk?: StoryboardChunk,
+) {
+  const deletedStoryboards = clearBeforeAppend ? await clearExistingStoryboards(episodeId) : 0
+  const existingStoryboards = (await db.select().from(schema.storyboards)
+    .where(eq(schema.storyboards.episodeId, episodeId)).all())
+    .filter(storyboard => !storyboard.deletedAt)
+  const startNumber = getNextStoryboardNumber(existingStoryboards)
+  const renumberedStoryboards = renumberStoryboardsForAppend(storyboards, startNumber)
+
+  logTaskProgress('StoryboardTool', 'append-begin', {
+    episodeId,
+    dramaId,
+    chunkIndex: scriptChunk?.index,
+    chunkTotal: scriptChunk?.total,
+    count: renumberedStoryboards.length,
+    startNumber,
+    deletedStoryboards,
+    shotNumbers: renumberedStoryboards.map(storyboard => storyboard.shot_number).join(','),
+  })
+
+  await insertStoryboards(episodeId, dramaId, renumberedStoryboards)
+  const totalDuration = await updateEpisodeDurationFromStoryboards(episodeId)
+
+  logTaskSuccess('StoryboardTool', 'append-complete', {
+    episodeId,
+    chunkIndex: scriptChunk?.index,
+    count: renumberedStoryboards.length,
+    totalDuration,
+  })
+  return {
+    message: `Appended ${renumberedStoryboards.length} storyboards`,
+    count: renumberedStoryboards.length,
+    start_number: startNumber,
+    total_duration: totalDuration,
+  }
+}
+
 export function createStoryboardTools(episodeId: number, dramaId: number, options: StoryboardToolOptions = {}) {
   const readStoryboardContext = createTool({
     id: 'read_storyboard_context',
     description: 'Read AiDrama screenplay, character, scene, project style, and existing storyboard context.',
     inputSchema: z.object({}),
     execute: async () => {
-      const [episode] = (await db.select().from(schema.episodes)
-        .where(eq(schema.episodes.id, episodeId)).all())
-      if (!episode) return { error: 'Episode not found' }
-      const [drama] = (await db.select().from(schema.dramas)
-        .where(eq(schema.dramas.id, dramaId)).all())
-      const fullScript = episode.scriptContent || episode.content
-      if (!fullScript) return { error: 'Episode has no script' }
-      const script = options.scriptChunk?.script || fullScript
-
-      const charLinks = (await db.select().from(schema.episodeCharacters)
-        .where(eq(schema.episodeCharacters.episodeId, episodeId)).all())
-      const sceneLinks = (await db.select().from(schema.episodeScenes)
-        .where(eq(schema.episodeScenes.episodeId, episodeId)).all())
-
-      const linkedCharacterIds = new Set(charLinks.map(link => link.characterId))
-      const linkedSceneIds = new Set(sceneLinks.map(link => link.sceneId))
-
-      const chars = (await db.select().from(schema.characters)
-        .where(eq(schema.characters.dramaId, dramaId)).all())
-      const scns = (await db.select().from(schema.scenes)
-        .where(eq(schema.scenes.dramaId, dramaId)).all())
-      const existingStoryboards = await buildExistingStoryboardPayload(episodeId)
-
-      const characters = chars
-        .filter(character => !character.deletedAt)
-        .filter(character => !linkedCharacterIds.size || linkedCharacterIds.has(character.id))
-        .map(character => ({
-          id: character.id,
-          name: character.name,
-          role: character.role || '',
-          description: character.description || '',
-          appearance: character.appearance || '',
-          personality: character.personality || '',
-          image_url: character.imageUrl || '',
-          reference_images: character.referenceImages || '',
-        }))
-
-      const scenes = scns
-        .filter(scene => !scene.deletedAt)
-        .filter(scene => !linkedSceneIds.size || linkedSceneIds.has(scene.id))
-        .map(scene => ({
-          id: scene.id,
-          location: scene.location,
-          time: scene.time,
-          prompt: resolveSceneEnvironmentPrompt(scene.prompt, scene.location),
-          image_url: scene.imageUrl || '',
-          storyboard_count: scene.storyboardCount || 0,
-        }))
-
-      const payload = {
-        project: {
-          id: dramaId,
-          title: drama?.title || '',
-          style: drama?.style || '',
-        },
-        episode: {
-          id: episode.id,
-          title: episode.title,
-          episode_number: episode.episodeNumber,
-          description: episode.description || '',
-        },
-        script,
-        chunk: options.scriptChunk
-          ? {
-              index: options.scriptChunk.index,
-              total: options.scriptChunk.total,
-              is_chunked: true,
-              full_script_length: fullScript.length,
-              chunk_script_length: script.length,
-            }
-          : null,
-        characters,
-        scenes,
-        existing_storyboards: existingStoryboards,
+      try {
+        return await buildStoryboardContext(episodeId, dramaId, options.scriptChunk)
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : String(err) }
       }
-
-      logTaskSuccess('StoryboardTool', 'read-context', {
-        episodeId,
-        dramaId,
-        characters: characters.length,
-        scenes: scenes.length,
-        existingStoryboards: payload.existing_storyboards.length,
-        scriptLength: fullScript.length,
-        chunkIndex: options.scriptChunk?.index,
-        chunkTotal: options.scriptChunk?.total,
-        chunkScriptLength: script.length,
-      })
-      return payload
     },
   })
 
@@ -359,41 +385,7 @@ export function createStoryboardTools(episodeId: number, dramaId: number, option
     description: 'Append generated storyboards for the current script chunk and continue shot numbering.',
     inputSchema: storyboardInputSchema,
     execute: async ({ storyboards }) => {
-      const deletedStoryboards = options.clearBeforeAppend
-        ? await clearExistingStoryboards(episodeId)
-        : 0
-      const existingStoryboards = (await db.select().from(schema.storyboards)
-        .where(eq(schema.storyboards.episodeId, episodeId)).all())
-        .filter(storyboard => !storyboard.deletedAt)
-      const startNumber = getNextStoryboardNumber(existingStoryboards)
-      const renumberedStoryboards = renumberStoryboardsForAppend(storyboards, startNumber)
-
-      logTaskProgress('StoryboardTool', 'append-begin', {
-        episodeId,
-        dramaId,
-        chunkIndex: options.scriptChunk?.index,
-        chunkTotal: options.scriptChunk?.total,
-        count: renumberedStoryboards.length,
-        startNumber,
-        deletedStoryboards,
-        shotNumbers: renumberedStoryboards.map(storyboard => storyboard.shot_number).join(','),
-      })
-
-      await insertStoryboards(episodeId, dramaId, renumberedStoryboards)
-      const totalDuration = await updateEpisodeDurationFromStoryboards(episodeId)
-
-      logTaskSuccess('StoryboardTool', 'append-complete', {
-        episodeId,
-        chunkIndex: options.scriptChunk?.index,
-        count: renumberedStoryboards.length,
-        totalDuration,
-      })
-      return {
-        message: `Appended ${renumberedStoryboards.length} storyboards`,
-        count: renumberedStoryboards.length,
-        start_number: startNumber,
-        total_duration: totalDuration,
-      }
+      return appendStoryboardChunk(episodeId, dramaId, storyboards, !!options.clearBeforeAppend, options.scriptChunk)
     },
   })
 
