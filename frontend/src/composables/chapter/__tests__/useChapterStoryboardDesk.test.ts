@@ -92,3 +92,44 @@ await runTest('storyboard desk handles scene labels and list actions', async () 
   assert.deepEqual(deleted, [1])
   assert.equal(selectedSb.value?.id, 2)
 })
+
+await runTest('storyboard desk inserts a shot after the selected one and shifts the rest', async () => {
+  const created: Record<string, unknown>[] = []
+  const updates: Array<{ id: number; payload: Record<string, unknown> }> = []
+  const sbs = ref<ChapterStoryboard[]>([
+    { id: 1, storyboard_number: 1 },
+    { id: 2, storyboard_number: 2 },
+    { id: 3, storyboard_number: 3 },
+  ])
+  const selectedSb = ref<ChapterStoryboard | null>(sbs.value[0])
+  const desk = useChapterStoryboardDesk({
+    epId: computed(() => 7),
+    sbs,
+    chars: ref([]),
+    scenes: ref([]),
+    selectedSb,
+    confirm: async () => true,
+    refresh: async () => undefined,
+    goSubStep: () => undefined,
+    createStoryboard: async payload => {
+      created.push(payload)
+    },
+    updateStoryboard: async (id, payload) => {
+      updates.push({ id, payload })
+    },
+  })
+
+  await desk.addShot()
+
+  // 选中第 1 个镜头，新镜头序号为 2，后两个镜头从后往前顺延为 4、3。
+  assert.deepEqual(updates, [
+    { id: 3, payload: { storyboard_number: 4 } },
+    { id: 2, payload: { storyboard_number: 3 } },
+  ])
+  assert.deepEqual(created, [{
+    episode_id: 7,
+    storyboard_number: 2,
+    title: '镜头2',
+    duration: 10,
+  }])
+})

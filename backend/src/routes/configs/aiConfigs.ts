@@ -88,12 +88,12 @@ function buildProbe(
   }
 
   if (p === 'ali') {
-    if (serviceType === 'vision') {
+    if (serviceType === 'vision' || serviceType === 'text') {
       return {
         method: 'POST',
         url: joinProviderUrl(baseUrl, '/compatible-mode/v1', '/chat/completions'),
         headers: bearerHeaders(apiKey, true),
-        body: { model: m || 'qwen3.6-plus', messages: [{ role: 'user', content: 'ping' }] },
+        body: { model: m || (serviceType === 'vision' ? 'qwen3.6-plus' : 'qwen-plus'), messages: [{ role: 'user', content: 'ping' }] },
       }
     }
     return {

@@ -75,11 +75,38 @@ export function useChapterStoryboardDesk(options: ChapterStoryboardDeskOptions) 
     return scene ? `${scene.location} · ${scene.time || '未设时间'}` : `场景 #${sceneId}`
   }
 
+  function getStoryboardNumber(storyboard: ChapterStoryboard | null | undefined, fallback: number) {
+    const value = Number(storyboard?.storyboard_number ?? storyboard?.storyboardNumber)
+    return Number.isFinite(value) ? value : fallback
+  }
+
   async function addShot() {
+    const list = options.sbs.value
+    const selected = options.selectedSb.value
+    const idx = selected ? list.findIndex(item => item === selected || item.id === selected.id) : -1
+
+    if (idx === -1) {
+      await createStoryboard({
+        episode_id: options.epId.value,
+        storyboard_number: list.length + 1,
+        title: `镜头${list.length + 1}`,
+        duration: 10,
+      })
+      await options.refresh()
+      return
+    }
+
+    // 在当前镜头之后插入：先把其后的镜头序号整体顺延 +1（从后往前更新避免序号冲突）。
+    for (let i = list.length - 1; i > idx; i--) {
+      const next = getStoryboardNumber(list[i], i + 1)
+      await updateStoryboard(Number(list[i].id), { storyboard_number: next + 1 })
+    }
+
+    const insertNumber = getStoryboardNumber(list[idx], idx + 1) + 1
     await createStoryboard({
       episode_id: options.epId.value,
-      storyboard_number: options.sbs.value.length + 1,
-      title: `镜头${options.sbs.value.length + 1}`,
+      storyboard_number: insertNumber,
+      title: `镜头${insertNumber}`,
       duration: 10,
     })
     await options.refresh()

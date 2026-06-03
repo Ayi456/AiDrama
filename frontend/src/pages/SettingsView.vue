@@ -366,7 +366,6 @@ const serviceMeta = {
 }
 const providerPresets = {
   text: {
-    chatfire: { label: 'ChatFire 推荐', baseUrl: 'https://api.chatfire.site', models: ['gemini-3-pro-preview'] },
     minimax: { label: 'MiniMax 推荐', baseUrl: 'https://api.minimaxi.com', models: ['MiniMax-Text-01'] },
     openrouter: { label: 'OpenRouter 推荐', baseUrl: 'https://openrouter.ai/api', models: ['google/gemini-3-flash-preview'] },
     openai: { label: 'OpenAI 推荐', baseUrl: 'https://api.openai.com', models: ['gpt-4.1-mini'] },
@@ -439,8 +438,8 @@ const endpointHint = computed(() => {
   const provider = cfgForm.provider
   const base = cfgForm.base_url || 'https://...'
   if (!provider) return '选择服务商后显示推荐端点前缀'
-  // 阿里百炼视频理解走 OpenAI 兼容模式（qwen-vl 系列），与 DashScope 原生 /api/v1 不同。
-  if (cfgForm.service_type === 'vision' && provider === 'ali') {
+  // 阿里百炼文本与视频理解均走 OpenAI 兼容模式，与 DashScope 原生 /api/v1 不同。
+  if (provider === 'ali' && (cfgForm.service_type === 'vision' || cfgForm.service_type === 'text')) {
     return `${base}/compatible-mode/v1`
   }
   const prefix = endpointPrefixes[provider] || ''

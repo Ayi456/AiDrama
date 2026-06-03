@@ -59,7 +59,7 @@ export function getTextProviderBaseUrl(config: AIConfig) {
   }
 
   if (provider === 'ali') {
-    return joinProviderUrl(config.baseUrl, '/api/v1', '')
+    return joinProviderUrl(config.baseUrl, '/compatible-mode/v1', '')
   }
 
   return config.baseUrl
