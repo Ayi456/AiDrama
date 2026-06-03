@@ -25,6 +25,13 @@ inputs:
       DATA_ROOT: /tmp/aidrama
       STORAGE_PATH: /tmp/aidrama/static
   events:
+    - timer:
+        parameters:
+          name: automation-tick
+          # 7 段 cron（秒 分 时 日 月 周 年）：每分钟第 0 秒触发一次。
+          # 触发时 SCF 会向 Web 函数 POST /，推进所有 running 集的自动化。
+          cronExpression: '0 */1 * * * * *'
+          enable: true
     - apigw:
         parameters:
           protocols:

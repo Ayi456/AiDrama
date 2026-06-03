@@ -212,13 +212,16 @@ async function mutate(episodeId: number, action: AutomationAction) {
   }).where(eq(schema.episodes.id, episodeId))
 }
 
-export async function bootResume(): Promise<number> {
+export async function resumeRunningEpisodes(): Promise<number> {
   const rows = await db.select().from(schema.episodes).where(eq(schema.episodes.automationStatus, 'running'))
-  let resumed = 0
   for (const ep of rows) {
-    void advance(ep.id).catch(err => console.warn('[automation] bootResume advance failed for episode', ep.id, err))
-    resumed++
+    void advance(ep.id).catch(err => console.warn('[automation] resume advance failed for episode', ep.id, err))
   }
+  return rows.length
+}
+
+export async function bootResume(): Promise<number> {
+  const resumed = await resumeRunningEpisodes()
   if (resumed > 0) console.log(`[automation] bootResume resumed ${resumed} running episode(s)`)
   return resumed
 }

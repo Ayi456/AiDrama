@@ -27,6 +27,7 @@ import characterAssets from './routes/resources/characterAssets.js'
 import preferences from './routes/resources/preferences.js'
 import webhooks from './routes/webhooks/webhooks.js'
 import { requestLogger, errorHandler } from './middleware/logger.js'
+import { resumeRunningEpisodes } from './services/automation/episode-orchestrator.js'
 import { externalAssetRedirectUrl } from './utils/external-asset-redirect.js'
 import { resolveDataRoot, resolveFrontendPublicPath } from './utils/runtime-paths.js'
 
@@ -80,6 +81,13 @@ export function createApp() {
 
   app.route('/api/v1', api)
   app.route('/webhooks', webhooks)
+
+  // SCF 定时触发器对 Web 函数以 POST / 投递事件；SPA 兜底只接管 GET *，
+  // 这里把根路径的 POST 当作自动化打点，推进所有 running 集（幂等）。
+  app.post('/', async (c) => {
+    const resumed = await resumeRunningEpisodes()
+    return c.json({ code: 0, data: { resumed }, message: 'ok' })
+  })
 
   app.use('*', async (c, next) => {
     const target = externalAssetRedirectUrl(c.req.url)

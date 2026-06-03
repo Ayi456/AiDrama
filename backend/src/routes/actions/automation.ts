@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { and, eq } from 'drizzle-orm'
 import { db, schema } from '../../db/index.js'
-import { start, cancel, resume, abort, advance } from '../../services/automation/episode-orchestrator.js'
+import { start, cancel, resume, abort, advance, resumeRunningEpisodes } from '../../services/automation/episode-orchestrator.js'
 import { getAutomationProgress } from '../../services/automation/progress-state.js'
 import * as automationRoutePolicy from '../policies/automation-route-policy.js'
 
@@ -16,6 +16,13 @@ export function normalizePatchAction(action: string): 'cancel' | 'resume' | 'abo
   return automationRoutePolicy.normalizePatchAction(action)
 }
 const app = new Hono()
+
+// 推进所有 running 集前进一步（无外部 webhook 的 extract 阶段靠它打点）。
+// 由 SCF 定时触发器或外部调度周期性调用；幂等，advance 内部有去重。
+app.post('/automation/tick', async (c) => {
+  const resumed = await resumeRunningEpisodes()
+  return c.json({ code: 0, data: { resumed }, message: 'ok' })
+})
 
 app.post('/episodes/:id/automation/start', async (c) => {
   const episodeId = Number(c.req.param('id'))
