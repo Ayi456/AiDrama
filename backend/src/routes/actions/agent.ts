@@ -33,9 +33,10 @@ const STORYBOARD_CHUNK_TIMEOUT_MS = (() => {
   return Number.isFinite(raw) && raw > 0 ? raw : 600_000 // 10 min total per chunk
 })()
 
-// 拆分镜的工作流只需 read_storyboard_context → append_storyboards（约 3-4 步），给少量余量即可。
-// 过大的 maxSteps 会放大单个 chunk 的最坏耗时。
-const STORYBOARD_CHUNK_MAX_STEPS = 6
+// 拆分镜的核心流程是 read_storyboard_context → append_storyboards（约 2-3 步），但部分模型会
+// 多读几次或先输出文本，需要一定步数余量才能走到 append。总时长已由 STORYBOARD_CHUNK_TIMEOUT_MS
+// 的 abortSignal 硬兜底，所以这里可以放宽步数而不必担心撞 SCF 上限。
+const STORYBOARD_CHUNK_MAX_STEPS = 10
 
 export type StoryboardBreakerProgress = {
   current: number
@@ -155,7 +156,8 @@ export async function runStoryboardChunk(
   })
 
   if (!wasToolUsed(normalized, 'append_storyboards')) {
-    throw new Error(`Storyboard chunk ${chunk.index}/${chunk.total} did not call append_storyboards`)
+    const calledTools = normalized.toolCalls.map((toolCall) => toolCall.toolName).join(', ') || '无'
+    throw new Error(`分镜 chunk ${chunk.index}/${chunk.total} 未调用 append_storyboards（实际调用的工具：${calledTools}）。模型可能没有按工具流程输出——请改用 tool-calling 更强的文本模型。`)
   }
 
   return {
