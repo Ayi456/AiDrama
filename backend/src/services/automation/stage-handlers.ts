@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../db/index.js'
-import { runExtractorAgent, runChunkedStoryboardBreaker } from '../../routes/actions/agent.js'
+import { runExtractorAgent, getStoryboardChunks, runStoryboardChunk } from '../../routes/actions/agent.js'
 import { generateCharacterImageBatch } from '../../routes/resources/characters.js'
 import { generateSceneImage } from '../../routes/resources/scenes.js'
 import { generateStoryboardVideo } from '../../routes/resources/videos.js'
@@ -10,6 +10,8 @@ import { imageGate, videoGate, resizeGates } from './concurrency-gate.js'
 import {
   STAGE_ORDER,
   isExtractCompleteFromCounts,
+  isStoryboardChunkingComplete,
+  nextStoryboardChunkIndex,
   nextStage,
   terminalStage,
   type AutomationStage,
@@ -84,12 +86,30 @@ async function loadExtractCounts(episodeId: number) {
   return { storyboards: sbs.length, episodeCharacters: ecs.length, episodeScenes: ess.length }
 }
 
+async function loadStoryboardChunkProgress(episodeId: number) {
+  const [epRows, sbRows] = await Promise.all([
+    db.select().from(schema.episodes).where(eq(schema.episodes.id, episodeId)),
+    db.select().from(schema.storyboards).where(eq(schema.storyboards.episodeId, episodeId)),
+  ])
+  const cursor = epRows[0]?.automationStoryboardChunk ?? 0
+  let totalChunks = 0
+  try {
+    totalChunks = (await getStoryboardChunks(episodeId)).chunks.length
+  } catch {
+    totalChunks = 0
+  }
+  return { existingStoryboards: sbRows.length, cursor, totalChunks }
+}
+
 export async function isExtractComplete(ctx: StageContext): Promise<boolean> {
   const c = await loadExtractCounts(ctx.episodeId)
-  return isExtractCompleteFromCounts(c)
+  if (c.episodeCharacters === 0) return false
+  return isStoryboardChunkingComplete(await loadStoryboardChunkProgress(ctx.episodeId))
 }
 
 const extractHandler: StageHandler = {
+  // 每个 advance tick 只做一件重活：提取角色/场景，或处理单个分镜 chunk。
+  // 这样任何一次执行都远低于 SCF 900s 上限，且可在任意 chunk 处中断后恢复。
   enter: async (ctx) => {
     const counts = await loadExtractCounts(ctx.episodeId)
     setAutomationProgress(ctx.episodeId, {
@@ -98,31 +118,44 @@ const extractHandler: StageHandler = {
       total: 2,
       label: '提取角色与场景',
     })
-    if (counts.episodeCharacters === 0) await runExtractorAgent(ctx.dramaId, ctx.episodeId)
-    const after = await loadExtractCounts(ctx.episodeId)
-    setAutomationProgress(ctx.episodeId, {
-      stage: 'extract',
-      current: 1,
-      total: 2,
-      label: '提取角色与场景',
-    })
-    if (after.storyboards === 0) {
-      await runChunkedStoryboardBreaker(ctx.dramaId, ctx.episodeId, undefined, undefined, {
-        onProgress: progress => setAutomationProgress(ctx.episodeId, {
-          stage: 'extract',
-          current: progress.current,
-          total: progress.total,
-          label: '拆解分镜',
-        }),
-      })
-    } else {
+    if (counts.episodeCharacters === 0) {
+      await runExtractorAgent(ctx.dramaId, ctx.episodeId)
+      return
+    }
+
+    const progress = await loadStoryboardChunkProgress(ctx.episodeId)
+    const next = nextStoryboardChunkIndex(progress)
+    if (next == null) {
       setAutomationProgress(ctx.episodeId, {
         stage: 'extract',
         current: 2,
         total: 2,
         label: '提取角色与场景',
       })
+      return
     }
+
+    const { chunks } = await getStoryboardChunks(ctx.episodeId)
+    const chunk = chunks.find((item) => item.index === next)
+    if (!chunk) return
+
+    setAutomationProgress(ctx.episodeId, {
+      stage: 'extract',
+      current: Math.max(0, next - 1),
+      total: chunks.length,
+      label: '拆解分镜',
+    })
+    await runStoryboardChunk(ctx.dramaId, ctx.episodeId, chunk)
+    await db.update(schema.episodes).set({
+      automationStoryboardChunk: next,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(schema.episodes.id, ctx.episodeId))
+    setAutomationProgress(ctx.episodeId, {
+      stage: 'extract',
+      current: next,
+      total: chunks.length,
+      label: '拆解分镜',
+    })
   },
   isComplete: isExtractComplete,
 }

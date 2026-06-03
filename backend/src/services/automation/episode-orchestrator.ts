@@ -58,6 +58,7 @@ export async function start(episodeId: number): Promise<{ ok: boolean; status: A
     automationStage: 'extract',
     automationAttempt: 0,
     automationError: null,
+    automationStoryboardChunk: 0,
     updatedAt: now,
   }).where(eq(schema.episodes.id, episodeId))
 

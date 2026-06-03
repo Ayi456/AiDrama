@@ -44,6 +44,7 @@ export const episodes = mysqlTable('episodes', {
   automationStage: varchar('automation_stage', { length: 32 }).default('extract'),
   automationAttempt: int('automation_attempt').default(0),
   automationError: text('automation_error'),
+  automationStoryboardChunk: int('automation_storyboard_chunk').default(0),
 })
 export const characters = mysqlTable('characters', {
   id: int('id').autoincrement().primaryKey(),

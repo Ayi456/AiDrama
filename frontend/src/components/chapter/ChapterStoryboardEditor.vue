@@ -272,7 +272,10 @@
 
     <div v-else-if="rn && rt === 'storyboard_breaker'" class="step-loading">
       <Loader2 :size="24" class="animate-spin" style="color:var(--accent)" />
-      <div class="loading-text">正在拆解分镜并生成提示词...</div>
+      <div class="loading-text">
+        正在拆解分镜并生成提示词...
+        <template v-if="breakdownProgress && breakdownProgress.total">（{{ breakdownProgress.current }}/{{ breakdownProgress.total }}）</template>
+      </div>
     </div>
 
     <div v-else class="step-empty">
@@ -306,6 +309,10 @@ const props = defineProps({
   rt: {
     type: String,
     default: '',
+  },
+  breakdownProgress: {
+    type: Object,
+    default: null,
   },
   sbs: {
     type: Array,

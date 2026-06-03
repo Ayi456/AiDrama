@@ -85,6 +85,7 @@
           v-else
           :rn="rn"
           :rt="rt"
+          :breakdown-progress="breakdownProgress"
           :sbs="sbs"
           :total-duration="totalDuration"
           :locked-video-config-label="lockedVideoConfigLabel"
@@ -217,7 +218,7 @@ const characterAssets = ref([])
 const characterAssetBusy = ref(false)
 const manualAssetBusy = ref(false)
 
-const { running: rn, runningType: rt, run: runAgent } = useAgent()
+const { running: rn, runningType: rt, progress: breakdownProgress, run: runAgent } = useAgent()
 const scriptStep = ref(0)
 const automationProgressRefreshSignal = ref(0)
 const automationDataRefreshSignature = ref('')
