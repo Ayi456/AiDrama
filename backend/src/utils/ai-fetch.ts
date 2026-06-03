@@ -1,10 +1,12 @@
 import { Agent, fetch as undiciFetch } from 'undici'
 
-// Node 内置 fetch(undici) 默认 headersTimeout/bodyTimeout 为 300s。非流式的 Agent.generate()
-// 对慢模型（尤其分镜拆解）很容易超过 5 分钟，触发 UND_ERR_HEADERS_TIMEOUT。
+// 非流式的 Agent.generate() 里，服务商要整段生成完才返回响应头，所以这个超时实际约束的是
+// “单次模型调用”的总时长（headersTimeout）。它必须明显低于 serverless 函数的执行上限
+// （SCF 900s）——这样单次调用卡住/过慢时能快速失败并抛出真实错误，而不是耗满预算后被平台
+// 静默杀掉（返回 433、拿不到错误信息）。可用 AI_REQUEST_TIMEOUT_MS 覆盖。
 // 注意：必须用 undici 自带的 fetch 才能传入 undici 的 Agent dispatcher，
 // Node 内置 fetch 会拒绝外部 undici 的 dispatcher（UND_ERR_INVALID_ARG）。
-const DEFAULT_AI_REQUEST_TIMEOUT_MS = 900_000 // 15 min
+const DEFAULT_AI_REQUEST_TIMEOUT_MS = 180_000 // 3 min, per HTTP call
 
 function resolveTimeoutMs(): number {
   const raw = Number(process.env.AI_REQUEST_TIMEOUT_MS)

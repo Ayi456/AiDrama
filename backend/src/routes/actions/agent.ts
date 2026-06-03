@@ -26,6 +26,17 @@ function getErrorStack(error: unknown) {
 export const DEFAULT_EXTRACTOR_MESSAGE = '请从剧本中提取所有角色和场景信息，提取时自动与项目已有数据进行去重合并。'
 export const DEFAULT_STORYBOARD_BREAKER_MESSAGE = '请拆解分镜并生成视频提示词。'
 
+// 单个分镜 chunk 的整体硬截止。必须明显低于 SCF 900s 函数上限，保证 chunk 请求总能在被平台
+// 静默杀掉之前返回一个可读的错误（abortSignal 会中断进行中的模型调用并停止工具循环）。
+const STORYBOARD_CHUNK_TIMEOUT_MS = (() => {
+  const raw = Number(process.env.STORYBOARD_CHUNK_TIMEOUT_MS)
+  return Number.isFinite(raw) && raw > 0 ? raw : 600_000 // 10 min total per chunk
+})()
+
+// 拆分镜的工作流只需 read_storyboard_context → append_storyboards（约 3-4 步），给少量余量即可。
+// 过大的 maxSteps 会放大单个 chunk 的最坏耗时。
+const STORYBOARD_CHUNK_MAX_STEPS = 6
+
 export type StoryboardBreakerProgress = {
   current: number
   total: number
@@ -121,10 +132,20 @@ export async function runStoryboardChunk(
     'Generate at least 1 shot for this chunk, including an empty/environment shot when the chunk is transitional.',
   ].join('\n\n')
 
-  const result = await chunkAgent.generate(
-    [{ role: 'user', content: chunkMessage }],
-    { maxSteps: 12 },
-  )
+  const deadline = AbortSignal.timeout(STORYBOARD_CHUNK_TIMEOUT_MS)
+  let result
+  try {
+    result = await chunkAgent.generate(
+      [{ role: 'user', content: chunkMessage }],
+      { maxSteps: STORYBOARD_CHUNK_MAX_STEPS, abortSignal: deadline },
+    )
+  } catch (err) {
+    if (deadline.aborted) {
+      const seconds = Math.round(STORYBOARD_CHUNK_TIMEOUT_MS / 1000)
+      throw new Error(`Storyboard chunk ${chunk.index}/${chunk.total} timed out after ${seconds}s — the text model is too slow for the serverless time budget. Use a faster model, shrink storyboard_chunk_chars, or enable streaming.`)
+    }
+    throw err
+  }
   const normalized = normalizeAgentResult(result)
 
   logTaskProgress('Agent', 'storyboard-chunk-tools', {
