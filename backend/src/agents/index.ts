@@ -12,6 +12,7 @@ import {
 import { and, eq, isNull } from 'drizzle-orm'
 import { db, schema } from '../db/index.js'
 import { getTextConfig, getTextProviderBaseUrl, getTextProviderProtocol } from '../services/ai/ai.js'
+import { aiFetch } from '../utils/ai-fetch.js'
 import { logTaskProgress } from '../utils/task-logger.js'
 import {
   mergeAgentInstructions,
@@ -63,6 +64,7 @@ async function getModel(dbConfig: AgentConfigRecord | null) {
     const providerOptions: AnthropicProviderSettings = {
       baseURL: resolvedBaseURL,
       apiKey: textConfig.apiKey,
+      fetch: aiFetch,
     }
     const provider = createAnthropic(providerOptions)
     return provider.chat(modelName as AnthropicModelId)
@@ -71,6 +73,7 @@ async function getModel(dbConfig: AgentConfigRecord | null) {
   const providerOptions: OpenAIProviderSettings = {
     baseURL: resolvedBaseURL,
     apiKey: textConfig.apiKey,
+    fetch: aiFetch,
   }
   const provider = createOpenAI(providerOptions)
   return provider.chat(modelName as OpenAIModelId)
