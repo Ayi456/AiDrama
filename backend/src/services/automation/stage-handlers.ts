@@ -9,7 +9,6 @@ import { mergeEpisodeVideos } from '../merge/ffmpeg-merge.js'
 import { imageGate, videoGate, resizeGates } from './concurrency-gate.js'
 import {
   STAGE_ORDER,
-  isExtractCompleteFromCounts,
   isStoryboardChunkingComplete,
   nextStoryboardChunkIndex,
   nextStage,
@@ -74,8 +73,6 @@ const noop: StageHandler = {
   enter: async () => {},
   isComplete: async () => true,
 }
-
-export { isExtractCompleteFromCounts }
 
 async function loadExtractCounts(episodeId: number) {
   const [sbs, ecs, ess] = await Promise.all([

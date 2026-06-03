@@ -86,14 +86,6 @@ export async function saveBase64Image(base64Data: string, mimeType: string, subD
   return `static/${subDir}/${filename}`
 }
 
-export function readImageAsDataUrl(relativePath: string): string {
-  const filePath = getAbsolutePath(relativePath)
-  const buffer = fs.readFileSync(filePath)
-  const ext = path.extname(filePath).toLowerCase()
-  const mimeType = extToMimeType(ext)
-  return `data:${mimeType};base64,${buffer.toString('base64')}`
-}
-
 export async function readImageAsCompressedDataUrl(
   relativePath: string,
   options: {
@@ -139,15 +131,4 @@ function mimeTypeToExt(mimeType: string): string {
     'image/gif': '.gif',
   }
   return map[mimeType] || '.png'
-}
-
-function extToMimeType(ext: string): string {
-  const map: Record<string, string> = {
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.webp': 'image/webp',
-    '.gif': 'image/gif',
-  }
-  return map[ext] || 'image/png'
 }

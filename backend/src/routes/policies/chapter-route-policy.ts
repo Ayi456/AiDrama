@@ -1,5 +1,5 @@
 import type { RouteBody } from '../shared/route-body.js'
-import { hasOwn, readBodyNumber, readBodyString } from '../shared/route-body.js'
+import { hasOwn, readBodyNumber } from '../shared/route-body.js'
 import {
   normalizeTransitionDurationMs,
   normalizeTransitionType,
@@ -102,8 +102,4 @@ export function readChapterDramaId(body: ChapterCreateBody) {
 
 export function readChapterConfigId(body: ChapterCreateBody, key: 'image_config_id' | 'video_config_id') {
   return normalizeConfigId(body[key])
-}
-
-export function readChapterTitle(body: RouteBody, key: string) {
-  return readBodyString(body, key)
 }

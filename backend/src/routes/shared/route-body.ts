@@ -30,12 +30,6 @@ export function readBodyNumber(body: RouteBody, key: string): number | undefined
   return undefined
 }
 
-export function readBodyStringArray(body: RouteBody, key: string): string[] {
-  const value = body[key]
-  if (!Array.isArray(value)) return []
-  return value.map((item) => String(item || '').trim()).filter(Boolean)
-}
-
 export function readBodyObjectArray(body: RouteBody, key: string): RouteBody[] {
   const value = body[key]
   if (!Array.isArray(value)) return []

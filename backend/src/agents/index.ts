@@ -28,7 +28,7 @@ import { createGridPromptTools } from './tools/grid-prompt-tools.js'
 import { createScriptTools } from './tools/script-tools.js'
 import { createStoryboardTools } from './tools/storyboard-tools.js'
 
-export { isValidAgentType, validAgentTypes } from './presets.js'
+export { isValidAgentType } from './presets.js'
 
 type AgentConfigRecord = typeof schema.agentConfigs.$inferSelect
 type AnthropicModelId = Parameters<AnthropicProvider['chat']>[0]

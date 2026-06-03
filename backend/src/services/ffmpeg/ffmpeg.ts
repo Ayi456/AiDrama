@@ -132,8 +132,4 @@ export function ffmpegSupportsXfade(): Promise<boolean> {
   return xfadeSupportCache
 }
 
-export function resetXfadeSupportCache() {
-  xfadeSupportCache = null
-}
-
 export { ffmpeg }

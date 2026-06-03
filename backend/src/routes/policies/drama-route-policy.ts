@@ -1,5 +1,5 @@
 import type { RouteBody } from '../shared/route-body.js'
-import { hasOwn, readBodyNumber, readBodyString, readBodyStringArray } from '../shared/route-body.js'
+import { hasOwn, readBodyNumber } from '../shared/route-body.js'
 
 export type DramaCreateBody = RouteBody & {
   title?: string
@@ -144,14 +144,6 @@ export function readDramaConfigIds(body: DramaCreateBody) {
   }
 }
 
-export function readDramaBodyString(body: RouteBody, key: string) {
-  return readBodyString(body, key)
-}
-
 export function readDramaBodyNumber(body: RouteBody, key: string) {
   return readBodyNumber(body, key)
-}
-
-export function readDramaBodyStringArray(body: RouteBody, key: string) {
-  return readBodyStringArray(body, key)
 }
