@@ -9,12 +9,21 @@ type VideoPollGeneration = {
   errorMsg?: unknown
 }
 
+type VideoPollOptions = {
+  storyboardHasVideo?: boolean
+}
+
 export type VideoPollOutcome =
   | { type: 'completed' }
   | { type: 'failed'; message: string }
   | { type: 'pending' }
 
-export function resolveVideoPollOutcome(generation: VideoPollGeneration | null | undefined): VideoPollOutcome {
+export function resolveVideoPollOutcome(
+  generation: VideoPollGeneration | null | undefined,
+  options: VideoPollOptions = {},
+): VideoPollOutcome {
+  if (options.storyboardHasVideo) return { type: 'completed' }
+
   const status = String(generation?.status || '').trim().toLowerCase()
   if (status === 'completed') return { type: 'completed' }
   if (status === 'failed') {

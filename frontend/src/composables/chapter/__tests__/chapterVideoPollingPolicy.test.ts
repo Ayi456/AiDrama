@@ -23,6 +23,14 @@ runTest('client video polling window covers the backend provider polling window'
 runTest('processing video status remains pending instead of failed', () => {
   assert.deepEqual(resolveVideoPollOutcome({ status: 'processing' }), { type: 'pending' })
   assert.deepEqual(resolveVideoPollOutcome({ status: 'running' }), { type: 'pending' })
+  assert.deepEqual(resolveVideoPollOutcome({ status: 'failed_defect' }), { type: 'pending' })
+})
+
+runTest('storyboard video publication completes polling even when parent generation is not completed', () => {
+  assert.deepEqual(
+    resolveVideoPollOutcome({ status: 'failed_defect' }, { storyboardHasVideo: true }),
+    { type: 'completed' },
+  )
 })
 
 runTest('exhausted client polling is not treated as generation failure', () => {

@@ -373,6 +373,8 @@ async function completeGeneratedVideo(
     }),
   })
 
+  if (result.action === 'regenerate') return
+
   try {
     await captureAndPersistTailFrame(id, result.localPath)
   } catch (err) {

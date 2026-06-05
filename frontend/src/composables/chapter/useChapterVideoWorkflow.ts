@@ -126,7 +126,10 @@ export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
       try {
         const res = await videoAPI.get(generationId)
         await options.refresh()
-        const outcome = resolveVideoPollOutcome(res)
+        const target = options.sbs.value.find(s => Number(s.id) === storyboardId)
+        const outcome = resolveVideoPollOutcome(res, {
+          storyboardHasVideo: hasStoryboardVideo(target),
+        })
         if (outcome.type === 'completed') {
           pendingVideoIds.value = pendingVideoIds.value.filter(item => item !== storyboardId)
           delete failedVideoMessages.value[storyboardId]

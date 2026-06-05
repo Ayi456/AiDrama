@@ -265,6 +265,7 @@ runTest('completeGeneratedVideoJob persists generated video and publishes storyb
   })
 
   assert.deepEqual(result, {
+    action: 'publish',
     localPath: 'static/videos/generated.mp4',
     publicUrl: 'https://cos.example.com/videos/generated.mp4',
   })
@@ -318,7 +319,7 @@ runTest('completeGeneratedVideoJob: defectCheck=publish runs persist + publishSt
 
 runTest('completeGeneratedVideoJob: defectCheck=regenerate skips persist and publishStoryboardVideo', async () => {
   const calls: string[] = []
-  await completeGeneratedVideoJob({
+  const result = await completeGeneratedVideoJob({
     id: 1,
     source: { type: 'url', videoUrl: 'https://x/v.mp4' },
     duration: 5,
@@ -333,6 +334,7 @@ runTest('completeGeneratedVideoJob: defectCheck=regenerate skips persist and pub
     defectCheck: async () => ({ action: 'regenerate' }),
   })
   assert.deepEqual(calls, [])
+  assert.equal(result.action, 'regenerate')
 })
 
 runTest('completeGeneratedVideoJob: omitting defectCheck preserves prior behaviour', async () => {

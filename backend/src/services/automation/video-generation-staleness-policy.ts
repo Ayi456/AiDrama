@@ -19,10 +19,8 @@ export function getVideoGenerationInFlightState(
   row: VideoGenerationInFlightInput,
   nowMs = Date.now(),
 ): VideoGenerationInFlightState {
-  if (row.defectCheckParentId != null) return notInFlight()
-
   const status = row.status ?? 'pending'
-  if (status !== 'pending' && status !== 'processing') return notInFlight()
+  if (status !== 'pending' && status !== 'processing' && status !== 'checking_defect') return notInFlight()
 
   const lastTouchedMs = parseTimestampMs(row.updatedAt) ?? parseTimestampMs(row.createdAt)
   if (lastTouchedMs == null) return activeInFlight()

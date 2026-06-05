@@ -188,6 +188,7 @@ import ChapterStoryboardEditor from '@/components/chapter/ChapterStoryboardEdito
 import AutomationProgressBar from '@/components/automation/AutomationProgressBar.vue'
 import { useChapterExportDesk } from '@/composables/chapter/useChapterExportDesk'
 import { shouldRefreshChapterForAutomationStatus } from '@/composables/automation/automationRefreshPolicy'
+import { resolveSelectedStoryboardAfterRefresh } from '@/composables/chapter/chapterSelectionPolicy'
 import { useChapterGridTool } from '@/composables/chapter/useChapterGridTool'
 import { useChapterImageViewer } from '@/composables/chapter/useChapterImageViewer'
 import { useChapterMediaPipeline } from '@/composables/chapter/useChapterMediaPipeline'
@@ -554,8 +555,7 @@ async function refresh() {
     sbs.value = await chapterAPI.storyboards(currentEpisode.id)
     await loadCharacterAssets()
 
-    if (!sbs.value.length) selectedSb.value = null
-    else if (!selectedSb.value || !sbs.value.some(sb => sb.id === selectedSb.value.id)) selectedSb.value = sbs.value[0]
+    selectedSb.value = resolveSelectedStoryboardAfterRefresh(sbs.value, selectedSb.value)
 
     syncScriptStep()
     await loadLatestGridImage()

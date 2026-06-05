@@ -65,7 +65,9 @@ export type CompleteGeneratedVideoJobInput = {
   storyboardId?: number | null
 }
 
-export type CompletedGeneratedJobResult = CompletedAssetInput
+export type CompletedGeneratedJobResult = CompletedAssetInput & {
+  action?: 'publish' | 'regenerate'
+}
 
 export type ImageCompletionPatch = ReturnType<typeof buildImageCompletionPatch>
 export type VideoCompletionPatch = ReturnType<typeof buildVideoCompletionPatch>
@@ -222,7 +224,7 @@ export async function completeGeneratedVideoJob(
       storyboardId: input.storyboardId,
     })
     if (decision.action === 'regenerate') {
-      return { publicUrl, localPath }
+      return { action: 'regenerate', publicUrl, localPath }
     }
   }
 
@@ -246,5 +248,5 @@ export async function completeGeneratedVideoJob(
     )
   }
 
-  return { publicUrl, localPath }
+  return { action: 'publish', publicUrl, localPath }
 }

@@ -13,13 +13,13 @@ test('selectRefreshableVideoGeneration picks the newest root in-flight task with
   assert.equal(selected?.id, 13)
 })
 
-test('selectRefreshableVideoGeneration ignores child regeneration tasks', () => {
+test('selectRefreshableVideoGeneration can refresh child regeneration tasks', () => {
   const selected = selectRefreshableVideoGeneration([
     { id: 20, status: 'processing', taskId: 'child-task', defectCheckParentId: 19 },
     { id: 19, status: 'processing', taskId: 'root-task', defectCheckParentId: null },
   ])
 
-  assert.equal(selected?.id, 19)
+  assert.equal(selected?.id, 20)
 })
 
 test('selectRefreshableVideoGeneration returns null when no provider task can be polled', () => {

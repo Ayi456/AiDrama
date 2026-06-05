@@ -20,6 +20,18 @@ test('recent pending root video generation remains in flight', () => {
   assert.deepEqual(state, { inFlight: true, stale: false, reason: null })
 })
 
+test('defect-checking video generation remains in flight', () => {
+  const state = getVideoGenerationInFlightState({
+    status: 'checking_defect',
+    taskId: 'cgt-123',
+    updatedAt: new Date(now - 5 * 60 * 1000).toISOString(),
+    createdAt: new Date(now - 5 * 60 * 1000).toISOString(),
+    defectCheckParentId: null,
+  }, now)
+
+  assert.deepEqual(state, { inFlight: true, stale: false, reason: null })
+})
+
 test('old processing root video generation without task id is stale', () => {
   const state = getVideoGenerationInFlightState({
     status: 'processing',
@@ -58,7 +70,7 @@ test('old processing root video generation with task id uses longer stale window
   assert.match(tooOld.reason ?? '', /timed out/i)
 })
 
-test('child regeneration rows do not block the root storyboard video queue', () => {
+test('child regeneration rows block duplicate root generation while in flight', () => {
   const state = getVideoGenerationInFlightState({
     status: 'processing',
     taskId: null,
@@ -67,5 +79,5 @@ test('child regeneration rows do not block the root storyboard video queue', () 
     defectCheckParentId: 10,
   }, now)
 
-  assert.deepEqual(state, { inFlight: false, stale: false, reason: null })
+  assert.deepEqual(state, { inFlight: true, stale: false, reason: null })
 })

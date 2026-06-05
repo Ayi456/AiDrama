@@ -7,7 +7,6 @@ export type RefreshableVideoGeneration = {
 
 export function selectRefreshableVideoGeneration<T extends RefreshableVideoGeneration>(rows: T[]): T | null {
   const candidates = rows.filter(row => {
-    if (row.defectCheckParentId != null) return false
     const status = row.status ?? 'pending'
     if (status !== 'pending' && status !== 'processing') return false
     return !!row.taskId?.trim()

@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { and, eq, or } from 'drizzle-orm'
 import { db, schema } from '../../db/index.js'
 import { now } from '../../utils/response.js'
 import { logTaskProgress, logTaskStart, logTaskSuccess } from '../../utils/task-logger.js'
@@ -59,12 +59,43 @@ async function loadVideoGenerationRow(id: number) {
   return row ?? null
 }
 
+function mutationAffectedRows(result: unknown) {
+  if (!result || typeof result !== 'object') return 0
+  const affectedRows = (result as { affectedRows?: unknown }).affectedRows
+  const count = Number(affectedRows)
+  return Number.isFinite(count) ? count : 0
+}
+
+async function claimDefectCheck(rowId: number) {
+  const result = await db
+    .update(schema.videoGenerations)
+    .set({ status: 'checking_defect', updatedAt: now() })
+    .where(and(
+      eq(schema.videoGenerations.id, rowId),
+      or(
+        eq(schema.videoGenerations.status, 'pending'),
+        eq(schema.videoGenerations.status, 'processing'),
+      ),
+    ))
+    .run()
+  return mutationAffectedRows(result) > 0
+}
+
 export type RegenEnqueueFn = (params: RegenEnqueueParams) => Promise<number>
 
 export function buildDefectCheckCallback(enqueueGenerate: RegenEnqueueFn): DefectCheckCallback {
   return async ({ id: rowId, publicUrl }) => {
     const row = await loadVideoGenerationRow(rowId)
     if (!row) return { action: 'publish' }
+    const claimed = await claimDefectCheck(rowId)
+    if (!claimed) {
+      logTaskProgress('VideoDefectCheck', 'already-claimed', {
+        id: rowId,
+        status: row.status,
+      })
+      return { action: 'regenerate' }
+    }
+
     const visionConfig = await loadActiveVisionConfig()
     const attemptNumber = typeof row.defectCheckAttempt === 'number' ? row.defectCheckAttempt : 0
 
