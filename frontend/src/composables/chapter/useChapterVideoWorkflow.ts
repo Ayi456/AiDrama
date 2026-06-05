@@ -19,6 +19,7 @@ import {
 import {
   getVideoHistoryUrl,
   normalizeVideoHistory,
+  shouldApplyVideoHistoryLoadResult,
 } from './chapterVideoHistoryPolicy'
 
 type VideoMonitor = {
@@ -39,6 +40,7 @@ export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
   const failedVideoMessages = ref<Record<number, string>>({})
   const videoHistory = ref<Record<number, VideoGeneration[]>>({})
   const loadingVideoHistoryIds = ref<number[]>([])
+  const videoHistoryLoadTokens = ref<Record<number, number>>({})
 
   function isPendingVideo(id: number) {
     return pendingVideoIds.value.includes(id)
@@ -60,19 +62,30 @@ export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
 
   async function loadVideoHistory(storyboardId: number) {
     const id = Number(storyboardId)
-    if (!id || isVideoHistoryLoading(id)) return
+    if (!id) return
+
+    const token = Number(videoHistoryLoadTokens.value[id] || 0) + 1
+    videoHistoryLoadTokens.value = {
+      ...videoHistoryLoadTokens.value,
+      [id]: token,
+    }
 
     loadingVideoHistoryIds.value = [...new Set([...loadingVideoHistoryIds.value, id])]
     try {
       const rows = await videoAPI.list({ storyboard_id: id })
+      if (!shouldApplyVideoHistoryLoadResult(videoHistoryLoadTokens.value, id, token)) return
       videoHistory.value = {
         ...videoHistory.value,
         [id]: normalizeVideoHistory(rows || []),
       }
     } catch (error: unknown) {
-      toast.error(errorMessageFromUnknown(error, '视频历史加载失败'))
+      if (shouldApplyVideoHistoryLoadResult(videoHistoryLoadTokens.value, id, token)) {
+        toast.error(errorMessageFromUnknown(error, '视频历史加载失败'))
+      }
     } finally {
-      loadingVideoHistoryIds.value = loadingVideoHistoryIds.value.filter(item => item !== id)
+      if (shouldApplyVideoHistoryLoadResult(videoHistoryLoadTokens.value, id, token)) {
+        loadingVideoHistoryIds.value = loadingVideoHistoryIds.value.filter(item => item !== id)
+      }
     }
   }
 

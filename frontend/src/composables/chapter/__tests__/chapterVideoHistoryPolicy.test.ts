@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   getVideoHistoryUrl,
   normalizeVideoHistory,
+  shouldApplyVideoHistoryLoadResult,
 } from '../chapterVideoHistoryPolicy.ts'
 
 function runTest(name: string, fn: () => void) {
@@ -49,4 +50,11 @@ runTest('video history falls back to id order and limits row count', () => {
   assert.equal(rows.length, 24)
   assert.equal(rows[0]?.id, 30)
   assert.equal(rows.at(-1)?.id, 7)
+})
+
+runTest('video history ignores stale responses for the same storyboard', () => {
+  const latestTokens = { 654: 2 }
+
+  assert.equal(shouldApplyVideoHistoryLoadResult(latestTokens, 654, 1), false)
+  assert.equal(shouldApplyVideoHistoryLoadResult(latestTokens, 654, 2), true)
 })

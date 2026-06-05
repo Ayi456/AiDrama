@@ -38,3 +38,11 @@ export function normalizeVideoHistory<T extends VideoHistoryItem>(
     })
     .slice(0, limit)
 }
+
+export function shouldApplyVideoHistoryLoadResult(
+  latestTokens: Record<number, number>,
+  storyboardId: number,
+  token: number,
+) {
+  return Number(latestTokens[Number(storyboardId)] || 0) === Number(token)
+}
