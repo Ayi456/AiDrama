@@ -360,23 +360,24 @@ export function createStoryboardTools(episodeId: number, dramaId: number, option
     description: 'Save generated storyboards and replace all existing storyboards for this episode.',
     inputSchema: storyboardInputSchema,
     execute: async ({ storyboards }) => {
+      const normalizedStoryboards = storyboardInputSchema.parse({ storyboards }).storyboards
       logTaskProgress('StoryboardTool', 'save-begin', {
         episodeId,
         dramaId,
-        count: storyboards.length,
-        shotNumbers: storyboards.map(storyboard => storyboard.shot_number).join(','),
+        count: normalizedStoryboards.length,
+        shotNumbers: normalizedStoryboards.map(storyboard => storyboard.shot_number).join(','),
       })
       await clearExistingStoryboards(episodeId)
 
-      await insertStoryboards(episodeId, dramaId, storyboards)
+      await insertStoryboards(episodeId, dramaId, normalizedStoryboards)
       const totalDuration = await updateEpisodeDurationFromStoryboards(episodeId)
 
       logTaskSuccess('StoryboardTool', 'save-complete', {
         episodeId,
-        count: storyboards.length,
+        count: normalizedStoryboards.length,
         totalDuration,
       })
-      return { message: `Saved ${storyboards.length} storyboards`, count: storyboards.length, total_duration: totalDuration }
+      return { message: `Saved ${normalizedStoryboards.length} storyboards`, count: normalizedStoryboards.length, total_duration: totalDuration }
     },
   })
 
@@ -385,7 +386,8 @@ export function createStoryboardTools(episodeId: number, dramaId: number, option
     description: 'Append generated storyboards for the current script chunk and continue shot numbering.',
     inputSchema: storyboardInputSchema,
     execute: async ({ storyboards }) => {
-      return appendStoryboardChunk(episodeId, dramaId, storyboards, !!options.clearBeforeAppend, options.scriptChunk)
+      const normalizedStoryboards = storyboardInputSchema.parse({ storyboards }).storyboards
+      return appendStoryboardChunk(episodeId, dramaId, normalizedStoryboards, !!options.clearBeforeAppend, options.scriptChunk)
     },
   })
 

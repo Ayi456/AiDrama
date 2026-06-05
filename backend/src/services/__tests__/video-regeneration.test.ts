@@ -23,7 +23,12 @@ const baseRecord: VideoRecordForRegen = {
   defectCheckAttempt: 0,
 }
 
-test('stripPreviousDefectHint: removes prior defect block', () => {
+test('stripPreviousDefectHint: removes current defect block', () => {
+  const withHint = '原始内容\n\n【本次生成硬性要求：必须完整拍到以下关键动作，不能用镜头切换、省略或结果画面替代过程】\n- 拔剑'
+  assert.equal(stripPreviousDefectHint(withHint), '原始内容')
+})
+
+test('stripPreviousDefectHint: removes legacy prior defect block', () => {
   const withHint = '原始内容\n\n【上次生成存在动作链断裂，请确保以下动作被完整拍到】\n- 拔剑'
   assert.equal(stripPreviousDefectHint(withHint), '原始内容')
 })
@@ -34,20 +39,20 @@ test('stripPreviousDefectHint: idempotent on plain prompt', () => {
 
 test('buildRegenPrompt: appends bullet list of missing actions', () => {
   const r = buildRegenPrompt('原始 prompt', ['拔剑', '推门'])
-  assert.match(r, /^原始 prompt\n\n【上次生成/)
+  assert.match(r, /^原始 prompt\n\n【本次生成硬性要求/)
   assert.match(r, /- 拔剑\n- 推门$/)
 })
 
 test('buildRegenPrompt: empty missingActions falls back to generic line', () => {
   const r = buildRegenPrompt('原始', [])
-  assert.match(r, /上次生成动作链不完整/)
+  assert.match(r, /必须完整拍到所有关键状态变化所需的动作过程/)
 })
 
 test('buildRegenPrompt: does not stack hints across regenerations', () => {
   const once = buildRegenPrompt('原始', ['拔剑'])
   const twice = buildRegenPrompt(once, ['推门'])
-  // 只应有一段【上次生成...】前缀
-  const occurrences = twice.split('【上次生成存在动作链断裂').length - 1
+  // 只应有一段【本次生成...】前缀
+  const occurrences = twice.split('【本次生成硬性要求').length - 1
   assert.equal(occurrences, 1)
   assert.match(twice, /- 推门$/)
 })

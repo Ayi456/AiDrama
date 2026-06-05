@@ -46,17 +46,21 @@ export interface RegenInput {
   enqueue: (params: RegenEnqueueParams) => Promise<number>
 }
 
-const DEFECT_HINT_BLOCK = '\n\n【上次生成存在动作链断裂，请确保以下动作被完整拍到】'
+const DEFECT_HINT_BLOCK = '\n\n【本次生成硬性要求：必须完整拍到以下关键动作，不能用镜头切换、省略或结果画面替代过程】'
+const LEGACY_DEFECT_HINT_BLOCK = '\n\n【上次生成存在动作链断裂，请确保以下动作被完整拍到】'
 
 export function stripPreviousDefectHint(prompt: string): string {
-  const idx = prompt.indexOf(DEFECT_HINT_BLOCK)
+  const idx = [DEFECT_HINT_BLOCK, LEGACY_DEFECT_HINT_BLOCK]
+    .map((block) => prompt.indexOf(block))
+    .filter((index) => index >= 0)
+    .sort((a, b) => a - b)[0] ?? -1
   return idx < 0 ? prompt : prompt.slice(0, idx).replace(/\s+$/, '')
 }
 
 export function buildRegenPrompt(originalPrompt: string, missingActions: string[]): string {
   const base = stripPreviousDefectHint(originalPrompt)
   if (missingActions.length === 0) {
-    return `${base}${DEFECT_HINT_BLOCK}\n- 上次生成动作链不完整，请保证所有关键动作被完整拍到`
+    return `${base}${DEFECT_HINT_BLOCK}\n- 必须完整拍到所有关键状态变化所需的动作过程`
   }
   const bullets = missingActions.map((a) => `- ${a}`).join('\n')
   return `${base}${DEFECT_HINT_BLOCK}\n${bullets}`

@@ -22,6 +22,39 @@ test('extracts JSON even with surrounding prose', () => {
   assert.equal(shots[0].scene_id, 7)
 })
 
+test('normalizes null optional text fields from model JSON', () => {
+  const shots = parseStoryboardsFromText(JSON.stringify({
+    storyboards: [{
+      shot_number: 1,
+      title: null,
+      shot_type: null,
+      angle: null,
+      movement: null,
+      location: null,
+      time: null,
+      action: null,
+      dialogue: null,
+      description: null,
+      result: null,
+      atmosphere: null,
+      image_prompt: null,
+      video_prompt: null,
+      bgm_prompt: null,
+      sound_effect: null,
+      duration: null,
+      scene_id: null,
+      character_ids: null,
+    }],
+  }))
+
+  assert.equal(shots.length, 1)
+  assert.deepEqual(shots[0], {
+    shot_number: 1,
+    scene_id: null,
+    character_ids: [],
+  })
+})
+
 test('throws on invalid JSON', () => {
   assert.throws(() => parseStoryboardsFromText('not json at all'), /未返回合法 JSON/)
 })
