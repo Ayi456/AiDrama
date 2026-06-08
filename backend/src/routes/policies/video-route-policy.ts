@@ -1,6 +1,8 @@
 import type { VideoGenerationEnqueueParams } from '../../services/media/generation/media-generation-enqueue.js'
+import { presentVideoGenerationAsset } from '../../utils/public-asset.js'
 
 type RouteBody = Record<string, unknown>
+type AssetRecord = Record<string, unknown>
 
 export type VideoGenerateBody = RouteBody & {
   storyboard_id?: number
@@ -78,4 +80,76 @@ export function errorMessageFromUnknown(error: unknown) {
   if (error instanceof Error) return error.message || 'Unknown video generation error'
   if (typeof error === 'string') return error || 'Unknown video generation error'
   return 'Unknown video generation error'
+}
+
+function numberValue(value: unknown) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function stringValue(value: unknown) {
+  return String(value || '').trim()
+}
+
+function readFirst(row: AssetRecord, keys: string[]) {
+  for (const key of keys) {
+    const value = row[key]
+    if (value != null && String(value).trim()) return value
+  }
+  return undefined
+}
+
+function setAliases(row: AssetRecord, keys: string[], value: unknown) {
+  for (const key of keys) row[key] = value
+}
+
+function copyEffectiveField(result: AssetRecord, effective: AssetRecord, keys: string[], clearMissing = false) {
+  const value = readFirst(effective, keys)
+  if (value !== undefined) setAliases(result, keys, value)
+  else if (clearMissing) setAliases(result, keys, '')
+}
+
+export function presentEffectiveVideoGenerationAsset<T extends AssetRecord>(
+  row: T,
+  effectiveRow?: AssetRecord | null,
+): T & AssetRecord {
+  const result: AssetRecord = presentVideoGenerationAsset(row)
+  const effective: AssetRecord = effectiveRow ? presentVideoGenerationAsset(effectiveRow) : result
+
+  const rootId = numberValue(result['id'])
+  const effectiveId = numberValue(effective['id']) ?? rootId
+  const originalStatus = stringValue(result['status'])
+  const effectiveStatus = stringValue(effective['status'])
+  const hasRegeneration = Boolean(effectiveRow && effectiveId !== rootId)
+
+  if (originalStatus) setAliases(result, ['originalStatus', 'original_status'], originalStatus)
+  if (effectiveId != null) {
+    setAliases(result, ['effectiveGenerationId', 'effective_generation_id'], effectiveId)
+    if (hasRegeneration) setAliases(result, ['regenerationId', 'regeneration_id'], effectiveId)
+  }
+  if (effectiveStatus) {
+    setAliases(result, ['effectiveStatus', 'effective_status'], effectiveStatus)
+    if (hasRegeneration) result['status'] = effectiveStatus
+  }
+
+  copyEffectiveField(result, effective, ['errorMsg', 'error_msg'], hasRegeneration)
+  copyEffectiveField(result, effective, ['videoUrl', 'video_url'], hasRegeneration)
+  copyEffectiveField(result, effective, ['minioUrl', 'minio_url'], hasRegeneration)
+  copyEffectiveField(result, effective, ['publicUrl', 'public_url'], hasRegeneration)
+  copyEffectiveField(result, effective, ['localPath', 'local_path'], hasRegeneration)
+  copyEffectiveField(result, effective, ['providerVideoUrl', 'provider_video_url'], hasRegeneration)
+  copyEffectiveField(result, effective, ['taskId', 'task_id'], hasRegeneration)
+  copyEffectiveField(result, effective, ['completedAt', 'completed_at'], hasRegeneration)
+  copyEffectiveField(result, effective, ['updatedAt', 'updated_at'], hasRegeneration)
+
+  const effectiveVideoUrl = readFirst(result, ['videoUrl', 'video_url', 'minioUrl', 'minio_url', 'publicUrl', 'public_url'])
+  if (effectiveVideoUrl !== undefined) {
+    setAliases(result, ['effectiveVideoUrl', 'effective_video_url'], effectiveVideoUrl)
+  }
+  const effectiveError = readFirst(result, ['errorMsg', 'error_msg'])
+  if (effectiveError !== undefined) {
+    setAliases(result, ['effectiveErrorMsg', 'effective_error_msg'], effectiveError)
+  }
+
+  return result as T & AssetRecord
 }

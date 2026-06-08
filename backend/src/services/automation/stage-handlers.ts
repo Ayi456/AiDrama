@@ -278,7 +278,7 @@ const videoHandler: StageHandler = {
     if (prev) {
       const prevVideos = await db.select().from(schema.videoGenerations).where(eq(schema.videoGenerations.storyboardId, prev.id))
       const latest = prevVideos
-        .filter(r => !r.defectCheckParentId && r.status === 'completed')
+        .filter(r => r.status === 'completed')
         .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0]
       const previousTailFrame = resolvePreviousTailFrameState({
         storyboardLastFrameImage: prev.lastFrameImage,

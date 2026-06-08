@@ -110,10 +110,22 @@ export type ImageGeneration = GenerationStatus & {
 export type VideoGeneration = GenerationStatus & {
   video_generation_id?: number
   videoGenerationId?: number
+  effective_generation_id?: number
+  effectiveGenerationId?: number
+  regeneration_id?: number
+  regenerationId?: number
+  effective_status?: string
+  effectiveStatus?: string
+  original_status?: string
+  originalStatus?: string
+  effective_error_msg?: string
+  effectiveErrorMsg?: string
   local_path?: string
   localPath?: string
   video_url?: string
   videoUrl?: string
+  effective_video_url?: string
+  effectiveVideoUrl?: string
   minio_url?: string
   minioUrl?: string
   provider?: string

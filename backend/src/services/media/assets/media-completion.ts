@@ -66,7 +66,7 @@ export type CompleteGeneratedVideoJobInput = {
 }
 
 export type CompletedGeneratedJobResult = CompletedAssetInput & {
-  action?: 'publish' | 'regenerate'
+  action?: 'publish' | 'regenerate' | 'failed'
 }
 
 export type ImageCompletionPatch = ReturnType<typeof buildImageCompletionPatch>
@@ -89,7 +89,7 @@ export type DefectCheckCallback = (input: {
   localPath: string
   duration: number | null | undefined
   storyboardId: number | null | undefined
-}) => Promise<{ action: 'publish' | 'regenerate' }>
+}) => Promise<{ action: 'publish' | 'regenerate' | 'failed' }>
 
 export type CompleteGeneratedVideoJobDeps = MaterializeGeneratedVideoDeps & {
   now: () => string
@@ -223,8 +223,8 @@ export async function completeGeneratedVideoJob(
       duration: input.duration,
       storyboardId: input.storyboardId,
     })
-    if (decision.action === 'regenerate') {
-      return { action: 'regenerate', publicUrl, localPath }
+    if (decision.action === 'regenerate' || decision.action === 'failed') {
+      return { action: decision.action, publicUrl, localPath }
     }
   }
 

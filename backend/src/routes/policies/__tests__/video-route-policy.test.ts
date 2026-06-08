@@ -4,6 +4,7 @@ import {
   buildVideoGenerationInput,
   buildVideoRouteLogContext,
   errorMessageFromUnknown,
+  presentEffectiveVideoGenerationAsset,
   validateVideoGenerateBody,
 } from '../video-route-policy.js'
 
@@ -81,4 +82,102 @@ runTest('errorMessageFromUnknown normalizes thrown values without any', () => {
   assert.equal(errorMessageFromUnknown(new Error('provider failed')), 'provider failed')
   assert.equal(errorMessageFromUnknown('string failure'), 'string failure')
   assert.equal(errorMessageFromUnknown({ message: 'not trusted' }), 'Unknown video generation error')
+})
+
+runTest('presentEffectiveVideoGenerationAsset exposes processing regeneration as the effective task', () => {
+  const result = presentEffectiveVideoGenerationAsset(
+    {
+      id: 41,
+      status: 'failed_defect',
+      videoUrl: 'https://cdn.example.com/old.mp4',
+    },
+    {
+      id: 42,
+      status: 'processing',
+      taskId: 'regen-task',
+    },
+  )
+
+  assert.equal(result.id, 41)
+  assert.equal(result.status, 'processing')
+  assert.equal(result.originalStatus, 'failed_defect')
+  assert.equal(result.original_status, 'failed_defect')
+  assert.equal(result.effectiveStatus, 'processing')
+  assert.equal(result.effective_status, 'processing')
+  assert.equal(result.regenerationId, 42)
+  assert.equal(result.regeneration_id, 42)
+  assert.equal(result.effectiveGenerationId, 42)
+  assert.equal(result.taskId, 'regen-task')
+  assert.equal(result.task_id, 'regen-task')
+})
+
+runTest('presentEffectiveVideoGenerationAsset exposes completed regeneration video url aliases', () => {
+  const result = presentEffectiveVideoGenerationAsset(
+    {
+      id: 51,
+      status: 'failed_defect',
+      videoUrl: 'https://cdn.example.com/old-provider.mp4',
+      minioUrl: 'https://cdn.example.com/old.mp4',
+    },
+    {
+      id: 52,
+      status: 'completed',
+      videoUrl: 'https://cdn.example.com/new-provider.mp4',
+      minioUrl: 'https://cdn.example.com/new.mp4',
+      completedAt: '2026-01-01T00:00:00.000Z',
+    },
+  )
+
+  assert.equal(result.status, 'completed')
+  assert.equal(result.videoUrl, 'https://cdn.example.com/new.mp4')
+  assert.equal(result.video_url, 'https://cdn.example.com/new.mp4')
+  assert.equal(result.publicUrl, 'https://cdn.example.com/new.mp4')
+  assert.equal(result.effectiveVideoUrl, 'https://cdn.example.com/new.mp4')
+  assert.equal(result.effective_video_url, 'https://cdn.example.com/new.mp4')
+  assert.equal(result.providerVideoUrl, 'https://cdn.example.com/new-provider.mp4')
+  assert.equal(result.completedAt, '2026-01-01T00:00:00.000Z')
+})
+
+runTest('presentEffectiveVideoGenerationAsset does not reuse parent urls for an incomplete regeneration', () => {
+  const result = presentEffectiveVideoGenerationAsset(
+    {
+      id: 55,
+      status: 'failed_defect',
+      videoUrl: 'https://cdn.example.com/old-provider.mp4',
+      minioUrl: 'https://cdn.example.com/old.mp4',
+    },
+    {
+      id: 56,
+      status: 'completed',
+    },
+  )
+
+  assert.equal(result.status, 'completed')
+  assert.equal(result.videoUrl, '')
+  assert.equal(result.video_url, '')
+  assert.equal(result.publicUrl, '')
+  assert.equal(result.public_url, '')
+  assert.equal(result.effectiveVideoUrl, undefined)
+  assert.equal(result.effective_video_url, undefined)
+})
+
+runTest('presentEffectiveVideoGenerationAsset exposes failed regeneration error message', () => {
+  const result = presentEffectiveVideoGenerationAsset(
+    {
+      id: 61,
+      status: 'failed_defect',
+      errorMsg: 'old defect',
+    },
+    {
+      id: 62,
+      status: 'failed',
+      errorMsg: 'provider failed',
+    },
+  )
+
+  assert.equal(result.status, 'failed')
+  assert.equal(result.errorMsg, 'provider failed')
+  assert.equal(result.error_msg, 'provider failed')
+  assert.equal(result.effectiveErrorMsg, 'provider failed')
+  assert.equal(result.effective_error_msg, 'provider failed')
 })

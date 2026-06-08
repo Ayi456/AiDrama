@@ -32,6 +32,39 @@ runTest('completed generation waits until a video url is available', () => {
   assert.deepEqual(resolveVideoPollOutcome({ status: 'completed', video_url: 'https://cdn.example.com/shot.mp4' }), { type: 'completed' })
 })
 
+runTest('effective regeneration status keeps polling while the child task is running', () => {
+  assert.deepEqual(
+    resolveVideoPollOutcome({
+      status: 'failed_defect',
+      effective_status: 'processing',
+      regeneration_id: 42,
+    }),
+    { type: 'pending' },
+  )
+})
+
+runTest('effective regeneration completion uses the regenerated video url', () => {
+  assert.deepEqual(
+    resolveVideoPollOutcome({
+      status: 'failed_defect',
+      effective_status: 'completed',
+      effective_video_url: 'https://cdn.example.com/regenerated.mp4',
+    }),
+    { type: 'completed' },
+  )
+})
+
+runTest('effective regeneration failure reports the child failure message', () => {
+  assert.deepEqual(
+    resolveVideoPollOutcome({
+      status: 'failed_defect',
+      effective_status: 'failed',
+      effective_error_msg: 'provider failed',
+    }),
+    { type: 'failed', message: 'provider failed' },
+  )
+})
+
 runTest('storyboard video completion requires a new url when regenerating', () => {
   assert.equal(hasNewStoryboardVideo('', 'https://cdn.example.com/old.mp4'), false)
   assert.equal(hasNewStoryboardVideo('https://cdn.example.com/old.mp4', 'https://cdn.example.com/old.mp4'), false)

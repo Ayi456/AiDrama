@@ -7,10 +7,18 @@ export const VIDEO_POLL_EXHAUSTED_MESSAGE = '视频仍在生成中，后台会�
 
 type VideoPollGeneration = {
   status?: unknown
+  effective_status?: unknown
+  effectiveStatus?: unknown
+  regeneration_id?: unknown
+  regenerationId?: unknown
   error_msg?: unknown
   errorMsg?: unknown
+  effective_error_msg?: unknown
+  effectiveErrorMsg?: unknown
   video_url?: unknown
   videoUrl?: unknown
+  effective_video_url?: unknown
+  effectiveVideoUrl?: unknown
   minio_url?: unknown
   minioUrl?: unknown
   public_url?: unknown
@@ -32,6 +40,8 @@ function stringValue(value: unknown) {
 
 export function getVideoPollGenerationUrl(generation: VideoPollGeneration | null | undefined) {
   return stringValue(
+    generation?.effective_video_url ||
+    generation?.effectiveVideoUrl ||
     generation?.video_url ||
     generation?.videoUrl ||
     generation?.minio_url ||
@@ -54,14 +64,20 @@ export function resolveVideoPollOutcome(
 ): VideoPollOutcome {
   if (options.storyboardHasVideo) return { type: 'completed' }
 
-  const status = String(generation?.status || '').trim().toLowerCase()
+  const status = stringValue(generation?.effective_status || generation?.effectiveStatus || generation?.status).toLowerCase()
   if (status === 'completed') {
     return getVideoPollGenerationUrl(generation) ? { type: 'completed' } : { type: 'pending' }
   }
   if (status === 'failed') {
     return {
       type: 'failed',
-      message: normalizeApiErrorMessage(generation?.error_msg || generation?.errorMsg, '视频生成失败'),
+      message: normalizeApiErrorMessage(
+        generation?.effective_error_msg ||
+        generation?.effectiveErrorMsg ||
+        generation?.error_msg ||
+        generation?.errorMsg,
+        '视频生成失败',
+      ),
     }
   }
   return { type: 'pending' }

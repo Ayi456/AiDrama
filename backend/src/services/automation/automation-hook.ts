@@ -19,10 +19,6 @@ export type ResourceHookInput =
     }
 
 export async function onResourceCompleted(input: ResourceHookInput): Promise<void> {
-  if (input.type === 'video' && input.videoGenerationId) {
-    const r = await db.select().from(schema.videoGenerations).where(eq(schema.videoGenerations.id, input.videoGenerationId))
-    if (r[0]?.defectCheckParentId) return
-  }
   const episodeId = await resolveEpisodeId(input)
   if (!episodeId) return
   const ep = await db.select().from(schema.episodes).where(eq(schema.episodes.id, episodeId))

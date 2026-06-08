@@ -10,6 +10,7 @@ import {
   buildVideoGenerationInput,
   buildVideoRouteLogContext,
   errorMessageFromUnknown,
+  presentEffectiveVideoGenerationAsset,
   readVideoListLimit,
   readVideoListNumber,
   validateVideoGenerateBody,
@@ -54,7 +55,10 @@ app.get('/:id', async (c) => {
   const id = Number(c.req.param('id'))
   const [row] = (await db.select().from(schema.videoGenerations)
     .where(eq(schema.videoGenerations.id, id)).all())
-  return success(c, row ? presentVideoGenerationAsset(row) : null)
+  if (!row) return success(c, null)
+
+  const effective = await loadLatestEffectiveVideoGeneration(row)
+  return success(c, presentEffectiveVideoGenerationAsset(row, effective))
 })
 
 // GET /videos - List by storyboard_id or drama_id
@@ -129,6 +133,27 @@ export async function generateStoryboardVideo(input: GenerateStoryboardVideoInpu
 
   logTaskSuccess('VideoAPI', 'auto-generate', { storyboardId: input.storyboardId, generationId: id })
   return id
+}
+
+async function loadLatestEffectiveVideoGeneration(row: typeof schema.videoGenerations.$inferSelect) {
+  let effective = row
+  const seen = new Set<number>()
+
+  for (let depth = 0; depth < 8; depth += 1) {
+    const currentId = effective.id
+    if (!currentId || seen.has(currentId)) break
+    seen.add(currentId)
+
+    const [child] = (await db.select().from(schema.videoGenerations)
+      .where(eq(schema.videoGenerations.defectCheckParentId, currentId))
+      .orderBy(desc(schema.videoGenerations.id))
+      .limit(1)
+      .all())
+    if (!child) break
+    effective = child
+  }
+
+  return effective.id === row.id ? null : effective
 }
 
 export default app

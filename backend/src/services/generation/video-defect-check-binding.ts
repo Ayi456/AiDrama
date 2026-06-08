@@ -66,6 +66,12 @@ function mutationAffectedRows(result: unknown) {
   return Number.isFinite(count) ? count : 0
 }
 
+function errorMessageFromUnknown(error: unknown) {
+  if (error instanceof Error) return error.message || 'Unknown error'
+  if (typeof error === 'string') return error || 'Unknown error'
+  return 'Unknown error'
+}
+
 async function claimDefectCheck(rowId: number) {
   const result = await db
     .update(schema.videoGenerations)
@@ -131,36 +137,64 @@ export function buildDefectCheckCallback(enqueueGenerate: RegenEnqueueFn): Defec
       await db
         .update(schema.videoGenerations)
         .set({
+          status: 'checking_defect',
+          errorMsg: '检测判定穿帮，正在发起重生成',
+          updatedAt: now(),
+        })
+        .where(eq(schema.videoGenerations.id, rowId))
+        .run()
+      let newId: number
+      try {
+        newId = await enqueueDefectRegeneration({
+          originalRecord: {
+            id: row.id,
+            prompt: row.prompt,
+            model: row.model,
+            configId: undefined,
+            storyboardId: row.storyboardId,
+            imageUrl: row.imageUrl,
+            firstFrameUrl: row.firstFrameUrl,
+            lastFrameUrl: row.lastFrameUrl,
+            duration: row.duration,
+            fps: row.fps,
+            resolution: row.resolution,
+            aspectRatio: row.aspectRatio,
+            defectCheckAttempt: row.defectCheckAttempt,
+            dramaId: row.dramaId,
+            referenceMode: row.referenceMode,
+            referenceImageUrls: row.referenceImageUrls,
+            referenceVideoUrls: row.referenceVideoUrls,
+            referenceAudioUrls: row.referenceAudioUrls,
+          },
+          missingActions: decision.missingActions,
+          enqueue: enqueueGenerate,
+        })
+      } catch (error) {
+        const message = errorMessageFromUnknown(error)
+        await db
+          .update(schema.videoGenerations)
+          .set({
+            status: 'failed',
+            errorMsg: `缺陷检测判定穿帮，但重生成入队失败：${message}`,
+            updatedAt: now(),
+          })
+          .where(eq(schema.videoGenerations.id, rowId))
+          .run()
+        logTaskProgress('VideoDefectCheck', 'regenerate-enqueue-failed', {
+          id: rowId,
+          error: message,
+        })
+        return { action: 'failed' }
+      }
+      await db
+        .update(schema.videoGenerations)
+        .set({
           status: 'failed_defect',
           errorMsg: '检测判定穿帮，已发起重生成',
           updatedAt: now(),
         })
         .where(eq(schema.videoGenerations.id, rowId))
         .run()
-      const newId = await enqueueDefectRegeneration({
-        originalRecord: {
-          id: row.id,
-          prompt: row.prompt,
-          model: row.model,
-          configId: undefined,
-          storyboardId: row.storyboardId,
-          imageUrl: row.imageUrl,
-          firstFrameUrl: row.firstFrameUrl,
-          lastFrameUrl: row.lastFrameUrl,
-          duration: row.duration,
-          fps: row.fps,
-          resolution: row.resolution,
-          aspectRatio: row.aspectRatio,
-          defectCheckAttempt: row.defectCheckAttempt,
-          dramaId: row.dramaId,
-          referenceMode: row.referenceMode,
-          referenceImageUrls: row.referenceImageUrls,
-          referenceVideoUrls: row.referenceVideoUrls,
-          referenceAudioUrls: row.referenceAudioUrls,
-        },
-        missingActions: decision.missingActions,
-        enqueue: enqueueGenerate,
-      })
       logTaskSuccess('VideoDefectCheck', 'regenerate-enqueued', {
         id: rowId,
         newId,

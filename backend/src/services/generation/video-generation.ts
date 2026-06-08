@@ -374,6 +374,10 @@ async function completeGeneratedVideo(
   })
 
   if (result.action === 'regenerate') return
+  if (result.action === 'failed') {
+    await notifyAutomationAfterVideo(id, storyboardId ?? null, 'failed')
+    return
+  }
 
   try {
     await captureAndPersistTailFrame(id, result.localPath)
