@@ -51,9 +51,12 @@
               class="shot-studio__textarea"
               rows="7"
               placeholder="按镜头动作、节奏、运镜和情绪拆分视频提示词"
+              @input="markPromptDraftDirty($event.target.value)"
               @blur="savePromptDraft()"
             />
-            <div class="shot-studio__helper">留空时会用当前镜头信息自动生成默认视频提示词，点击生成前会自动保存。</div>
+            <div class="shot-studio__helper">
+              {{ isPromptSaving ? '视频提示词保存中...' : '留空时会用当前镜头信息自动生成默认视频提示词，点击生成前会自动保存。' }}
+            </div>
           </div>
 
           <div class="shot-studio__group">
@@ -329,7 +332,7 @@
         <div class="shot-studio__footer">
           <button class="btn btn-sm shot-studio__reset" type="button" @click="applyDefaultPrompt()">重置提示词</button>
           <div class="shot-studio__actions">
-            <button class="btn btn-primary video-workbench__generate-btn" :disabled="state.isPendingVideo(selectedShot.id)" @click="generateSelectedVideo()">
+            <button class="btn btn-primary video-workbench__generate-btn" :disabled="state.isPendingVideo(selectedShot.id) || isPromptSaving" @click="generateSelectedVideo()">
               <Loader2 v-if="state.isPendingVideo(selectedShot.id)" :size="13" class="animate-spin" />
               <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
               {{ state.getVideoGenerateActionLabel(selectedShot) }}
@@ -557,6 +560,11 @@ const isSelectedVideoPending = computed(() => (
 ))
 
 const promptDraft = ref('')
+const promptDraftShotKey = ref('')
+const promptDraftsByShot = ref({})
+const dirtyPromptDraftsByShot = ref({})
+const savingPromptDraftsByShot = ref({})
+const promptSavePromisesByShot = new Map()
 const referenceMode = ref('auto')
 const selectedVideoEl = ref(null)
 const captureSourceVideoEl = ref(null)
@@ -572,6 +580,46 @@ const imageUploadInput = ref(null)
 const videoUploadInput = ref(null)
 const audioUploadInput = ref(null)
 
+const isPromptSaving = computed(() => Boolean(savingPromptDraftsByShot.value[selectedShotKey.value]))
+
+function getShotVideoPrompt(shot) {
+  return shot?.video_prompt || shot?.videoPrompt || ''
+}
+
+function getResolvedVideoPrompt(shot) {
+  return getShotVideoPrompt(shot) || props.state.buildDefaultVideoPrompt(shot)
+}
+
+function setMapValue(source, key, value) {
+  source.value = {
+    ...source.value,
+    [key]: value,
+  }
+}
+
+function deleteMapKey(source, key) {
+  if (!Object.prototype.hasOwnProperty.call(source.value, key)) return
+  const next = { ...source.value }
+  delete next[key]
+  source.value = next
+}
+
+function setStoryboardVideoPrompt(storyboard, value) {
+  if (!storyboard) return
+  storyboard.video_prompt = value
+  storyboard.videoPrompt = value
+}
+
+function markPromptDraftDirty(value = promptDraft.value) {
+  if (!selectedShot.value) return
+  const key = selectedShotKey.value
+  const nextValue = String(value ?? '')
+  promptDraft.value = nextValue
+  promptDraftShotKey.value = key
+  setMapValue(promptDraftsByShot, key, nextValue)
+  setMapValue(dirtyPromptDraftsByShot, key, true)
+}
+
 watch(
   () => [
     selectedShot.value?.id || 0,
@@ -580,10 +628,20 @@ watch(
   () => {
     const shot = selectedShot.value
     if (!shot) {
+      promptDraftShotKey.value = ''
       promptDraft.value = ''
       return
     }
-    promptDraft.value = shot.video_prompt || shot.videoPrompt || props.state.buildDefaultVideoPrompt(shot)
+    const key = selectedShotKey.value
+    if (promptDraftShotKey.value !== key) {
+      promptDraftShotKey.value = key
+      promptDraft.value = dirtyPromptDraftsByShot.value[key]
+        ? String(promptDraftsByShot.value[key] ?? '')
+        : getResolvedVideoPrompt(shot)
+      return
+    }
+    if (dirtyPromptDraftsByShot.value[key] || savingPromptDraftsByShot.value[key]) return
+    promptDraft.value = getResolvedVideoPrompt(shot)
   },
   { immediate: true },
 )
@@ -810,31 +868,64 @@ const pendingCount = computed(() => (
   props.state.sbs.filter(sb => props.state.isPendingVideo(sb.id)).length
 ))
 
-function savePromptDraft(nextValue = promptDraft.value) {
-  if (!selectedShot.value) return
+async function savePromptDraft(nextValue = promptDraft.value) {
+  if (!selectedShot.value) return false
+  const shot = selectedShot.value
+  const key = selectedShotKey.value
+  const existingSave = promptSavePromisesByShot.get(key)
+  if (existingSave) await existingSave.catch(() => false)
   const value = String(nextValue ?? '').trim()
   promptDraft.value = value
-  props.handlers.handleShotFieldUpdate({
-    sb: selectedShot.value,
-    field: 'video_prompt',
-    value,
-  })
+  promptDraftShotKey.value = key
+  setMapValue(promptDraftsByShot, key, value)
+  setMapValue(savingPromptDraftsByShot, key, true)
+  const savePromise = (async () => {
+    await props.handlers.handleShotFieldUpdate({
+      sb: shot,
+      field: 'video_prompt',
+      value,
+    })
+    const latestShot = selectedShot.value?.id === shot.id
+      ? selectedShot.value
+      : props.state.sbs.find(item => item.id === shot.id)
+    setStoryboardVideoPrompt(shot, value)
+    setStoryboardVideoPrompt(latestShot, value)
+    if (String(promptDraftsByShot.value[key] ?? '') === value) {
+      deleteMapKey(dirtyPromptDraftsByShot, key)
+      deleteMapKey(promptDraftsByShot, key)
+    }
+    return true
+  })()
+  promptSavePromisesByShot.set(key, savePromise)
+  try {
+    return await savePromise
+  } catch (error) {
+    setMapValue(dirtyPromptDraftsByShot, key, true)
+    toast.error(error?.message || '视频提示词保存失败')
+    return false
+  } finally {
+    if (promptSavePromisesByShot.get(key) === savePromise) {
+      promptSavePromisesByShot.delete(key)
+    }
+    deleteMapKey(savingPromptDraftsByShot, key)
+  }
 }
 
 function applyDefaultPrompt() {
   if (!selectedShot.value) return
   const nextPrompt = props.state.buildDefaultVideoPrompt(selectedShot.value)
   promptDraft.value = nextPrompt
-  savePromptDraft(nextPrompt)
+  void savePromptDraft(nextPrompt)
 }
 
 function selectShot(sb) {
   props.handlers.handleShotSelection(sb)
 }
 
-function generateSelectedVideo() {
+async function generateSelectedVideo() {
   if (!selectedShot.value) return
-  savePromptDraft()
+  const saved = await savePromptDraft()
+  if (!saved) return
   if (referenceMode.value === 'capture') {
     if (!capturedFrameUrl.value) {
       toast.error('请先截取上一镜头视频帧')
