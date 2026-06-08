@@ -122,11 +122,11 @@ export function createExtractTools(episodeId: number, dramaId: number) {
     description: 'Save extracted characters with deduplication. Existing characters (same name) are merged/updated; new ones are created. All are linked to the current episode.',
     inputSchema: z.object({
       characters: z.array(z.object({
-        name: z.string(),
-        role: z.string().optional(),
-        description: z.string().optional(),
-        appearance: z.string().optional(),
-        personality: z.string().optional(),
+        name: z.string().describe('Character name. Merge same-name characters first; if distinct individuals or conflicting appearances, use a qualifier plus name, such as 少年·张三 or 魔化·李四.'),
+        role: z.string().optional().describe('Stable identity label when useful for deduplication.'),
+        description: z.string().optional().describe('Only visual style labels such as identity, occupation, class, faction, or species. Max 3 labels or 20 Chinese characters. No experience, relationship, ability, or plot information.'),
+        appearance: z.string().optional().describe('Only objective drawable visual traits, ordered as 年龄段 → 性别特征 → 身高体型 → 肤色 → 五官特征 → 发型发色 → 服装（款式/材质/颜色）→ 配饰（含武器）→ 显著身体标记 → 神情 → 姿态. Do not invent unstated traits.'),
+        personality: z.string().optional().describe('Only temperament labels visible through expression, eyes, movement, or posture. No abstract judgment, moral judgment, causal premise, or plot premise.'),
       })),
     }),
     execute: async ({ characters }) => {

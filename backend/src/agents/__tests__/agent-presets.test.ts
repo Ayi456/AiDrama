@@ -62,6 +62,11 @@ runTest('agent preset helpers validate and resolve known types only', () => {
 runTest('extractor preset defines scene prompts as reusable environment assets', () => {
   const instructions = AIDRAMA_AGENT_PRESETS.extractor.instructions
 
+  assert.match(instructions, /角色提取与描述生成规则/)
+  assert.match(instructions, /限定词\+姓名/)
+  assert.match(instructions, /年龄段 → 性别特征 → 身高体型/)
+  assert.match(instructions, /不超过3个标签或20字/)
+  assert.match(instructions, /输出目标为角色视觉设定/)
   assert.match(instructions, /scene\.prompt 是可复用的场景资产提示词/)
   assert.match(instructions, /错误示例/)
   assert.match(instructions, /正确示例/)

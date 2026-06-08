@@ -6,14 +6,16 @@ import { Agent, fetch as undiciFetch } from 'undici'
 // 静默杀掉（返回 433、拿不到错误信息）。可用 AI_REQUEST_TIMEOUT_MS 覆盖。
 // 注意：必须用 undici 自带的 fetch 才能传入 undici 的 Agent dispatcher，
 // Node 内置 fetch 会拒绝外部 undici 的 dispatcher（UND_ERR_INVALID_ARG）。
-const DEFAULT_AI_REQUEST_TIMEOUT_MS = 180_000 // 3 min, per HTTP call
+// Keep this above the storyboard chunk deadline (10 min by default) so route-level
+// aborts can return the clearer business error before undici cuts the request.
+export const DEFAULT_AI_REQUEST_TIMEOUT_MS = 660_000 // 11 min, per HTTP call
 
-function resolveTimeoutMs(): number {
-  const raw = Number(process.env.AI_REQUEST_TIMEOUT_MS)
+export function resolveAiRequestTimeoutMs(value: unknown = process.env.AI_REQUEST_TIMEOUT_MS): number {
+  const raw = Number(value)
   return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_AI_REQUEST_TIMEOUT_MS
 }
 
-const timeoutMs = resolveTimeoutMs()
+const timeoutMs = resolveAiRequestTimeoutMs()
 
 const aiDispatcher = new Agent({
   headersTimeout: timeoutMs,

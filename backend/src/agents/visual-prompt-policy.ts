@@ -237,12 +237,12 @@ export function buildCharacterImagePrompt(source: CharacterPromptSource) {
 
   return compactPromptParts([
     source.name,
-    genderCue ? `${genderCue.zh}, ${genderCue.en}` : null,
+    genderCue ? genderCue.zh : null,
     appearance,
     descriptionFallback,
     personality ? `personality: ${personality}` : null,
     role ? `role: ${role}` : null,
-    style ? `project style: ${style}` : null,
+    style || null,
     'cinematic portrait',
     'high quality',
     'consistent art style',
@@ -265,16 +265,16 @@ export function buildCharacterPortraitGenerationPrompt(source: CharacterPromptSo
 
   return compactPromptParts([
     source.name,
-    genderCue ? `${genderCue.zh} ${genderCue.en}` : null,
+    genderCue ? genderCue.zh : null,
     appearance,
     descriptionPart,
     personality,
     role || descriptionIdentity ? `身份：${role || descriptionIdentity}` : null,
-    style ? `项目风格:${style}` : null,
+    style || null,
     '高清质感',
     '三张并排的全身角色设定图，纯白背景，符合人体工学',
-    displayName ? `右上角清晰显示角色名称：${displayName}` : null,
-    '画面内只保留人物本身和右上角角色名称，不要其他文字、标签、标题、编号、水印',
+    displayName ? `右上角清晰显示角色名：${displayName}` : null,
+    '不要其他文字、标签、标题、编号、水印，保持人物风格衣着的统一',
   ])
 }
 
@@ -294,8 +294,8 @@ export function resolveCharacterImagePrompt(source: CharacterImagePromptSource):
     '高清质感',
     '三视图',
     '纯白背景',
-    displayName ? `右上角清晰显示角色名称：${displayName}` : null,
-    '不要其他文字、标签、标题、编号、水印',
+    displayName ? `右上角清晰显示角色名：${displayName}` : null,
+    '不要其他文字、标签、标题、编号、水印，保持人物风格衣着的统一',
   ])
 }
 

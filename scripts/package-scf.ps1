@@ -1,5 +1,6 @@
 param(
   [switch]$SkipBuild,
+  [switch]$SkipInstallNodeModules,
   [switch]$InstallNodeModules,
   [switch]$IncludeNodeModules,
   [string]$OutputPath
@@ -53,31 +54,6 @@ function Read-ZipEntryText {
   }
 }
 
-function ConvertTo-WslPath {
-  param([string]$WindowsPath)
-
-  $resolvedPath = (Resolve-Path -LiteralPath $WindowsPath).Path
-  $drive = $resolvedPath.Substring(0, 1).ToLowerInvariant()
-  $pathPart = $resolvedPath.Substring(2).Replace('\', '/')
-  return "/mnt/$drive$pathPart"
-}
-
-function Quote-BashString {
-  param([string]$Value)
-
-  return "'" + $Value.Replace("'", "'\''") + "'"
-}
-
-function Test-WslNpm {
-  $wsl = Get-Command wsl.exe -ErrorAction SilentlyContinue
-  if (-not $wsl) {
-    return $false
-  }
-
-  & wsl.exe bash -lc 'command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1' *> $null
-  return $LASTEXITCODE -eq 0
-}
-
 Push-Location $repoRoot
 try {
   if (-not $SkipBuild) {
@@ -89,30 +65,28 @@ try {
     }
   }
 
-  if ($InstallNodeModules) {
+  $shouldInstallNodeModules = $InstallNodeModules -or -not $SkipInstallNodeModules
+  if ($shouldInstallNodeModules) {
     $IncludeNodeModules = $true
     Invoke-Step 'Install Linux production dependencies' {
-      if ($IsWindows -or $env:OS -eq 'Windows_NT') {
-        if (-not (Test-WslNpm)) {
-          throw 'Installing Linux node_modules from Windows requires WSL with node and npm installed. Install Ubuntu/WSL Node.js, then rerun this script, or run without -InstallNodeModules and keep SCF online dependency installation enabled.'
-        }
+      $oldPlatform = $env:npm_config_platform
+      $oldArch = $env:npm_config_arch
+      $oldLibc = $env:npm_config_libc
+      $env:npm_config_platform = 'linux'
+      $env:npm_config_arch = 'x64'
+      $env:npm_config_libc = 'glibc'
 
-        $wslDeployRoot = ConvertTo-WslPath $deployRoot
-        $quotedDeployRoot = Quote-BashString $wslDeployRoot
-        & wsl.exe bash -lc "cd $quotedDeployRoot && npm ci --omit=dev --include=optional"
+      Push-Location $deployRoot
+      try {
+        & npm ci --omit=dev --include=optional --ignore-scripts --force --os=linux --cpu=x64 --libc=glibc
         if ($LASTEXITCODE -ne 0) {
-          throw "WSL npm ci failed with exit code $LASTEXITCODE"
+          throw "npm ci failed with exit code $LASTEXITCODE"
         }
-      } else {
-        Push-Location $deployRoot
-        try {
-          & npm ci --omit=dev --include=optional
-          if ($LASTEXITCODE -ne 0) {
-            throw "npm ci failed with exit code $LASTEXITCODE"
-          }
-        } finally {
-          Pop-Location
-        }
+      } finally {
+        Pop-Location
+        $env:npm_config_platform = $oldPlatform
+        $env:npm_config_arch = $oldArch
+        $env:npm_config_libc = $oldLibc
       }
     }
   }
@@ -166,7 +140,11 @@ try {
         }
 
         $entry = $zip.CreateEntry($entryName, [System.IO.Compression.CompressionLevel]::Optimal)
-        if ($entryName -eq 'scf_bootstrap') {
+        if (
+          $entryName -eq 'scf_bootstrap' -or
+          $entryName -eq 'node_modules/@ffmpeg-installer/linux-x64/ffmpeg' -or
+          $entryName -eq 'node_modules/@ffprobe-installer/linux-x64/ffprobe'
+        ) {
           $entry.ExternalAttributes = -2115174400
         }
         $entry.LastWriteTime = $file.LastWriteTime

@@ -13,7 +13,7 @@ inputs:
   name: aidrama-web-function
   region: ap-guangzhou
   runtime: Nodejs20.19
-  installDependency: true
+  installDependency: false
   memorySize: 2048
   timeout: 900
   environment:

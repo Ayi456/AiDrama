@@ -3,9 +3,16 @@ import { eq } from 'drizzle-orm'
 import { createAgent, generateAgentTextWithoutTools, isValidAgentType } from '../../agents/index.js'
 import { runDirectAgentIfNeeded } from '../../agents/direct-mode.js'
 import { splitScriptIntoStoryboardChunks, type StoryboardChunk } from '../../agents/storyboard-chunks.js'
-import { parseStoryboardsFromText } from '../../agents/storyboard-parse.js'
+import { parseStoryboardsFromText, type StoryboardInput } from '../../agents/storyboard-parse.js'
 import { buildStoryboardContext, appendStoryboardChunk } from '../../agents/tools/storyboard-tools.js'
+import {
+  canSplitStoryboardChunkForRetry,
+  nextStoryboardRetryChunkChars,
+  resolveStoryboardAdaptivePolicy,
+  type StoryboardAdaptivePolicy,
+} from '../../agents/storyboard-adaptive-policy.js'
 import { db, schema } from '../../db/index.js'
+import { getTextConfig } from '../../services/ai/ai.js'
 import { success, badRequest } from '../../utils/response.js'
 import { logTaskError, logTaskPayload, logTaskProgress, logTaskStart, logTaskSuccess } from '../../utils/task-logger.js'
 import {
@@ -26,13 +33,6 @@ function getErrorStack(error: unknown) {
 
 export const DEFAULT_EXTRACTOR_MESSAGE = '请从剧本中提取所有角色和场景信息，提取时自动与项目已有数据进行去重合并。'
 export const DEFAULT_STORYBOARD_BREAKER_MESSAGE = '请拆解分镜并生成视频提示词。'
-
-// 单个分镜 chunk 的整体硬截止。直连模式下这就是单次模型调用的上限；必须明显低于 SCF 900s
-// 函数上限，保证 chunk 请求总能在被平台静默杀掉之前返回一个可读的错误。
-const STORYBOARD_CHUNK_TIMEOUT_MS = (() => {
-  const raw = Number(process.env.STORYBOARD_CHUNK_TIMEOUT_MS)
-  return Number.isFinite(raw) && raw > 0 ? raw : 600_000 // 10 min total per chunk
-})()
 
 // 直连模式的输出约束：覆盖预设里的工具步骤，要求模型只输出严格 JSON。对任何能产出 JSON 的模型通用，
 // 不依赖 tool-calling。
@@ -55,6 +55,28 @@ export type StoryboardBreakerProgress = {
 
 type StoryboardBreakerOptions = {
   onProgress?: (progress: StoryboardBreakerProgress) => void | Promise<void>
+}
+
+function readStoryboardEnvSettings(): Record<string, unknown> {
+  const timeoutMs = Number(process.env.STORYBOARD_CHUNK_TIMEOUT_MS)
+  return Number.isFinite(timeoutMs) && timeoutMs > 0
+    ? { storyboardChunkTimeoutMs: timeoutMs }
+    : {}
+}
+
+async function loadStoryboardAdaptivePolicy(chunkChars?: number): Promise<StoryboardAdaptivePolicy> {
+  let settings: Record<string, unknown> = {}
+  try {
+    const config = await getTextConfig()
+    settings = config.settings || {}
+  } catch {}
+
+  return resolveStoryboardAdaptivePolicy({
+    ...settings,
+    ...readStoryboardEnvSettings(),
+  }, {
+    chunkChars,
+  })
 }
 
 export async function runExtractorAgent(
@@ -89,14 +111,27 @@ type StoryboardChunkResult = {
   chunkIndex: number
   chunkTotal: number
   chunkLength: number
+  shotCount?: number
+  adaptiveChunks?: number
+  attempts?: number
   text: string
   toolCalls: NormalizedToolCall[]
   toolResults: NormalizedToolResult[]
 }
 
+type AdaptiveStoryboardChunkDraft = {
+  storyboards: StoryboardInput[]
+  adaptiveChunks: number
+  attempts: number
+}
+
 // 按集脚本切分分镜 chunk。切分是确定性的：同一脚本与 chunkChars 总是得到相同结果，
 // 因此前端可以先取总数，再逐 chunk 调用，每次请求都远低于 SCF 900s 上限。
-export async function getStoryboardChunks(episodeId: number, chunkChars?: number) {
+export async function getStoryboardChunks(
+  episodeId: number,
+  chunkChars?: number,
+  policy?: StoryboardAdaptivePolicy,
+) {
   const [episode] = (await db.select().from(schema.episodes)
     .where(eq(schema.episodes.id, episodeId)).all())
   if (!episode) throw new Error('Episode not found')
@@ -104,11 +139,120 @@ export async function getStoryboardChunks(episodeId: number, chunkChars?: number
   const script = episode.scriptContent || episode.content || ''
   if (!script.trim()) throw new Error('Episode has no script')
 
-  const maxChars = chunkChars || 1800
+  const resolvedPolicy = policy || await loadStoryboardAdaptivePolicy(chunkChars)
+  const maxChars = resolvedPolicy.chunkChars
   const chunks = splitScriptIntoStoryboardChunks(script, { maxChars })
   if (!chunks.length) throw new Error('Episode script cannot be split into storyboard chunks')
 
   return { chunks, maxChars }
+}
+
+async function generateStoryboardsForChunk(input: {
+  dramaId: number
+  episodeId: number
+  chunk: StoryboardChunk
+  message: string
+  policy: StoryboardAdaptivePolicy
+  attempt: number
+}): Promise<StoryboardInput[]> {
+  const { dramaId, episodeId, chunk, message, policy, attempt } = input
+  const context = await buildStoryboardContext(episodeId, dramaId, chunk)
+  const userContent = [
+    message,
+    `Storyboard chunk ${chunk.index}/${chunk.total}. Only process this chunk script; do not cover other chunks.`,
+    'Context JSON:',
+    JSON.stringify(context),
+  ].join('\n\n')
+
+  const deadline = AbortSignal.timeout(policy.chunkTimeoutMs)
+  let rawText: string
+  try {
+    rawText = await generateAgentTextWithoutTools('storyboard_breaker', STORYBOARD_DIRECT_DIRECTIVE, userContent, {
+      abortSignal: deadline,
+    })
+  } catch (err) {
+    if (deadline.aborted) {
+      const seconds = Math.round(policy.chunkTimeoutMs / 1000)
+      throw new Error(`Storyboard chunk ${chunk.index}/${chunk.total} attempt ${attempt} did not finish within ${seconds}s`)
+    }
+    throw err
+  }
+
+  return parseStoryboardsFromText(rawText)
+}
+
+async function generateAdaptiveStoryboardChunk(input: {
+  dramaId: number
+  episodeId: number
+  chunk: StoryboardChunk
+  rootChunk: StoryboardChunk
+  message: string
+  policy: StoryboardAdaptivePolicy
+  attempt: number
+}): Promise<AdaptiveStoryboardChunkDraft> {
+  const { dramaId, episodeId, chunk, rootChunk, message, policy, attempt } = input
+  logTaskProgress('Agent', 'storyboard-chunk-start', {
+    episodeId,
+    chunkIndex: rootChunk.index,
+    chunkTotal: rootChunk.total,
+    chunkLength: chunk.script.length,
+    attempt,
+  })
+
+  let storyboards: StoryboardInput[]
+  try {
+    storyboards = await generateStoryboardsForChunk({
+      dramaId,
+      episodeId,
+      chunk,
+      message,
+      policy,
+      attempt,
+    })
+  } catch (error) {
+    const canRetry = canSplitStoryboardChunkForRetry(chunk.script.length, attempt, policy)
+    if (!canRetry) throw error
+
+    const retryChunkChars = nextStoryboardRetryChunkChars(chunk.script.length, policy)
+    const retryChunks = splitScriptIntoStoryboardChunks(chunk.script, { maxChars: retryChunkChars })
+    if (retryChunks.length <= 1) throw error
+
+    logTaskProgress('Agent', 'storyboard-chunk-adaptive-retry', {
+      episodeId,
+      chunkIndex: rootChunk.index,
+      originalLength: chunk.script.length,
+      retryChunkChars,
+      retryChunks: retryChunks.length,
+      attempt,
+      error: getErrorMessage(error),
+    })
+
+    const results: AdaptiveStoryboardChunkDraft[] = []
+    for (const retryChunk of retryChunks) {
+      const result = await generateAdaptiveStoryboardChunk({
+        dramaId,
+        episodeId,
+        chunk: retryChunk,
+        rootChunk,
+        message,
+        policy,
+        attempt: attempt + 1,
+      })
+      results.push(result)
+    }
+
+    return {
+      storyboards: results.flatMap(result => result.storyboards),
+      adaptiveChunks: results.reduce((sum, result) => sum + (result.adaptiveChunks || 0), 0),
+      attempts: Math.max(...results.map(result => result.attempts || attempt), attempt),
+    }
+  }
+
+  return {
+    storyboards,
+    adaptiveChunks: 1,
+    attempts: attempt,
+  }
 }
 
 // 直连模式处理单个 chunk：服务端拼好上下文 → 模型一次性输出 JSON → 解析校验 → 复用入库逻辑。
@@ -119,49 +263,35 @@ export async function runStoryboardChunk(
   chunk: StoryboardChunk,
   message: string = DEFAULT_STORYBOARD_BREAKER_MESSAGE,
 ): Promise<StoryboardChunkResult> {
-  logTaskProgress('Agent', 'storyboard-chunk-start', {
+  const policy = await loadStoryboardAdaptivePolicy()
+  const draft = await generateAdaptiveStoryboardChunk({
+    dramaId,
     episodeId,
-    chunkIndex: chunk.index,
-    chunkTotal: chunk.total,
-    chunkLength: chunk.script.length,
+    chunk,
+    rootChunk: chunk,
+    message,
+    policy,
+    attempt: 1,
   })
 
-  const context = await buildStoryboardContext(episodeId, dramaId, chunk)
-  const userContent = [
-    message,
-    `这是分镜 chunk ${chunk.index}/${chunk.total}，只处理本 chunk 的剧本，不要覆盖其他 chunk。`,
-    '上下文（剧本/角色/场景/风格/已有分镜）如下 JSON：',
-    JSON.stringify(context),
-  ].join('\n\n')
-
-  const deadline = AbortSignal.timeout(STORYBOARD_CHUNK_TIMEOUT_MS)
-  let rawText: string
-  try {
-    rawText = await generateAgentTextWithoutTools('storyboard_breaker', STORYBOARD_DIRECT_DIRECTIVE, userContent, {
-      abortSignal: deadline,
-    })
-  } catch (err) {
-    if (deadline.aborted) {
-      const seconds = Math.round(STORYBOARD_CHUNK_TIMEOUT_MS / 1000)
-      throw new Error(`分镜 chunk ${chunk.index}/${chunk.total} 在 ${seconds}s 内未完成，请改用更快的文本模型或减小 storyboard_chunk_chars。`)
-    }
-    throw err
-  }
-
-  const storyboards = parseStoryboardsFromText(rawText)
-  const saved = await appendStoryboardChunk(episodeId, dramaId, storyboards, chunk.index === 1, chunk)
+  const saved = await appendStoryboardChunk(episodeId, dramaId, draft.storyboards, chunk.index === 1, chunk)
 
   logTaskProgress('Agent', 'storyboard-chunk-tools', {
     episodeId,
     chunkIndex: chunk.index,
     shots: saved.count,
+    attempts: draft.attempts,
+    adaptiveChunks: draft.adaptiveChunks,
   })
 
   return {
     chunkIndex: chunk.index,
     chunkTotal: chunk.total,
     chunkLength: chunk.script.length,
-    text: `已生成 ${saved.count} 个镜头`,
+    shotCount: saved.count,
+    adaptiveChunks: draft.adaptiveChunks,
+    attempts: draft.attempts,
+    text: `Generated ${saved.count} storyboard shots`,
     toolCalls: [],
     toolResults: [],
   }

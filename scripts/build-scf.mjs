@@ -83,4 +83,4 @@ copyFile(path.join(root, 'serverless.yml'), path.join(deployRoot, 'serverless.ym
 
 console.log(`SCF artifact assembled at ${deployRoot}`)
 console.log('For cloud deployment, configure DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, and DB_NAME outside Git.')
-console.log('Do not copy Windows node_modules. Use installDependency: true or run npm ci --omit=dev in Linux.')
+console.log('Run scripts/package-scf.ps1 to install Linux production dependencies and create the upload zip.')
