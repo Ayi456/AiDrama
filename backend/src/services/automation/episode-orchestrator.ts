@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../db/index.js'
-import { AutomationStage, handlers, nextStage } from './stage-handlers.js'
+import { AutomationStage, handlers, normalizeAutomationStage, nextStage } from './stage-handlers.js'
 import { clearAutomationProgress, setAutomationProgress } from './progress-state.js'
 
 export type AutomationStatus = 'idle' | 'running' | 'paused' | 'failed' | 'done'
@@ -85,7 +85,7 @@ export async function advance(episodeId: number): Promise<void> {
       const status = (ep.automationStatus ?? 'idle') as AutomationStatus
       if (status !== 'running') return
 
-      const stage = (ep.automationStage ?? 'extract') as AutomationStage
+      const stage = normalizeAutomationStage(ep.automationStage)
       if (stage === 'done') {
         await markStatus(episodeId, 'done')
         return
@@ -199,7 +199,7 @@ async function mutate(episodeId: number, action: AutomationAction) {
   const ep = rows[0]
   const result = applyAction({
     status: (ep.automationStatus ?? 'idle') as AutomationStatus,
-    stage: (ep.automationStage ?? 'extract') as AutomationStage,
+    stage: normalizeAutomationStage(ep.automationStage),
     attempt: ep.automationAttempt ?? 0,
     error: ep.automationError,
   }, action)

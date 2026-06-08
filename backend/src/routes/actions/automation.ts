@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm'
 import { db, schema } from '../../db/index.js'
 import { start, cancel, resume, abort, advance, resumeRunningEpisodes } from '../../services/automation/episode-orchestrator.js'
 import { getAutomationProgress } from '../../services/automation/progress-state.js'
+import { normalizeAutomationStage } from '../../services/automation/stage-policy.js'
 import * as automationRoutePolicy from '../policies/automation-route-policy.js'
 
 export type DerivedProgress = automationRoutePolicy.DerivedProgress
@@ -54,7 +55,7 @@ app.get('/episodes/:id/automation', async (c) => {
   if (ep.automationStatus === 'running') {
     void advance(episodeId).catch(err => console.warn('[automation] advance after status read failed', err))
   }
-  const stage = (ep.automationStage ?? 'extract') as ProgressInput['stage']
+  const stage = normalizeAutomationStage(ep.automationStage)
   const liveProgress = getAutomationProgress(episodeId)
 
   let progress: DerivedProgress
@@ -85,12 +86,6 @@ app.get('/episodes/:id/automation', async (c) => {
       done = filtered.filter(s => !!s.imageUrl).length
     }
     progress = automationRoutePolicy.resolveProgress({ stage, counts: { scenes: total, scenesWithImage: done } }, liveProgress)
-  } else if (stage === 'shot_image') {
-    const sbs = await db.select().from(schema.storyboards).where(eq(schema.storyboards.episodeId, episodeId))
-    progress = automationRoutePolicy.resolveProgress({ stage, counts: {
-      storyboards: sbs.length,
-      firstFrames: sbs.filter(sb => !!sb.firstFrameImage).length,
-    } }, liveProgress)
   } else if (stage === 'video') {
     const sbs = await db.select().from(schema.storyboards).where(eq(schema.storyboards.episodeId, episodeId))
     progress = automationRoutePolicy.resolveProgress({ stage, counts: {

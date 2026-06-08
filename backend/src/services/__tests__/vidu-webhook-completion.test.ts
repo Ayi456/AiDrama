@@ -49,6 +49,7 @@ runTest('completeViduWebhookVideo reuses generated video completion and preserve
   })
 
   assert.deepEqual(result, {
+    action: 'publish',
     localPath: 'static/videos/vidu.mp4',
     publicUrl: 'https://cos.example.com/videos/vidu.mp4',
   })

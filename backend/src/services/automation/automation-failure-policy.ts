@@ -1,4 +1,4 @@
-import type { AutomationStage } from './stage-policy.js'
+import { normalizeAutomationStage, type AutomationStage } from './stage-policy.js'
 import type { AutomationStatus } from './episode-orchestrator.js'
 
 export type VideoFailureDecisionInput = {
@@ -15,7 +15,7 @@ export type VideoFailureDecision =
   | { type: 'fail'; nextAttempt: number; error: string }
 
 export function computeVideoFailureDecision(input: VideoFailureDecisionInput): VideoFailureDecision {
-  if (input.status !== 'running' || input.stage !== 'video') return { type: 'ignore' }
+  if (input.status !== 'running' || normalizeAutomationStage(input.stage) !== 'video') return { type: 'ignore' }
 
   const attempt = Math.max(0, input.attempt ?? 0)
   const nextAttempt = attempt + 1

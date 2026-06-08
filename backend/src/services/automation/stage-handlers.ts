@@ -10,6 +10,7 @@ import { imageGate, videoGate, resizeGates } from './concurrency-gate.js'
 import {
   STAGE_ORDER,
   isStoryboardChunkingComplete,
+  normalizeAutomationStage,
   nextStoryboardChunkIndex,
   nextStage,
   terminalStage,
@@ -61,17 +62,12 @@ async function loadInFlightImageKeys(episodeId: number): Promise<InFlightImageKe
   return result
 }
 
-export { STAGE_ORDER, nextStage, terminalStage, type AutomationStage }
+export { STAGE_ORDER, normalizeAutomationStage, nextStage, terminalStage, type AutomationStage }
 
 export type StageContext = { episodeId: number; dramaId: number }
 export type StageHandler = {
   enter: (ctx: StageContext) => Promise<void>
   isComplete: (ctx: StageContext) => Promise<boolean>
-}
-
-const noop: StageHandler = {
-  enter: async () => {},
-  isComplete: async () => true,
 }
 
 async function loadExtractCounts(episodeId: number) {
@@ -217,8 +213,6 @@ const sceneImageHandler: StageHandler = {
   },
 }
 
-const shotImageHandler: StageHandler = noop
-
 async function hasInFlightVideoForStoryboard(storyboardId: number): Promise<boolean> {
   const rows = await db.select().from(schema.videoGenerations).where(eq(schema.videoGenerations.storyboardId, storyboardId))
   const nowMs = Date.now()
@@ -347,7 +341,6 @@ export const handlers: Record<Exclude<AutomationStage, 'done'>, StageHandler> = 
   extract: extractHandler,
   character_image: characterImageHandler,
   scene_image: sceneImageHandler,
-  shot_image: shotImageHandler,
   video: videoHandler,
   merge: mergeHandler,
 }

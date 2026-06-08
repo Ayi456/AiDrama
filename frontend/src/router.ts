@@ -18,15 +18,5 @@ export const router = createRouter({
       component: ChapterStudioView,
       meta: { layout: 'studio' },
     },
-    {
-      path: '/drama/:id/episode/:episodeNumber',
-      redirect: to => ({
-        name: 'chapter-studio',
-        params: {
-          id: to.params.id,
-          chapterNumber: to.params.episodeNumber,
-        },
-      }),
-    },
   ],
 })

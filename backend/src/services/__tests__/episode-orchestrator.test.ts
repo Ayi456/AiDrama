@@ -1,6 +1,12 @@
-import test from 'node:test'
+import test, { after } from 'node:test'
 import assert from 'node:assert/strict'
 import { computeAdvanceDecision } from '../automation/episode-orchestrator.js'
+import { mysqlPool } from '../../db/index.js'
+
+after(async () => {
+  await new Promise(resolve => setTimeout(resolve, 250))
+  await mysqlPool.end()
+})
 
 test('idle episode + start returns transition to running/extract', () => {
   const decision = computeAdvanceDecision({
@@ -33,14 +39,14 @@ test('running merge complete → done status', () => {
 
 test('failed run with attempt < max → retry same stage', () => {
   const decision = computeAdvanceDecision({
-    status: 'running', stage: 'shot_image', attempt: 0, isComplete: false, maxRetries: 2, lastError: 'timeout',
+    status: 'running', stage: 'video', attempt: 0, isComplete: false, maxRetries: 2, lastError: 'timeout',
   })
   assert.equal(decision.type, 'retry')
 })
 
 test('failed run with attempt >= max → mark failed', () => {
   const decision = computeAdvanceDecision({
-    status: 'running', stage: 'shot_image', attempt: 2, isComplete: false, maxRetries: 2, lastError: 'timeout',
+    status: 'running', stage: 'video', attempt: 2, isComplete: false, maxRetries: 2, lastError: 'timeout',
   })
   assert.equal(decision.type, 'fail')
 })
@@ -62,7 +68,7 @@ test('resume from paused → running, attempt reset, error cleared', () => {
 })
 
 test('resume from failed → running, attempt reset', () => {
-  const out = applyAction({ status: 'failed', stage: 'shot_image', attempt: 3, error: 'oops' }, 'resume')
+  const out = applyAction({ status: 'failed', stage: 'video', attempt: 3, error: 'oops' }, 'resume')
   assert.equal(out.status, 'running')
   assert.equal(out.attempt, 0)
 })

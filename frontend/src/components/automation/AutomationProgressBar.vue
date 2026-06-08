@@ -40,7 +40,7 @@ const emit = defineEmits<{
   (event: 'status-change', status: AutomationStatusPayload): void
 }>()
 const STAGE_INDEX: Record<string, number> = {
-  extract: 1, character_image: 2, scene_image: 3, shot_image: 4, video: 4, merge: 5, done: 5,
+  extract: 1, character_image: 2, scene_image: 3, video: 4, merge: 5, done: 5,
 }
 const { status, start, stop, refresh } = useAutomationStatus(
   () => props.episodeId,

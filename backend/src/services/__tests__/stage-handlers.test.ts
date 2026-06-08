@@ -1,6 +1,14 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { STAGE_ORDER, nextStage, terminalStage, isExtractCompleteFromCounts, isStoryboardChunkingComplete, nextStoryboardChunkIndex } from '../automation/stage-policy.js'
+import {
+  STAGE_ORDER,
+  normalizeAutomationStage,
+  nextStage,
+  terminalStage,
+  isExtractCompleteFromCounts,
+  isStoryboardChunkingComplete,
+  nextStoryboardChunkIndex,
+} from '../automation/stage-policy.js'
 
 test('STAGE_ORDER follows the spec', () => {
   assert.deepEqual(STAGE_ORDER, ['extract', 'character_image', 'scene_image', 'video', 'merge', 'done'])
@@ -15,8 +23,10 @@ test('nextStage advances through the chain', () => {
   assert.equal(nextStage('done'), 'done')
 })
 
-test('nextStage maps legacy shot_image stage to video', () => {
-  assert.equal(nextStage('shot_image'), 'video')
+test('normalizeAutomationStage maps retired and unknown stages safely', () => {
+  assert.equal(normalizeAutomationStage('shot_image'), 'video')
+  assert.equal(normalizeAutomationStage('merge'), 'merge')
+  assert.equal(normalizeAutomationStage('unknown'), 'extract')
 })
 
 test('terminalStage is done', () => {

@@ -1,6 +1,12 @@
-import test from 'node:test'
+import test, { after } from 'node:test'
 import assert from 'node:assert/strict'
 import { resolvePreferencesPayload, DEFAULT_PREFERENCES } from '../resources/preferences.js'
+import { mysqlPool } from '../../db/index.js'
+
+after(async () => {
+  await new Promise(resolve => setTimeout(resolve, 250))
+  await mysqlPool.end()
+})
 
 test('resolvePreferencesPayload returns defaults when row is null', () => {
   const result = resolvePreferencesPayload(null)

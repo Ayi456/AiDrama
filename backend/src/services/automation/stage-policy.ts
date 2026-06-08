@@ -2,15 +2,20 @@ export type AutomationStage =
   | 'extract'
   | 'character_image'
   | 'scene_image'
-  | 'shot_image'
   | 'video'
   | 'merge'
   | 'done'
 
 export const STAGE_ORDER: AutomationStage[] = ['extract', 'character_image', 'scene_image', 'video', 'merge', 'done']
 
+export function normalizeAutomationStage(stage: string | null | undefined): AutomationStage {
+  const raw = String(stage || '').trim()
+  if (raw === 'shot_image') return 'video'
+  if (STAGE_ORDER.includes(raw as AutomationStage)) return raw as AutomationStage
+  return 'extract'
+}
+
 export function nextStage(current: AutomationStage): AutomationStage {
-  if (current === 'shot_image') return 'video'
   const idx = STAGE_ORDER.indexOf(current)
   if (idx < 0 || idx >= STAGE_ORDER.length - 1) return 'done'
   return STAGE_ORDER[idx + 1]

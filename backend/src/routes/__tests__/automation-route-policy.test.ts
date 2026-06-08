@@ -7,11 +7,6 @@ test('computeDerivedProgress for extract stage returns 0/1', () => {
   assert.deepEqual(p, { current: 0, total: 1, label: '提取角色与分镜' })
 })
 
-test('computeDerivedProgress for legacy shot_image returns skipped progress', () => {
-  const p = computeDerivedProgress({ stage: 'shot_image', counts: { storyboards: 12, firstFrames: 8 } })
-  assert.deepEqual(p, { current: 12, total: 12, label: '跳过镜头图' })
-})
-
 test('computeDerivedProgress for video returns done/total', () => {
   const p = computeDerivedProgress({ stage: 'video', counts: { storyboards: 12, videos: 5 } })
   assert.deepEqual(p, { current: 5, total: 12, label: '生成镜头视频' })

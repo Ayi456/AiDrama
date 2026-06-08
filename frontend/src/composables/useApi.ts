@@ -355,8 +355,6 @@ export const chapterAPI = {
   pipelineStatus: (id: number) => api.get(`/chapters/${id}/pipeline-status`),
 }
 
-export const episodeAPI = chapterAPI
-
 export const storyboardAPI = {
   create: (data: ApiRequestBody) => api.post<Storyboard>('/storyboards', data),
   update: (id: number, data: ApiRequestBody) => api.put<Storyboard>(`/storyboards/${id}`, data),
@@ -461,7 +459,7 @@ export const preferencesAPI = {
   put: (data: Partial<AutomationPreferences>) => api.put<AutomationPreferences>('/preferences', data),
 }
 
-export type AutomationStage = 'extract' | 'character_image' | 'scene_image' | 'shot_image' | 'video' | 'merge' | 'done'
+export type AutomationStage = 'extract' | 'character_image' | 'scene_image' | 'video' | 'merge' | 'done'
 export type AutomationStatusValue = 'idle' | 'running' | 'paused' | 'failed' | 'done'
 export type AutomationStatusPayload = {
   status: AutomationStatusValue

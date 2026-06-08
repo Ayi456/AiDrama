@@ -204,7 +204,7 @@ const route = useRoute()
 const router = useRouter()
 const { confirm } = useConfirm()
 const dramaId = Number(route.params.id)
-const chapterNumber = Number(route.params.chapterNumber || route.params.episodeNumber)
+const chapterNumber = Number(route.params.chapterNumber)
 
 const drama = ref(null)
 const episode = ref(null)
