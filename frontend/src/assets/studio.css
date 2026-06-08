@@ -248,31 +248,32 @@ select.input { appearance: none; cursor: pointer; background-image: url("data:im
   --normal-bg: rgba(255, 255, 255, 0.88);
   --normal-border: rgba(118, 139, 178, 0.22);
   --normal-text: var(--text-1);
-  --width: 360px;
-  top: 16px !important;
-  right: 18px !important;
+  --width: 344px;
+  top: 14px !important;
+  right: 16px !important;
 }
 [data-sonner-toast] {
-  width: min(360px, calc(100vw - 32px)) !important;
-  min-width: min(320px, calc(100vw - 32px)) !important;
-  max-width: min(360px, calc(100vw - 32px)) !important;
-  align-items: flex-start !important;
-  gap: 12px !important;
-  padding: 13px 42px 13px 14px !important;
+  width: fit-content !important;
+  min-width: min(268px, calc(100vw - 32px)) !important;
+  max-width: min(344px, calc(100vw - 32px)) !important;
+  min-height: 44px !important;
+  align-items: center !important;
+  gap: 9px !important;
+  padding: 9px 38px 9px 12px !important;
   border: 1px solid rgba(118, 139, 178, 0.24) !important;
   border-radius: var(--radius) !important;
   background:
     linear-gradient(180deg, rgba(255,255,255,0.96), rgba(247,250,255,0.92)) !important;
   color: var(--text-1) !important;
-  box-shadow: 0 18px 42px rgba(50,74,114,0.16), 0 5px 14px rgba(50,74,114,0.08) !important;
+  box-shadow: 0 14px 34px rgba(50,74,114,0.14), 0 4px 10px rgba(50,74,114,0.08) !important;
   backdrop-filter: blur(18px) saturate(1.25);
   overflow: hidden !important;
 }
 [data-sonner-toast]::before {
   content: '';
   align-self: stretch;
-  width: 3px;
-  min-height: 34px;
+  width: 2px;
+  min-height: 24px;
   border-radius: 999px;
   background: var(--accent);
   box-shadow: none;
@@ -299,20 +300,41 @@ select.input { appearance: none; cursor: pointer; background-image: url("data:im
   background: var(--warning);
 }
 [data-sonner-toast] [data-icon] {
-  display: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 16px !important;
+  height: 16px !important;
+  margin: 0 !important;
+  color: var(--accent) !important;
+  flex: 0 0 16px !important;
+}
+[data-sonner-toast][data-type='success'] [data-icon] {
+  color: var(--success) !important;
+}
+[data-sonner-toast][data-type='error'] [data-icon] {
+  color: var(--error) !important;
+}
+[data-sonner-toast][data-type='warning'] [data-icon] {
+  color: var(--warning) !important;
+}
+[data-sonner-toast] [data-icon] svg {
+  width: 15px !important;
+  height: 15px !important;
 }
 [data-sonner-toast] [data-content] {
   display: grid !important;
   min-width: 0 !important;
-  gap: 2px !important;
+  gap: 1px !important;
 }
 [data-sonner-toast] [data-title] {
   font-family: var(--font-body) !important;
   font-size: 13px !important;
   font-weight: 600 !important;
   letter-spacing: 0 !important;
-  line-height: 1.45 !important;
+  line-height: 1.35 !important;
   color: var(--text-0) !important;
+  margin: 0 !important;
   white-space: normal !important;
   overflow-wrap: anywhere !important;
   word-break: break-word !important;
@@ -326,6 +348,7 @@ select.input { appearance: none; cursor: pointer; background-image: url("data:im
   font-size: 11.5px !important;
   line-height: 1.45 !important;
   letter-spacing: 0 !important;
+  margin: 0 !important;
   white-space: normal !important;
   overflow-wrap: anywhere !important;
   display: -webkit-box !important;
@@ -334,20 +357,23 @@ select.input { appearance: none; cursor: pointer; background-image: url("data:im
   overflow: hidden !important;
 }
 [data-sonner-toast] [data-close-button] {
-  top: 10px !important;
-  right: 10px !important;
+  top: 8px !important;
+  right: 8px !important;
   left: auto !important;
   inset-inline-start: auto !important;
-  inset-inline-end: 10px !important;
-  width: 22px !important;
-  height: 22px !important;
+  inset-inline-end: 8px !important;
+  width: 20px !important;
+  height: 20px !important;
   border-radius: 999px !important;
   border-color: transparent !important;
   background: transparent !important;
   color: var(--text-3) !important;
   transform: none !important;
   box-shadow: none !important;
-  opacity: 0.86 !important;
+  opacity: 0.52 !important;
+}
+[data-sonner-toast][data-type='success'] [data-close-button] {
+  opacity: 0.34 !important;
 }
 [data-sonner-toast] [data-close-button]:hover {
   background: rgba(118, 139, 178, 0.12) !important;
@@ -356,8 +382,8 @@ select.input { appearance: none; cursor: pointer; background-image: url("data:im
   opacity: 1 !important;
 }
 [data-sonner-toast] [data-close-button] svg {
-  width: 14px !important;
-  height: 14px !important;
+  width: 13px !important;
+  height: 13px !important;
 }
 @media (max-width: 560px) {
   [data-sonner-toaster] {
