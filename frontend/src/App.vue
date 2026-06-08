@@ -4,7 +4,7 @@
       <component :is="Component" :key="viewKey" />
     </component>
   </RouterView>
-  <Toaster position="top-right" :duration="3000" rich-colors close-button />
+  <Toaster position="top-right" :duration="4200" rich-colors close-button />
   <AppConfirm />
 </template>
 

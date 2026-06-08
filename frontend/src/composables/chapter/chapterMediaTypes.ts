@@ -1,4 +1,9 @@
-import type { DramaCharacter, Scene, Storyboard } from '@/composables/useApi'
+import {
+  normalizeApiErrorMessage,
+  type DramaCharacter,
+  type Scene,
+  type Storyboard,
+} from '../useApi.ts'
 
 export type ChapterCharacter = DramaCharacter & {
   role?: string
@@ -148,7 +153,7 @@ export type VideoGeneratePayload = {
 }
 
 export function errorMessageFromUnknown(error: unknown, fallback = '操作失败') {
-  if (error instanceof Error) return error.message || fallback
-  if (typeof error === 'string') return error || fallback
+  if (error instanceof Error) return normalizeApiErrorMessage(error.message, fallback)
+  if (typeof error === 'string') return normalizeApiErrorMessage(error, fallback)
   return fallback
 }

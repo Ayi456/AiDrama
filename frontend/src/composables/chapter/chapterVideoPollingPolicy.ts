@@ -1,3 +1,5 @@
+import { normalizeApiErrorMessage } from '../useApi.ts'
+
 export const VIDEO_CLIENT_POLL_ATTEMPTS = 360
 export const VIDEO_CLIENT_POLL_DELAY_MS = 10000
 export const VIDEO_CLIENT_POLL_TOTAL_MS = VIDEO_CLIENT_POLL_ATTEMPTS * VIDEO_CLIENT_POLL_DELAY_MS
@@ -29,7 +31,7 @@ export function resolveVideoPollOutcome(
   if (status === 'failed') {
     return {
       type: 'failed',
-      message: String(generation?.error_msg || generation?.errorMsg || '视频生成失败'),
+      message: normalizeApiErrorMessage(generation?.error_msg || generation?.errorMsg, '视频生成失败'),
     }
   }
   return { type: 'pending' }

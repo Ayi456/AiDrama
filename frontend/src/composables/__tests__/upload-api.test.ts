@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 
-import { uploadAPI } from '../useApi.ts'
+import { normalizeApiErrorMessage, uploadAPI } from '../useApi.ts'
 
 function jsonResponse(status: number, payload: unknown) {
   return new Response(JSON.stringify(payload), {
@@ -60,6 +60,14 @@ await runTest('uploadAPI.image uploads images through a direct COS target before
   } finally {
     globalThis.fetch = originalFetch
   }
+})
+
+await runTest('normalizeApiErrorMessage makes provider safety errors user-readable', async () => {
+  const message = normalizeApiErrorMessage(
+    'API error 400: {"error":{"code":"InputImageSensitiveContentDetected.P","message":"The request failed because the input image may contain real person. Request id: 0217808837142934087c9e55f8b322b82cd17f72450d06edd0fa0","param":"","type":"BadRequest"}}',
+  )
+
+  assert.equal(message, '图片审核未通过：参考图可能包含真实人物或敏感内容，请更换参考图，或改用文字生成。')
 })
 
 await runTest('uploadAPI.image falls back to multipart when direct upload is not configured', async () => {
