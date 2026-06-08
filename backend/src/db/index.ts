@@ -467,6 +467,22 @@ async function ensureColumn(pool: Pool, database: string, table: string, column:
   }
 }
 
+async function ensureIndex(pool: Pool, database: string, table: string, indexName: string, columnsSql: string) {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT 1 AS ok
+       FROM information_schema.statistics
+      WHERE table_schema = ?
+        AND table_name = ?
+        AND index_name = ?
+      LIMIT 1`,
+    [database, table, indexName],
+  )
+
+  if (!rows.length) {
+    await pool.query(`ALTER TABLE ${identifier(table)} ADD INDEX ${identifier(indexName)} ${columnsSql}`)
+  }
+}
+
 async function initializeDatabase(pool: Pool, database: string) {
   for (const statement of tableStatements) {
     await pool.query(statement)
@@ -502,6 +518,9 @@ async function initializeDatabase(pool: Pool, database: string) {
   await ensureColumn(pool, database, 'scenes', 'reference_image', 'TEXT')
   await ensureColumn(pool, database, 'storyboards', 'transition_type', 'VARCHAR(32)')
   await ensureColumn(pool, database, 'storyboards', 'transition_duration_ms', 'INT')
+
+  await ensureIndex(pool, database, 'video_generations', 'idx_video_generations_storyboard_id_id', '(`storyboard_id`, `id`)')
+  await ensureIndex(pool, database, 'video_generations', 'idx_video_generations_drama_id_id', '(`drama_id`, `id`)')
 }
 
 await ensureDatabaseExists(mysqlConfig)

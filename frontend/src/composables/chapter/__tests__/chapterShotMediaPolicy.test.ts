@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 
 import {
+  buildAllMultimodalReferenceOptions,
   buildDefaultVideoPrompt,
   buildMultimodalReferenceOptions,
   buildVideoGeneratePayload,
@@ -124,4 +125,29 @@ runTest('multimodal reference options use current storyboard scene and generated
     'atrium.png',
   ])
   assert.deepEqual(options.map(item => item.source), ['character', 'character', 'scene'])
+})
+
+runTest('all multimodal reference options include unbound character and scene images', () => {
+  const options = buildAllMultimodalReferenceOptions({
+    chars: [
+      { id: 7, name: 'Lead', image_url: 'lead-generated.png' },
+      { id: 8, name: 'Support', image_url: 'support.png' },
+      { id: 9, name: 'Other', image_url: 'other.png' },
+      { id: 10, name: 'No image' },
+    ],
+    scenes: [
+      { id: 3, location: 'Atrium', image_url: 'atrium.png' },
+      { id: 4, location: 'Street', image_url: 'street.png' },
+      { id: 5, location: 'Blank' },
+    ],
+  })
+
+  assert.deepEqual(options.map(item => item.url), [
+    'lead-generated.png',
+    'support.png',
+    'other.png',
+    'atrium.png',
+    'street.png',
+  ])
+  assert.deepEqual(options.map(item => item.source), ['character', 'character', 'character', 'scene', 'scene'])
 })

@@ -3061,6 +3061,29 @@
   display: flex;
 }
 
+.video-workbench__pending-result {
+  flex-direction: column;
+  gap: 10px;
+  padding: 28px;
+  text-align: center;
+  color: #315cc8;
+  background:
+    linear-gradient(180deg, rgba(250, 252, 255, 0.98), rgba(236, 243, 255, 0.96));
+}
+
+.video-workbench__pending-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-0);
+}
+
+.video-workbench__pending-note {
+  max-width: 360px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-3);
+}
+
 .video-history-panel {
   margin-top: 12px;
   gap: 10px;

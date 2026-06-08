@@ -9,6 +9,12 @@ type VideoPollGeneration = {
   status?: unknown
   error_msg?: unknown
   errorMsg?: unknown
+  video_url?: unknown
+  videoUrl?: unknown
+  minio_url?: unknown
+  minioUrl?: unknown
+  public_url?: unknown
+  publicUrl?: unknown
 }
 
 type VideoPollOptions = {
@@ -20,6 +26,28 @@ export type VideoPollOutcome =
   | { type: 'failed'; message: string }
   | { type: 'pending' }
 
+function stringValue(value: unknown) {
+  return String(value || '').trim()
+}
+
+export function getVideoPollGenerationUrl(generation: VideoPollGeneration | null | undefined) {
+  return stringValue(
+    generation?.video_url ||
+    generation?.videoUrl ||
+    generation?.minio_url ||
+    generation?.minioUrl ||
+    generation?.public_url ||
+    generation?.publicUrl,
+  )
+}
+
+export function hasNewStoryboardVideo(currentUrl: unknown, previousUrl: unknown) {
+  const current = stringValue(currentUrl)
+  if (!current) return false
+  const previous = stringValue(previousUrl)
+  return !previous || current !== previous
+}
+
 export function resolveVideoPollOutcome(
   generation: VideoPollGeneration | null | undefined,
   options: VideoPollOptions = {},
@@ -27,7 +55,9 @@ export function resolveVideoPollOutcome(
   if (options.storyboardHasVideo) return { type: 'completed' }
 
   const status = String(generation?.status || '').trim().toLowerCase()
-  if (status === 'completed') return { type: 'completed' }
+  if (status === 'completed') {
+    return getVideoPollGenerationUrl(generation) ? { type: 'completed' } : { type: 'pending' }
+  }
   if (status === 'failed') {
     return {
       type: 'failed',

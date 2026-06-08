@@ -19,8 +19,28 @@ export type VideoGenerateBody = RouteBody & {
   config_id?: number
 }
 
+export type VideoListQuery = {
+  storyboard_id?: string | null
+  drama_id?: string | null
+  limit?: string | null
+}
+
+export const DEFAULT_VIDEO_LIST_LIMIT = 24
+export const MAX_VIDEO_LIST_LIMIT = 100
+
 export function validateVideoGenerateBody(body: VideoGenerateBody) {
   return body.prompt ? null : 'prompt is required'
+}
+
+export function readVideoListNumber(value: unknown) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null
+}
+
+export function readVideoListLimit(value: unknown) {
+  const parsed = readVideoListNumber(value)
+  if (!parsed) return DEFAULT_VIDEO_LIST_LIMIT
+  return Math.min(parsed, MAX_VIDEO_LIST_LIMIT)
 }
 
 export function buildVideoGenerationInput(

@@ -428,8 +428,15 @@
         </div>
 
         <div class="video-workbench__result">
+          <div v-if="isSelectedVideoPending" class="prod-cover-empty video-workbench__pending-result">
+            <Loader2 :size="28" class="animate-spin" />
+            <div class="video-workbench__pending-title">新视频生成中</div>
+            <div class="video-workbench__pending-note">
+              {{ selectedVideoUrl ? '上一版视频已保留在历史记录中，新结果通过检测后会自动替换。' : '生成完成并通过检测后会自动显示在这里。' }}
+            </div>
+          </div>
           <video
-            v-if="state.hasVid(selectedShot)"
+            v-else-if="state.hasVid(selectedShot)"
             ref="selectedVideoEl"
             :src="assetUrl(state.getVideoUrl(selectedShot))"
             class="prod-video"
@@ -505,7 +512,7 @@ import { computed, ref, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import { Camera, Check, Film, History, Image as ImageIcon, Loader2, Music, RefreshCw, Trash2 } from 'lucide-vue-next'
 import { uploadAPI } from '@/composables/useApi'
-import { buildMultimodalReferenceOptions } from '@/composables/chapter/chapterShotMediaPolicy'
+import { buildAllMultimodalReferenceOptions, buildMultimodalReferenceOptions } from '@/composables/chapter/chapterShotMediaPolicy'
 import {
   getCaptureSourceVideoUrl,
   getCaptureTailFrameOptions,
@@ -544,6 +551,9 @@ const selectedVideoHistoryLoading = computed(() => (
 ))
 const selectedVideoUrl = computed(() => (
   selectedShot.value ? props.state.getVideoUrl(selectedShot.value) : ''
+))
+const isSelectedVideoPending = computed(() => (
+  selectedShot.value ? props.state.isPendingVideo(selectedShot.value.id) : false
 ))
 
 const promptDraft = ref('')
@@ -708,12 +718,19 @@ const currentMultimodalReferenceOptions = computed(() => (
   })
 ))
 
+const allMultimodalReferenceOptions = computed(() => (
+  buildAllMultimodalReferenceOptions({
+    chars: props.state.chars || props.state.visualChars || [],
+    scenes: props.state.scenes || [],
+  })
+))
+
 const characterReferenceOptions = computed(() => (
-  currentMultimodalReferenceOptions.value.filter(item => item.source === 'character')
+  allMultimodalReferenceOptions.value.filter(item => item.source === 'character')
 ))
 
 const sceneReferenceOptions = computed(() => (
-  currentMultimodalReferenceOptions.value.filter(item => item.source === 'scene')
+  allMultimodalReferenceOptions.value.filter(item => item.source === 'scene')
 ))
 
 const multimodalImageUrls = computed(() => (

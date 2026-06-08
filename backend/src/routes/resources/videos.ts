@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { eq } from 'drizzle-orm'
+import { and, desc, eq, type SQL } from 'drizzle-orm'
 import { db, schema } from '../../db/index.js'
 import { success, created, badRequest } from '../../utils/response.js'
 import { generateVideo } from '../../services/generation/video-generation.js'
@@ -10,6 +10,8 @@ import {
   buildVideoGenerationInput,
   buildVideoRouteLogContext,
   errorMessageFromUnknown,
+  readVideoListLimit,
+  readVideoListNumber,
   validateVideoGenerateBody,
   type VideoGenerateBody,
 } from '../policies/video-route-policy.js'
@@ -57,13 +59,24 @@ app.get('/:id', async (c) => {
 
 // GET /videos - List by storyboard_id or drama_id
 app.get('/', async (c) => {
-  const storyboardId = c.req.query('storyboard_id')
-  const dramaId = c.req.query('drama_id')
+  const storyboardId = readVideoListNumber(c.req.query('storyboard_id'))
+  const dramaId = readVideoListNumber(c.req.query('drama_id'))
+  const limit = readVideoListLimit(c.req.query('limit'))
+  const conditions: SQL[] = []
 
-  let rows = (await db.select().from(schema.videoGenerations).all())
+  if (storyboardId) conditions.push(eq(schema.videoGenerations.storyboardId, storyboardId))
+  if (dramaId) conditions.push(eq(schema.videoGenerations.dramaId, dramaId))
 
-  if (storyboardId) rows = rows.filter(r => r.storyboardId === Number(storyboardId))
-  if (dramaId) rows = rows.filter(r => r.dramaId === Number(dramaId))
+  const rows = conditions.length
+    ? await db.select().from(schema.videoGenerations)
+      .where(and(...conditions))
+      .orderBy(desc(schema.videoGenerations.id))
+      .limit(limit)
+      .all()
+    : await db.select().from(schema.videoGenerations)
+      .orderBy(desc(schema.videoGenerations.id))
+      .limit(limit)
+      .all()
 
   return success(c, presentVideoGenerationAssets(rows))
 })

@@ -8,11 +8,14 @@ import type {
 import { errorMessageFromUnknown } from './chapterMediaTypes'
 import {
   buildVideoGeneratePayload,
+  getVideoUrl,
   hasStoryboardVideo,
 } from './chapterShotMediaPolicy'
 import {
   VIDEO_CLIENT_POLL_ATTEMPTS,
   VIDEO_CLIENT_POLL_DELAY_MS,
+  getVideoPollGenerationUrl,
+  hasNewStoryboardVideo,
   resolveVideoPollExhaustedOutcome,
   resolveVideoPollOutcome,
 } from './chapterVideoPollingPolicy'
@@ -110,24 +113,25 @@ export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
       override: optionsOverride,
     })
     const storyboardId = Number(storyboard.id)
+    const previousVideoUrl = getVideoUrl(storyboard) || ''
     try {
       delete failedVideoMessages.value[storyboardId]
       if (!isPendingVideo(storyboardId)) pendingVideoIds.value.push(storyboardId)
       const generation = await videoAPI.generate(params)
       toast.success('视频生成中')
       await options.refresh()
-      void pollVideoGeneration(Number(generation?.id || 0), storyboardId)
+      void pollVideoGeneration(Number(generation?.id || 0), storyboardId, previousVideoUrl)
     } catch (error: unknown) {
       pendingVideoIds.value = pendingVideoIds.value.filter(item => item !== storyboardId)
       toast.error(errorMessageFromUnknown(error))
     }
   }
 
-  async function pollVideoGeneration(generationId: number, storyboardId: number) {
+  async function pollVideoGeneration(generationId: number, storyboardId: number, previousVideoUrl = '') {
     if (!generationId) {
       options.watchAsyncResult(() => {
         const target = options.sbs.value.find(s => s.id === storyboardId)
-        const done = hasStoryboardVideo(target)
+        const done = hasNewStoryboardVideo(getVideoUrl(target), previousVideoUrl)
         if (done) pendingVideoIds.value = pendingVideoIds.value.filter(item => item !== storyboardId)
         return done
       }, 60, 4000)
@@ -140,10 +144,15 @@ export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
         const res = await videoAPI.get(generationId)
         await options.refresh()
         const target = options.sbs.value.find(s => Number(s.id) === storyboardId)
+        const targetVideoUrl = getVideoUrl(target)
         const outcome = resolveVideoPollOutcome(res, {
-          storyboardHasVideo: hasStoryboardVideo(target),
+          storyboardHasVideo: hasNewStoryboardVideo(targetVideoUrl, previousVideoUrl),
         })
         if (outcome.type === 'completed') {
+          const completedUrl = getVideoPollGenerationUrl(res)
+          if (target && completedUrl && targetVideoUrl !== completedUrl) {
+            await options.updateField(target, 'video_url', completedUrl)
+          }
           pendingVideoIds.value = pendingVideoIds.value.filter(item => item !== storyboardId)
           delete failedVideoMessages.value[storyboardId]
           await loadVideoHistory(storyboardId)

@@ -117,6 +117,32 @@ export function buildMultimodalReferenceOptions(input: {
   return references.slice(0, 9)
 }
 
+export function buildAllMultimodalReferenceOptions(input: {
+  chars: ChapterCharacter[]
+  scenes: ChapterScene[]
+}): MultimodalReferenceOption[] {
+  const references: MultimodalReferenceOption[] = []
+
+  input.chars.forEach((character) => {
+    const label = character.name || `瑙掕壊 ${character.id}`
+    addMultimodalReference(references, {
+      label,
+      url: character.image_url || character.imageUrl || '',
+      source: 'character',
+    })
+  })
+
+  input.scenes.forEach((scene) => {
+    addMultimodalReference(references, {
+      label: scene.name || scene.location || `鍦烘櫙 ${scene.id}`,
+      url: scene.image_url || scene.imageUrl || '',
+      source: 'scene',
+    })
+  })
+
+  return references
+}
+
 function getStoryboardDialogue(storyboard: ChapterStoryboard | null | undefined) {
   return String(
     storyboard?.dialogue ||

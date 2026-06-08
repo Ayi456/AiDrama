@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 
 import {
   VIDEO_CLIENT_POLL_TOTAL_MS,
+  hasNewStoryboardVideo,
   resolveVideoPollOutcome,
   resolveVideoPollExhaustedOutcome,
 } from '../chapterVideoPollingPolicy.ts'
@@ -24,6 +25,18 @@ runTest('processing video status remains pending instead of failed', () => {
   assert.deepEqual(resolveVideoPollOutcome({ status: 'processing' }), { type: 'pending' })
   assert.deepEqual(resolveVideoPollOutcome({ status: 'running' }), { type: 'pending' })
   assert.deepEqual(resolveVideoPollOutcome({ status: 'failed_defect' }), { type: 'pending' })
+})
+
+runTest('completed generation waits until a video url is available', () => {
+  assert.deepEqual(resolveVideoPollOutcome({ status: 'completed' }), { type: 'pending' })
+  assert.deepEqual(resolveVideoPollOutcome({ status: 'completed', video_url: 'https://cdn.example.com/shot.mp4' }), { type: 'completed' })
+})
+
+runTest('storyboard video completion requires a new url when regenerating', () => {
+  assert.equal(hasNewStoryboardVideo('', 'https://cdn.example.com/old.mp4'), false)
+  assert.equal(hasNewStoryboardVideo('https://cdn.example.com/old.mp4', 'https://cdn.example.com/old.mp4'), false)
+  assert.equal(hasNewStoryboardVideo('https://cdn.example.com/new.mp4', 'https://cdn.example.com/old.mp4'), true)
+  assert.equal(hasNewStoryboardVideo('https://cdn.example.com/first.mp4', ''), true)
 })
 
 runTest('storyboard video publication completes polling even when parent generation is not completed', () => {
