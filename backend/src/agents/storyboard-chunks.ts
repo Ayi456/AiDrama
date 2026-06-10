@@ -18,7 +18,7 @@ type SplitOptions = {
   maxChars?: number
 }
 
-const DEFAULT_MAX_CHARS = 1800
+const DEFAULT_MAX_CHARS = 12000
 
 function normalizeScript(script: string) {
   return script.replace(/\r\n/g, '\n').trim()

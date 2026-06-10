@@ -16,9 +16,9 @@ function runTest(name: string, fn: () => void) {
   }
 }
 
-runTest('resolveStoryboardAdaptivePolicy uses conservative model-agnostic defaults', () => {
+runTest('resolveStoryboardAdaptivePolicy uses short-script-first defaults', () => {
   assert.deepEqual(resolveStoryboardAdaptivePolicy(), {
-    chunkChars: 1200,
+    chunkChars: 12000,
     minChunkChars: 350,
     retryShrinkRatio: 0.5,
     maxAttempts: 3,

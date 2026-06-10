@@ -10,7 +10,7 @@ export type StoryboardAdaptivePolicyOverrides = {
   chunkChars?: number
 }
 
-export const DEFAULT_STORYBOARD_CHUNK_CHARS = 1200
+export const DEFAULT_STORYBOARD_CHUNK_CHARS = 12000
 export const DEFAULT_STORYBOARD_MIN_CHUNK_CHARS = 350
 export const DEFAULT_STORYBOARD_RETRY_SHRINK_RATIO = 0.5
 export const DEFAULT_STORYBOARD_MAX_ATTEMPTS = 3
@@ -37,7 +37,7 @@ export function resolveStoryboardAdaptivePolicy(
     ['storyboardChunkChars', 'storyboard_chunk_chars'],
     DEFAULT_STORYBOARD_CHUNK_CHARS,
   )
-  const chunkChars = Math.trunc(clamp(requestedChunkChars, 350, 6000))
+  const chunkChars = Math.trunc(clamp(requestedChunkChars, 350, 12000))
   const requestedMinChunkChars = numberSetting(
     settings,
     ['storyboardMinChunkChars', 'storyboard_min_chunk_chars'],
