@@ -109,6 +109,26 @@ export function getVideoDurationPrecise(filePath: string): Promise<number> {
   })
 }
 
+export function getVideoDimensions(filePath: string): Promise<{ width: number; height: number } | null> {
+  return new Promise((resolve) => {
+    ffmpeg.ffprobe(filePath, (err, metadata) => {
+      if (err) { resolve(null); return }
+      const streams = Array.isArray(metadata.streams) ? metadata.streams : []
+      const video = streams.find(stream => String(stream.codec_type || '').toLowerCase() === 'video')
+      const width = Number(video?.width)
+      const height = Number(video?.height)
+      if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+        resolve(null)
+        return
+      }
+      resolve({
+        width: Math.floor(width),
+        height: Math.floor(height),
+      })
+    })
+  })
+}
+
 export function hasAudioStream(filePath: string): Promise<boolean> {
   return new Promise((resolve) => {
     ffmpeg.ffprobe(filePath, (err, metadata) => {

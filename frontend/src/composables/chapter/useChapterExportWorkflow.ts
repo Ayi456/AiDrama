@@ -1,4 +1,4 @@
-import { onBeforeUnmount, ref, type ComputedRef, type Ref } from 'vue'
+import { onBeforeUnmount, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { toast } from 'vue-sonner'
 import { mergeAPI } from '@/composables/useApi'
 import type {
@@ -11,6 +11,8 @@ import {
   hasStoryboardVideo,
 } from './chapterShotMediaPolicy'
 
+const MERGE_POLL_INTERVAL_MS = 3000
+
 type ChapterExportWorkflowOptions = {
   epId: ComputedRef<number>
   sbs: Ref<ChapterStoryboard[]>
@@ -20,12 +22,75 @@ type ChapterExportWorkflowOptions = {
 export function useChapterExportWorkflow(options: ChapterExportWorkflowOptions) {
   const isMerging = ref(false)
   let mergePollHandle: ReturnType<typeof setInterval> | null = null
+  let mergePollRunning = false
 
   function stopMergePolling() {
     if (!mergePollHandle) return
     clearInterval(mergePollHandle)
     mergePollHandle = null
   }
+
+  function isTerminalMergeStatus(status: unknown) {
+    return status === 'completed' || status === 'failed'
+  }
+
+  async function pollMergeStatus() {
+    if (!options.epId.value || mergePollRunning) return
+    mergePollRunning = true
+    try {
+      const mergeData = await mergeAPI.status(options.epId.value) as ChapterMergeData | null
+      if (options.mergeData) options.mergeData.value = mergeData
+      if (!mergeData) {
+        stopMergePolling()
+        isMerging.value = false
+        return
+      }
+      if (isTerminalMergeStatus(mergeData.status)) {
+        stopMergePolling()
+        isMerging.value = false
+        mergeData.status === 'completed'
+          ? toast.success('视频拼接完成')
+          : toast.error(mergeData?.error_msg || mergeData?.errorMsg || '拼接失败')
+      }
+    } catch (error: unknown) {
+      toast.error(errorMessageFromUnknown(error, '查询拼接状态失败'))
+    } finally {
+      mergePollRunning = false
+    }
+  }
+
+  function startMergePolling() {
+    if (!options.epId.value) return
+    isMerging.value = true
+    if (mergePollHandle) return
+    mergePollHandle = setInterval(() => {
+      void pollMergeStatus()
+    }, MERGE_POLL_INTERVAL_MS)
+  }
+
+  watch(
+    () => ({
+      episodeId: options.epId.value,
+      mergeId: options.mergeData?.value?.id || options.mergeData?.value?.merge_id || null,
+      status: options.mergeData?.value?.status || null,
+    }),
+    ({ episodeId, status }) => {
+      if (!episodeId) {
+        stopMergePolling()
+        isMerging.value = false
+        return
+      }
+      if (status === 'processing') {
+        startMergePolling()
+        return
+      }
+      if (isTerminalMergeStatus(status)) {
+        stopMergePolling()
+        isMerging.value = false
+      }
+    },
+    { immediate: true },
+  )
 
   onBeforeUnmount(() => {
     stopMergePolling()
@@ -43,7 +108,7 @@ export function useChapterExportWorkflow(options: ChapterExportWorkflowOptions) 
       toast.error(selectedIds ? '请先选择至少 1 个已生成视频的镜头' : '请先至少生成 1 个镜头视频')
       return
     }
-    if (isMerging.value) {
+    if (isMerging.value || options.mergeData?.value?.status === 'processing') {
       toast.info('视频正在拼接中')
       return
     }
@@ -62,21 +127,7 @@ export function useChapterExportWorkflow(options: ChapterExportWorkflowOptions) 
         }
       }
       toast.success('正在拼接视频...')
-      mergePollHandle = setInterval(async () => {
-        try {
-          const mergeData = await mergeAPI.status(options.epId.value) as ChapterMergeData
-          if (options.mergeData) options.mergeData.value = mergeData
-          if (mergeData?.status === 'completed' || mergeData?.status === 'failed') {
-            stopMergePolling()
-            isMerging.value = false
-            mergeData.status === 'completed'
-              ? toast.success('视频拼接完成')
-              : toast.error(mergeData?.error_msg || mergeData?.errorMsg || '拼接失败')
-          }
-        } catch (error: unknown) {
-          toast.error(errorMessageFromUnknown(error, '查询拼接状态失败'))
-        }
-      }, 3000)
+      startMergePolling()
     } catch (error: unknown) {
       stopMergePolling()
       isMerging.value = false

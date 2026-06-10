@@ -12,7 +12,12 @@ import { ensureTailFrameInputFile, type TailFrameInputDownload } from '../automa
 import { ensureMergeInputFiles, type MergeInputFile, requireExistingMergeInputFiles } from '../merge/merge-inputs.js'
 import { selectMergeClipStoryboards } from '../merge/merge-clips.js'
 import { ffmpegMergeOutputOptions, ffmpegMergeStrategies, resolveFfmpegMergeTimeoutMs } from '../merge/merge-ffmpeg-strategy.js'
-import { isStaleProcessingMerge, resolveStaleMergeTimeoutMs } from '../merge/merge-status.js'
+import { isStaleProcessingMerge, resolveMergeClipCount, resolveStaleMergeTimeoutMs } from '../merge/merge-status.js'
+import {
+  buildNormalizeMergeClipArgs,
+  resolveMergeClipNormalizationMode,
+  resolveNormalizedMergeClipRelativePath,
+} from '../merge/merge-normalization.js'
 
 async function runTest(name: string, fn: () => void | Promise<void>) {
   try {
@@ -272,4 +277,72 @@ await runTest('processing merge records become stale after the configured timeou
   assert.equal(isStaleProcessingMerge({ status: 'processing', createdAt }, nowMs), true)
   assert.equal(isStaleProcessingMerge({ status: 'completed', createdAt }, nowMs), false)
   assert.equal(isStaleProcessingMerge({ status: 'processing', createdAt: 'bad-date' }, nowMs), false)
+})
+
+await runTest('processing merge timeout scales with selected clip count', () => {
+  const scenes = JSON.stringify(Array.from({ length: 26 }, (_, index) => ({
+    storyboardId: index + 1,
+    videoUrl: `static/videos/${index + 1}.mp4`,
+  })))
+  const createdAt = '2026-04-30T05:00:00.000Z'
+  const thirtyOneMinutesLater = Date.parse('2026-04-30T05:31:00.000Z')
+  const tooLate = Date.parse('2026-04-30T07:36:00.000Z')
+
+  assert.equal(resolveMergeClipCount(scenes), 26)
+  assert.equal(resolveStaleMergeTimeoutMs(undefined, { scenes }), 155 * 60 * 1000)
+  assert.equal(isStaleProcessingMerge({ status: 'processing', createdAt, scenes }, thirtyOneMinutesLater), false)
+  assert.equal(isStaleProcessingMerge({ status: 'processing', createdAt, scenes }, tooLate), true)
+})
+
+await runTest('normalized merge clip cache paths are deterministic per source and dimensions', () => {
+  const first = resolveNormalizedMergeClipRelativePath('static/videos/a.mp4', { width: 1280, height: 720 })
+  const second = resolveNormalizedMergeClipRelativePath('static/videos/a.mp4', { width: 1280, height: 720 })
+  const differentSize = resolveNormalizedMergeClipRelativePath('static/videos/a.mp4', { width: 720, height: 1280 })
+
+  assert.equal(first, second)
+  assert.match(first, /^static\/videos\/normalized\/[a-f0-9]{40}\.mp4$/)
+  assert.notEqual(first, differentSize)
+})
+
+await runTest('merge clip normalization mode defaults to fallback and accepts off switches', () => {
+  assert.equal(resolveMergeClipNormalizationMode(undefined), 'fallback')
+  assert.equal(resolveMergeClipNormalizationMode('off'), 'off')
+  assert.equal(resolveMergeClipNormalizationMode('0'), 'off')
+  assert.equal(resolveMergeClipNormalizationMode('false'), 'off')
+})
+
+await runTest('normalize merge clip args add a silent audio input when source has no audio', () => {
+  const args = buildNormalizeMergeClipArgs({
+    sourcePath: 'C:/tmp/in.mp4',
+    outputPath: 'C:/tmp/out.mp4',
+    dimensions: { width: 1281, height: 721 },
+    hasAudio: false,
+  })
+
+  assert.deepEqual(args.slice(0, 8), [
+    '-hide_banner',
+    '-y',
+    '-i',
+    'C:/tmp/in.mp4',
+    '-f',
+    'lavfi',
+    '-i',
+    'anullsrc=channel_layout=stereo:sample_rate=48000',
+  ])
+  assert.ok(args.includes('-shortest'))
+  assert.equal(args[args.indexOf('-map') + 1], '0:v:0')
+  assert.ok(args.includes('fps=30,scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,format=yuv420p'))
+})
+
+await runTest('normalize merge clip args preserve existing optional audio mapping', () => {
+  const args = buildNormalizeMergeClipArgs({
+    sourcePath: 'C:/tmp/in.mp4',
+    outputPath: 'C:/tmp/out.mp4',
+    dimensions: { width: 1920, height: 1080 },
+    hasAudio: true,
+  })
+
+  assert.equal(args.includes('anullsrc=channel_layout=stereo:sample_rate=48000'), false)
+  assert.equal(args.includes('-shortest'), false)
+  assert.ok(args.includes('0:a:0?'))
 })

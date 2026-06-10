@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../db/index.js'
 import { success, badRequest, now } from '../../utils/response.js'
-import { mergeEpisodeVideos } from '../../services/merge/ffmpeg-merge.js'
+import { ensureMergeJobRunning, isMergeJobRunning, mergeEpisodeVideos } from '../../services/merge/ffmpeg-merge.js'
 import { toSnakeCase } from '../../utils/transform.js'
 import { logTaskError, logTaskStart, logTaskSuccess, logTaskWarn } from '../../utils/task-logger.js'
 import { isStaleProcessingMerge, resolveStaleMergeTimeoutMs } from '../../services/merge/merge-status.js'
@@ -42,8 +42,8 @@ app.get('/chapters/:id/merge', async (c) => {
   const latest = merges[merges.length - 1]
   if (!latest) return success(c, null)
 
-  if (isStaleProcessingMerge(latest)) {
-    const timeoutMinutes = Math.round(resolveStaleMergeTimeoutMs() / 60_000)
+  if (isStaleProcessingMerge(latest) && !isMergeJobRunning(Number(latest.id))) {
+    const timeoutMinutes = Math.round(resolveStaleMergeTimeoutMs(undefined, latest) / 60_000)
     const errorMsg = `Merge task exceeded ${timeoutMinutes} minutes without completion. Please start a new merge.`
     const completedAt = now()
     await db.update(schema.videoMerges)
@@ -58,6 +58,14 @@ app.get('/chapters/:id/merge', async (c) => {
       mergeId: latest.id,
       timeoutMinutes,
     })
+  } else if (latest.status === 'processing') {
+    const running = await ensureMergeJobRunning(Number(latest.id))
+    if (!running) {
+      const [updated] = await db.select().from(schema.videoMerges)
+        .where(eq(schema.videoMerges.id, latest.id))
+        .all()
+      if (updated) Object.assign(latest, updated)
+    }
   }
 
   return success(c, toSnakeCase(latest))
