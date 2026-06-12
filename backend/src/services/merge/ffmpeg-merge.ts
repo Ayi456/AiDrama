@@ -12,6 +12,7 @@ import { ensureMergeInputFiles } from './merge-inputs.js'
 import { selectMergeClipStoryboards } from './merge-clips.js'
 import {
   createMergeJobDbPersistence,
+  MERGE_CLAIM_HEARTBEAT_MS,
   normalizeMergeErrorMessage,
   type EpisodeStoryboardRecord,
   type MergeStoryboardForRecord,
@@ -123,6 +124,9 @@ function startMergeJob(
 ) {
   if (activeMergeJobs.has(mergeId)) return false
   activeMergeJobs.add(mergeId)
+  const heartbeat = setInterval(() => {
+    mergeState.touchMergeClaim(mergeId, now()).catch(() => {})
+  }, MERGE_CLAIM_HEARTBEAT_MS)
   doMerge(mergeId, episodeId, videos, mergeState, seamTransitions).catch(async (error: unknown) => {
     const message = normalizeMergeErrorMessage(error)
     logTaskError('MergeTask', 'episode-merge', { mergeId, episodeId, error: message })
@@ -130,6 +134,7 @@ function startMergeJob(
     await mergeState.recordMergeFailure(mergeId, error)
     await onMergeCompleted({ episodeId, status: 'failed' }).catch(err => console.warn('[automation] merge failure hook failed', err))
   }).finally(() => {
+    clearInterval(heartbeat)
     activeMergeJobs.delete(mergeId)
   })
   return true
@@ -234,6 +239,9 @@ export async function ensureMergeJobRunning(mergeId: number): Promise<boolean> {
   }
 
   const { seamTransitionsForMerge } = await resolveMergeTransitions(episodeId, mergeStoryboards)
+  const claimed = await mergeState.claimMergeJob(mergeId, now())
+  if (!claimed) return true
+
   logTaskProgress('MergeTask', 'resume-processing-merge', {
     mergeId,
     episodeId,
@@ -340,6 +348,9 @@ async function doMerge(
         clipCount: videos.length,
         clipPaths: inputFiles,
         seamTransitions,
+        onXfadeFallback: reason => {
+          mergeState.recordMergeDiagnostic(mergeId, `xfade-fallback: ${reason}`).catch(() => {})
+        },
       })
       : await runHardCutMerge({
         mergeId,
@@ -366,6 +377,7 @@ async function doMerge(
     duration,
     completedAt: now(),
     episodeUpdatedAt: now(),
+    strategy,
   })
 
   logTaskSuccess('MergeTask', 'episode-merge', {

@@ -11,7 +11,7 @@ import {
 import { ensureTailFrameInputFile, type TailFrameInputDownload } from '../automation/tail-frame-input.js'
 import { ensureMergeInputFiles, type MergeInputFile, requireExistingMergeInputFiles } from '../merge/merge-inputs.js'
 import { selectMergeClipStoryboards } from '../merge/merge-clips.js'
-import { ffmpegMergeOutputOptions, ffmpegMergeStrategies, resolveFfmpegMergeTimeoutMs } from '../merge/merge-ffmpeg-strategy.js'
+import { ffmpegMergeOutputOptions, ffmpegMergeStrategies, ffmpegXfadeIntermediateOutputOptions, resolveFfmpegMergeTimeoutMs, resolveXfadeGroupSize } from '../merge/merge-ffmpeg-strategy.js'
 import { isStaleProcessingMerge, resolveMergeClipCount, resolveStaleMergeTimeoutMs } from '../merge/merge-status.js'
 import {
   buildNormalizeMergeClipArgs,
@@ -267,6 +267,21 @@ await runTest('ffmpeg merge timeout defaults below SCF request timeout and accep
   assert.equal(resolveFfmpegMergeTimeoutMs(), 14 * 60 * 1000)
   assert.equal(resolveFfmpegMergeTimeoutMs('60000'), 60_000)
   assert.equal(resolveFfmpegMergeTimeoutMs('bad'), 14 * 60 * 1000)
+})
+
+await runTest('xfade group size defaults to 4 and clamps overrides into a safe range', () => {
+  assert.equal(resolveXfadeGroupSize(), 4)
+  assert.equal(resolveXfadeGroupSize('3'), 3)
+  assert.equal(resolveXfadeGroupSize('1'), 2)
+  assert.equal(resolveXfadeGroupSize('99'), 6)
+  assert.equal(resolveXfadeGroupSize('bad'), 4)
+})
+
+await runTest('xfade intermediate options use near-lossless crf without faststart remux', () => {
+  const options = ffmpegXfadeIntermediateOutputOptions()
+  assert.equal(options[options.indexOf('-crf') + 1], '18')
+  assert.ok(!options.includes('+faststart'))
+  assert.ok(options.includes('libx264'))
 })
 
 await runTest('processing merge records become stale after the configured timeout', () => {

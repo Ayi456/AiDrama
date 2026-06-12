@@ -1,6 +1,13 @@
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull, lt, or } from 'drizzle-orm'
 import type * as dbSchema from '../../db/schema.js'
 import type { TransitionConfig } from './merge-transition-policy.js'
+
+export const MERGE_CLAIM_STALE_MS = 120_000
+export const MERGE_CLAIM_HEARTBEAT_MS = 20_000
+
+export function mergeClaimStaleBefore(nowIso: string, staleMs = MERGE_CLAIM_STALE_MS) {
+  return new Date(Date.parse(nowIso) - staleMs).toISOString()
+}
 
 export type MergeStoryboardForRecord = {
   id: number
@@ -22,6 +29,7 @@ export type MergeCompletionPatchInput = {
   mergedUrl: string
   duration: number
   completedAt: string
+  strategy: string
 }
 
 export type CompleteEpisodeMergeInput = MergeCompletionPatchInput & {
@@ -51,6 +59,7 @@ export type MergeJobPersistenceDeps = {
   updateEpisode: (episodeId: number, patch: MergeStatePatch) => Promise<void>
   insertVideoMerge: (record: ReturnType<typeof buildEpisodeMergeRecord>) => Promise<number>
   updateVideoMerge: (mergeId: number, patch: MergeStatePatch) => Promise<void>
+  claimVideoMerge: (mergeId: number, claimedAt: string, staleBefore: string) => Promise<boolean>
 }
 
 export function buildEpisodeMergeRecord(input: BuildEpisodeMergeRecordInput) {
@@ -70,6 +79,7 @@ export function buildEpisodeMergeRecord(input: BuildEpisodeMergeRecordInput) {
     transitionType: input.transition?.type ?? null,
     transitionDurationMs: input.transition?.durationMs ?? null,
     createdAt: input.createdAt,
+    claimedAt: input.createdAt,
   }
 }
 
@@ -94,6 +104,7 @@ export function buildMergeCompletionPatch(input: MergeCompletionPatchInput) {
     mergedUrl: input.mergedUrl,
     duration: input.duration,
     completedAt: input.completedAt,
+    model: `ffmpeg-${input.strategy}`,
   }
 }
 
@@ -131,6 +142,15 @@ export function createMergeJobPersistence(deps: MergeJobPersistenceDeps) {
     recordMergeFailure: async (mergeId: number, error: unknown) => {
       await deps.updateVideoMerge(mergeId, buildMergeFailurePatch(error))
     },
+    claimMergeJob: async (mergeId: number, nowIso: string) => {
+      return await deps.claimVideoMerge(mergeId, nowIso, mergeClaimStaleBefore(nowIso))
+    },
+    touchMergeClaim: async (mergeId: number, nowIso: string) => {
+      await deps.updateVideoMerge(mergeId, { claimedAt: nowIso })
+    },
+    recordMergeDiagnostic: async (mergeId: number, note: string) => {
+      await deps.updateVideoMerge(mergeId, { taskId: note.slice(0, 6000) })
+    },
     completeEpisodeMerge: async (input: CompleteEpisodeMergeInput) => {
       await deps.updateVideoMerge(input.mergeId, buildMergeCompletionPatch(input))
       await deps.updateEpisode(input.episodeId, buildEpisodeVideoCompletionPatch(input.mergedUrl, input.episodeUpdatedAt))
@@ -146,6 +166,7 @@ export function createMergeJobDbPersistence() {
     updateEpisode: updateEpisodeInDb,
     insertVideoMerge: insertVideoMergeInDb,
     updateVideoMerge: updateVideoMergeInDb,
+    claimVideoMerge: claimVideoMergeInDb,
   })
 }
 
@@ -194,4 +215,17 @@ async function updateVideoMergeInDb(mergeId: number, patch: MergeStatePatch) {
     .set(patch as VideoMergeUpdatePatch)
     .where(eq(schema.videoMerges.id, mergeId))
     .run()
+}
+
+async function claimVideoMergeInDb(mergeId: number, claimedAt: string, staleBefore: string) {
+  const { db, schema } = await import('../../db/index.js')
+  const result = await db.update(schema.videoMerges)
+    .set({ claimedAt })
+    .where(and(
+      eq(schema.videoMerges.id, mergeId),
+      eq(schema.videoMerges.status, 'processing'),
+      or(isNull(schema.videoMerges.claimedAt), lt(schema.videoMerges.claimedAt, staleBefore)),
+    ))
+    .run()
+  return Number(result.affectedRows || 0) > 0
 }

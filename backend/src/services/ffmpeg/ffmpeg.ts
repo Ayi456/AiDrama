@@ -109,6 +109,34 @@ export function getVideoDurationPrecise(filePath: string): Promise<number> {
   })
 }
 
+export type VideoStreamInfo = {
+  durationSeconds: number
+  frameRate: { num: number; den: number } | null
+}
+
+function parseFrameRate(raw: unknown): { num: number; den: number } | null {
+  const match = /^(\d+)\/(\d+)$/.exec(String(raw ?? ''))
+  if (!match) return null
+  const num = Number(match[1])
+  const den = Number(match[2])
+  if (!(num > 0) || !(den > 0)) return null
+  return { num, den }
+}
+
+export function getVideoStreamInfo(filePath: string): Promise<VideoStreamInfo | null> {
+  return new Promise((resolve) => {
+    ffmpeg.ffprobe(filePath, (err, metadata) => {
+      if (err) { resolve(null); return }
+      const streams = Array.isArray(metadata.streams) ? metadata.streams : []
+      const video = streams.find(stream => String(stream.codec_type || '').toLowerCase() === 'video')
+      resolve({
+        durationSeconds: Number(metadata.format.duration) || 0,
+        frameRate: parseFrameRate(video?.r_frame_rate),
+      })
+    })
+  })
+}
+
 export function getVideoDimensions(filePath: string): Promise<{ width: number; height: number } | null> {
   return new Promise((resolve) => {
     ffmpeg.ffprobe(filePath, (err, metadata) => {
@@ -150,6 +178,42 @@ export function ffmpegSupportsXfade(): Promise<boolean> {
     })
   })
   return xfadeSupportCache
+}
+
+type BinaryProbe = { ok: boolean; output: string }
+
+function execFileProbe(file: string, args: string[]): Promise<BinaryProbe> {
+  return new Promise(resolve => {
+    execFile(file, args, { maxBuffer: 4 * 1024 * 1024 }, (error, stdout, stderr) => {
+      if (error) { resolve({ ok: false, output: String(error.message || error) }); return }
+      resolve({ ok: true, output: String(stdout || stderr || '') })
+    })
+  })
+}
+
+function firstLine(text: string) {
+  return text.split('\n')[0]?.trim() ?? ''
+}
+
+export async function getFfmpegDiagnostics() {
+  const [version, filters, probeVersion] = await Promise.all([
+    execFileProbe(FFMPEG_PATH, ['-version']),
+    execFileProbe(FFMPEG_PATH, ['-hide_banner', '-filters']),
+    execFileProbe(FFPROBE_PATH, ['-version']),
+  ])
+  return {
+    platform: process.platform,
+    envFfmpegPath: process.env.FFMPEG_PATH ?? null,
+    envFfprobePath: process.env.FFPROBE_PATH ?? null,
+    ffmpegPath: FFMPEG_PATH,
+    ffprobePath: FFPROBE_PATH,
+    ffmpegOk: version.ok,
+    ffmpegVersion: firstLine(version.output),
+    ffprobeOk: probeVersion.ok,
+    ffprobeVersion: firstLine(probeVersion.output),
+    xfadeSupported: filters.ok && /\bxfade\b/.test(filters.output),
+    filtersProbeError: filters.ok ? null : firstLine(filters.output),
+  }
 }
 
 export { ffmpeg }

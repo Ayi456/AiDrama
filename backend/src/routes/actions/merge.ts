@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { db, schema } from '../../db/index.js'
 import { success, badRequest, now } from '../../utils/response.js'
 import { ensureMergeJobRunning, isMergeJobRunning, mergeEpisodeVideos } from '../../services/merge/ffmpeg-merge.js'
+import { getFfmpegDiagnostics } from '../../services/ffmpeg/ffmpeg.js'
 import { toSnakeCase } from '../../utils/transform.js'
 import { logTaskError, logTaskStart, logTaskSuccess, logTaskWarn } from '../../utils/task-logger.js'
 import { isStaleProcessingMerge, resolveStaleMergeTimeoutMs } from '../../services/merge/merge-status.js'
@@ -11,6 +12,11 @@ import { readJsonBody } from '../shared/route-body.js'
 import { selectedStoryboardIdsFromBody } from '../policies/merge-route-policy.js'
 
 const app = new Hono()
+
+// GET /diagnostics/ffmpeg — 排查运行时 ffmpeg 环境（版本、路径、xfade 支持）
+app.get('/diagnostics/ffmpeg', async (c) => {
+  return success(c, toSnakeCase(await getFfmpegDiagnostics()))
+})
 
 // POST /chapters/:id/merge — 拼接全集视频
 app.post('/chapters/:id/merge', async (c) => {

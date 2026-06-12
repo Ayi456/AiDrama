@@ -392,6 +392,7 @@ const tableStatements = [
     error_msg TEXT,
     transition_type VARCHAR(32),
     transition_duration_ms INT,
+    claimed_at VARCHAR(32),
     created_at TEXT NOT NULL,
     completed_at TEXT,
     deleted_at TEXT
@@ -499,6 +500,7 @@ async function initializeDatabase(pool: Pool, database: string) {
   await ensureColumn(pool, database, 'episodes', 'automation_storyboard_chunk', 'INT NOT NULL DEFAULT 0')
   await ensureColumn(pool, database, 'video_merges', 'transition_type', 'VARCHAR(32)')
   await ensureColumn(pool, database, 'video_merges', 'transition_duration_ms', 'INT')
+  await ensureColumn(pool, database, 'video_merges', 'claimed_at', 'VARCHAR(32)')
   await ensureColumn(pool, database, 'dramas', 'image_config_id', 'INT')
   await ensureColumn(pool, database, 'dramas', 'video_config_id', 'INT')
   await ensureColumn(pool, database, 'characters', 'character_asset_id', 'INT')

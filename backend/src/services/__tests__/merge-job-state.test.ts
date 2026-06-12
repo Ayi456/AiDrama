@@ -8,6 +8,8 @@ import {
   buildMergeFailurePatch,
   buildReplacedMergePatch,
   createMergeJobPersistence,
+  MERGE_CLAIM_STALE_MS,
+  mergeClaimStaleBefore,
 } from '../merge/merge-job-state.js'
 
 async function runTest(name: string, fn: () => void | Promise<void>) {
@@ -45,7 +47,19 @@ await runTest('buildEpisodeMergeRecord captures selected storyboard clips as AiD
     transitionType: null,
     transitionDurationMs: null,
     createdAt: 't1',
+    claimedAt: 't1',
   })
+})
+
+await runTest('mergeClaimStaleBefore shifts now back by the stale window', () => {
+  assert.equal(
+    mergeClaimStaleBefore('2026-06-12T02:19:05.000Z', 60_000),
+    '2026-06-12T02:18:05.000Z',
+  )
+  assert.equal(
+    mergeClaimStaleBefore('2026-06-12T02:19:05.000Z'),
+    new Date(Date.parse('2026-06-12T02:19:05.000Z') - MERGE_CLAIM_STALE_MS).toISOString(),
+  )
 })
 
 await runTest('buildEpisodeMergeRecord captures transition snapshot when provided', () => {
@@ -70,8 +84,8 @@ await runTest('merge state patch builders preserve episode export lifecycle fiel
     { videoUrl: null, updatedAt: 't3' },
   )
   assert.deepEqual(
-    buildMergeCompletionPatch({ mergedUrl: 'https://cos.example.com/merged/a.mp4', duration: 37, completedAt: 't4' }),
-    { status: 'completed', mergedUrl: 'https://cos.example.com/merged/a.mp4', duration: 37, completedAt: 't4' },
+    buildMergeCompletionPatch({ mergedUrl: 'https://cos.example.com/merged/a.mp4', duration: 37, completedAt: 't4', strategy: 'xfade' }),
+    { status: 'completed', mergedUrl: 'https://cos.example.com/merged/a.mp4', duration: 37, completedAt: 't4', model: 'ffmpeg-xfade' },
   )
   assert.deepEqual(
     buildEpisodeVideoCompletionPatch('https://cos.example.com/merged/a.mp4', 't5'),
@@ -107,6 +121,10 @@ await runTest('createMergeJobPersistence forwards merge state through injected d
     updateVideoMerge: async (mergeId, patch) => {
       calls.push({ action: 'update-merge', mergeId, patch })
     },
+    claimVideoMerge: async (mergeId, claimedAt, staleBefore) => {
+      calls.push({ action: 'claim-merge', mergeId, claimedAt, staleBefore })
+      return true
+    },
   })
 
   assert.deepEqual(await persistence.loadEpisodeStoryboards(7), [
@@ -124,6 +142,9 @@ await runTest('createMergeJobPersistence forwards merge state through injected d
     storyboards: [{ id: 3, storyboardNumber: 3, videoUrl: 'static/videos/c.mp4', composedVideoUrl: null, mergeVideoUrl: 'static/videos/c.mp4' }],
   })
   await persistence.recordMergeFailure(mergeId, 'broken')
+  const claimed = await persistence.claimMergeJob(mergeId, '2026-06-12T02:19:05.000Z')
+  await persistence.touchMergeClaim(mergeId, '2026-06-12T02:19:25.000Z')
+  await persistence.recordMergeDiagnostic(mergeId, 'xfade-fallback: ffmpeg was killed with signal SIGKILL')
   await persistence.completeEpisodeMerge({
     mergeId,
     episodeId: 7,
@@ -131,9 +152,11 @@ await runTest('createMergeJobPersistence forwards merge state through injected d
     duration: 12,
     completedAt: 't9',
     episodeUpdatedAt: 't10',
+    strategy: 'transcode',
   })
 
   assert.equal(mergeId, 99)
+  assert.equal(claimed, true)
   assert.deepEqual(calls, [
     { action: 'load-storyboards', episodeId: 7 },
     { action: 'load-previous', episodeId: 7 },
@@ -154,10 +177,19 @@ await runTest('createMergeJobPersistence forwards merge state through injected d
         transitionType: null,
         transitionDurationMs: null,
         createdAt: 't8',
+        claimedAt: 't8',
       },
     },
     { action: 'update-merge', mergeId: 99, patch: { status: 'failed', errorMsg: 'broken' } },
-    { action: 'update-merge', mergeId: 99, patch: { status: 'completed', mergedUrl: 'static/merged/new.mp4', duration: 12, completedAt: 't9' } },
+    {
+      action: 'claim-merge',
+      mergeId: 99,
+      claimedAt: '2026-06-12T02:19:05.000Z',
+      staleBefore: new Date(Date.parse('2026-06-12T02:19:05.000Z') - MERGE_CLAIM_STALE_MS).toISOString(),
+    },
+    { action: 'update-merge', mergeId: 99, patch: { claimedAt: '2026-06-12T02:19:25.000Z' } },
+    { action: 'update-merge', mergeId: 99, patch: { taskId: 'xfade-fallback: ffmpeg was killed with signal SIGKILL' } },
+    { action: 'update-merge', mergeId: 99, patch: { status: 'completed', mergedUrl: 'static/merged/new.mp4', duration: 12, completedAt: 't9', model: 'ffmpeg-transcode' } },
     { action: 'update-episode', episodeId: 7, patch: { videoUrl: 'static/merged/new.mp4', updatedAt: 't10' } },
   ])
 })

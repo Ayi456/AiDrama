@@ -81,6 +81,74 @@ export function isAnyTransitionEnabled(seamTransitions: TransitionConfig[], clip
   return clipCount >= 2 && seamTransitions.some((seam) => seam.durationMs > 0)
 }
 
+export type VideoFrameRate = { num: number; den: number }
+
+const MIN_PLAUSIBLE_FPS = 1
+const MAX_PLAUSIBLE_FPS = 120
+export const DEFAULT_XFADE_FPS = '30'
+
+/** Pick the highest plausible source frame rate so normalization never drops frames. */
+export function pickXfadeFps(rates: Array<VideoFrameRate | null | undefined>): string {
+  let best: VideoFrameRate | null = null
+  let bestValue = 0
+  for (const rate of rates) {
+    if (!rate || !Number.isFinite(rate.num) || !Number.isFinite(rate.den) || rate.den <= 0) continue
+    const value = rate.num / rate.den
+    if (value < MIN_PLAUSIBLE_FPS || value > MAX_PLAUSIBLE_FPS) continue
+    if (value > bestValue) {
+      best = rate
+      bestValue = value
+    }
+  }
+  if (!best) return DEFAULT_XFADE_FPS
+  return Number.isInteger(bestValue) ? String(bestValue) : `${best.num}/${best.den}`
+}
+
+export type XfadeMergeStep = {
+  /** Node ids to merge in order; 0..clipCount-1 are original clips, higher ids are intermediates */
+  inputNodes: number[]
+  /** Original seam index between each pair of consecutive inputs (length = inputNodes.length - 1) */
+  seamIndices: number[]
+  /** Node id assigned to this step's output */
+  outputNode: number
+}
+
+/**
+ * Plan a bottom-up merge tree with at most `maxGroupSize` inputs per ffmpeg run, so peak memory
+ * stays constant regardless of clip count. Each step merges consecutive nodes; the seam between
+ * two nodes is the original seam between the last clip of the left node and the first clip of
+ * the right node. The final step's outputNode is the root.
+ */
+export function planXfadeMergeTree(clipCount: number, maxGroupSize = 4): XfadeMergeStep[] {
+  if (clipCount < 2) return []
+  const groupSize = Math.max(2, Math.floor(maxGroupSize))
+
+  let nodes = Array.from({ length: clipCount }, (_, i) => ({ id: i, lastClip: i }))
+  let nextId = clipCount
+  const steps: XfadeMergeStep[] = []
+
+  while (nodes.length > 1) {
+    const nextLevel: typeof nodes = []
+    for (let i = 0; i < nodes.length; i += groupSize) {
+      const group = nodes.slice(i, i + groupSize)
+      if (group.length === 1) {
+        nextLevel.push(group[0])
+        continue
+      }
+      steps.push({
+        inputNodes: group.map(node => node.id),
+        seamIndices: group.slice(0, -1).map(node => node.lastClip),
+        outputNode: nextId,
+      })
+      nextLevel.push({ id: nextId, lastClip: group[group.length - 1].lastClip })
+      nextId++
+    }
+    nodes = nextLevel
+  }
+
+  return steps
+}
+
 export type SeamDurations = {
   /** per-seam transition duration in seconds, length = clipCount - 1 */
   seamDurations: number[]
@@ -137,6 +205,8 @@ export function buildXfadeFilter(
   clipDurationsSeconds: number[],
   seamTransitions: TransitionConfig[],
   audioLabels: string[],
+  fps: string = DEFAULT_XFADE_FPS,
+  opts: { emitWhenAllSeamsZero?: boolean } = {},
 ): { filter: string; videoOutLabel: string; audioOutLabel: string } | null {
   const n = clipDurationsSeconds.length
   if (n < 2) return null
@@ -151,10 +221,12 @@ export function buildXfadeFilter(
     clipDurationsSeconds,
     seamTransitions.map((seam) => seam.durationMs),
   )
-  if (seamDurations.every(seam => seam <= 0)) return null
+  if (seamDurations.every(seam => seam <= 0) && !opts.emitWhenAllSeamsZero) return null
 
   // xfade / acrossfade require all inputs to share fps / pixel format / sample rate / channel layout
   // and start at PTS=0. Normalize every video and audio stream before feeding the transition chain.
+  // fps must come AFTER setpts: setpts resets the frame-rate metadata to unknown (1/0), and
+  // ffmpeg 7.x xfade rejects non-constant frame rate inputs.
   const normSteps: string[] = []
   const normalizedVideoLabels: string[] = []
   const normalizedAudioLabels: string[] = []
@@ -162,7 +234,7 @@ export function buildXfadeFilter(
   for (let k = 0; k < n; k++) {
     const vLabel = `[v${k}n]`
     const aLabel = `[a${k}n]`
-    normSteps.push(`[${k}:v]fps=30,format=yuv420p,setpts=PTS-STARTPTS${vLabel}`)
+    normSteps.push(`[${k}:v]setpts=PTS-STARTPTS,fps=${fps},format=yuv420p${vLabel}`)
     normSteps.push(`${audioLabels[k]}aformat=sample_rates=48000:channel_layouts=stereo,asetpts=PTS-STARTPTS${aLabel}`)
     normalizedVideoLabels.push(vLabel)
     normalizedAudioLabels.push(aLabel)

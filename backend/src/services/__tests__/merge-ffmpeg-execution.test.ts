@@ -72,3 +72,60 @@ await runTest('runFfmpegMergeStrategies throws the final FFmpeg error when all s
     /transcode failed/,
   )
 })
+
+await runTest('runFfmpegMergeStrategies reports xfade fallback reason before degrading to hard cut', async () => {
+  const attempted: string[] = []
+  const fallbacks: string[] = []
+
+  const strategy = await runFfmpegMergeStrategies({
+    mergeId: 43,
+    episodeId: 9,
+    listPath: 'C:/tmp/list.txt',
+    outputPath: 'C:/tmp/out.mp4',
+    clipCount: 2,
+    clipPaths: ['C:/tmp/a.mp4', 'C:/tmp/b.mp4'],
+    seamTransitions: [{ type: 'fade', durationMs: 500 }],
+    onXfadeFallback: reason => fallbacks.push(reason),
+  }, {
+    outputExists: () => false,
+    removeOutput: () => undefined,
+    runConcat: async ({ strategy }) => {
+      attempted.push(strategy)
+      if (strategy === 'xfade') throw new Error('ffmpeg was killed with signal SIGKILL')
+    },
+    logWarn: () => undefined,
+    supportsXfade: async () => true,
+  })
+
+  assert.equal(strategy, 'transcode')
+  assert.deepEqual(attempted, ['xfade', 'transcode'])
+  assert.deepEqual(fallbacks, ['ffmpeg was killed with signal SIGKILL'])
+})
+
+await runTest('runFfmpegMergeStrategies reports unsupported xfade before skipping it', async () => {
+  const attempted: string[] = []
+  const fallbacks: string[] = []
+
+  const strategy = await runFfmpegMergeStrategies({
+    mergeId: 44,
+    episodeId: 9,
+    listPath: 'C:/tmp/list.txt',
+    outputPath: 'C:/tmp/out.mp4',
+    clipCount: 2,
+    clipPaths: ['C:/tmp/a.mp4', 'C:/tmp/b.mp4'],
+    seamTransitions: [{ type: 'fade', durationMs: 500 }],
+    onXfadeFallback: reason => fallbacks.push(reason),
+  }, {
+    outputExists: () => false,
+    removeOutput: () => undefined,
+    runConcat: async ({ strategy }) => {
+      attempted.push(strategy)
+    },
+    logWarn: () => undefined,
+    supportsXfade: async () => false,
+  })
+
+  assert.equal(strategy, 'copy')
+  assert.deepEqual(attempted, ['copy'])
+  assert.deepEqual(fallbacks, ['xfade filter unavailable in ffmpeg'])
+})

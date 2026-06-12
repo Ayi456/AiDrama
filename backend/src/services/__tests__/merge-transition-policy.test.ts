@@ -11,6 +11,8 @@ import {
   isTransitionEnabled,
   normalizeTransitionDurationMs,
   normalizeTransitionType,
+  pickXfadeFps,
+  planXfadeMergeTree,
   resolveSeamTransitions,
   resolveTransitionConfig,
 } from '../merge/merge-transition-policy.js'
@@ -184,9 +186,79 @@ await runTest('buildXfadeFilter degrades short seams to concat hard cut', () => 
   assert.ok(result!.filter.includes('concat=n=2:v=0:a=1'))
 })
 
+await runTest('buildXfadeFilter normalizes video with fps last so xfade sees a constant frame rate', () => {
+  // setpts resets the frame-rate metadata to unknown (1/0); ffmpeg 7.x xfade rejects that,
+  // so fps must be the final rate-affecting filter in each normalization chain.
+  const result = buildXfadeFilter([8, 8], [{ type: 'fade', durationMs: 500 }], ['[0:a]', '[1:a]'])
+  assert.ok(result, 'filter result expected')
+  assert.ok(result!.filter.includes('[0:v]setpts=PTS-STARTPTS,fps=30,format=yuv420p[v0n]'))
+  assert.ok(result!.filter.includes('[1:v]setpts=PTS-STARTPTS,fps=30,format=yuv420p[v1n]'))
+  assert.ok(!result!.filter.includes('format=yuv420p,setpts'))
+})
+
 await runTest('buildXfadeFilter honors custom audio labels for anullsrc backfill', () => {
   const result = buildXfadeFilter([5, 5], [{ type: 'fadeblack', durationMs: 400 }], ['[0:a]', '[anull1]'])
   assert.ok(result)
   assert.ok(result!.filter.includes('[anull1]'))
   assert.ok(result!.filter.includes('transition=fadeblack'))
+})
+
+await runTest('planXfadeMergeTree merges few clips in a single step', () => {
+  assert.deepEqual(planXfadeMergeTree(3, 4), [
+    { inputNodes: [0, 1, 2], seamIndices: [0, 1], outputNode: 3 },
+  ])
+  assert.deepEqual(planXfadeMergeTree(2, 4), [
+    { inputNodes: [0, 1], seamIndices: [0], outputNode: 2 },
+  ])
+})
+
+await runTest('planXfadeMergeTree builds a 4-ary tree and maps seams to original indices', () => {
+  assert.deepEqual(planXfadeMergeTree(10, 4), [
+    { inputNodes: [0, 1, 2, 3], seamIndices: [0, 1, 2], outputNode: 10 },
+    { inputNodes: [4, 5, 6, 7], seamIndices: [4, 5, 6], outputNode: 11 },
+    { inputNodes: [8, 9], seamIndices: [8], outputNode: 12 },
+    { inputNodes: [10, 11, 12], seamIndices: [3, 7], outputNode: 13 },
+  ])
+})
+
+await runTest('planXfadeMergeTree carries a lone trailing node up to the next level', () => {
+  assert.deepEqual(planXfadeMergeTree(5, 4), [
+    { inputNodes: [0, 1, 2, 3], seamIndices: [0, 1, 2], outputNode: 5 },
+    { inputNodes: [5, 4], seamIndices: [3], outputNode: 6 },
+  ])
+})
+
+await runTest('planXfadeMergeTree keeps tree depth logarithmic for many clips', () => {
+  const steps = planXfadeMergeTree(40, 4)
+  const lastStep = steps[steps.length - 1]
+  // 40 -> 10 -> 3 -> 1: 10 + 3 + 1 steps
+  assert.equal(steps.length, 14)
+  const allSeams = steps.flatMap(step => step.seamIndices).sort((a, b) => a - b)
+  assert.deepEqual(allSeams, Array.from({ length: 39 }, (_, i) => i))
+  assert.ok(lastStep.inputNodes.length <= 4)
+})
+
+await runTest('pickXfadeFps selects the highest source frame rate and defaults to 30', () => {
+  assert.equal(pickXfadeFps([{ num: 24, den: 1 }, { num: 30, den: 1 }]), '30')
+  assert.equal(pickXfadeFps([{ num: 24, den: 1 }, { num: 24, den: 1 }]), '24')
+  assert.equal(pickXfadeFps([{ num: 30000, den: 1001 }, { num: 24, den: 1 }]), '30000/1001')
+  assert.equal(pickXfadeFps([null, undefined]), '30')
+  assert.equal(pickXfadeFps([]), '30')
+  // implausible rates are ignored
+  assert.equal(pickXfadeFps([{ num: 12288, den: 512 }, { num: 1000, den: 1 }]), '24')
+})
+
+await runTest('buildXfadeFilter normalizes video to the requested fps', () => {
+  const result = buildXfadeFilter([8, 8], [{ type: 'fade', durationMs: 500 }], ['[0:a]', '[1:a]'], '24')
+  assert.ok(result)
+  assert.ok(result!.filter.includes('setpts=PTS-STARTPTS,fps=24,format=yuv420p'))
+})
+
+await runTest('buildXfadeFilter can emit a concat-only graph when all seams degrade', () => {
+  const seams = [{ type: 'fade' as const, durationMs: 0 }]
+  assert.equal(buildXfadeFilter([5, 5], seams, ['[0:a]', '[1:a]'], '30'), null)
+  const forced = buildXfadeFilter([5, 5], seams, ['[0:a]', '[1:a]'], '30', { emitWhenAllSeamsZero: true })
+  assert.ok(forced)
+  assert.ok(forced!.filter.includes('concat=n=2:v=1:a=0'))
+  assert.ok(!forced!.filter.includes('xfade='))
 })

@@ -1,15 +1,22 @@
 import fs from 'fs'
-import { ffmpeg, ffmpegSupportsXfade, getVideoDurationPrecise } from '../ffmpeg/ffmpeg.js'
+import path from 'path'
+import { v4 as uuid } from 'uuid'
+import { ffmpeg, ffmpegSupportsXfade, getVideoStreamInfo } from '../ffmpeg/ffmpeg.js'
 import {
   type FfmpegMergeStrategy,
   ffmpegMergeOutputOptions,
   ffmpegMergeStrategies,
+  ffmpegXfadeIntermediateOutputOptions,
   resolveFfmpegMergeTimeoutMs,
   resolveStrategyChain,
+  resolveXfadeGroupSize,
 } from './merge-ffmpeg-strategy.js'
 import {
   buildXfadeFilter,
+  computeSeamDurations,
   isAnyTransitionEnabled,
+  pickXfadeFps,
+  planXfadeMergeTree,
   type TransitionConfig,
 } from './merge-transition-policy.js'
 import { logTaskProgress, logTaskStart, logTaskSuccess, logTaskWarn } from '../../utils/task-logger.js'
@@ -26,6 +33,8 @@ export type RunFfmpegMergeStrategiesInput = {
   clipPaths?: string[]
   /** Per-seam transition configs (clipCount - 1 entries, defaults already resolved) */
   seamTransitions?: TransitionConfig[]
+  /** Invoked when xfade is skipped or fails, with the degradation reason */
+  onXfadeFallback?: (reason: string) => void
 }
 
 export type RunFfmpegConcatInput = RunFfmpegMergeStrategiesInput & {
@@ -37,6 +46,7 @@ export type RunFfmpegMergeStrategiesDeps = {
   removeOutput: (outputPath: string) => void
   runConcat: (input: RunFfmpegConcatInput) => Promise<void>
   logWarn: (taskName: string, event: string, payload: Record<string, unknown>) => void
+  supportsXfade?: () => Promise<boolean>
 }
 
 function normalizeError(error: unknown) {
@@ -66,12 +76,13 @@ export async function runFfmpegMergeStrategies(
   let strategies = resolveStrategiesForInput(input)
 
   if (strategies.includes('xfade')) {
-    const supportsXfade = await ffmpegSupportsXfade()
+    const supportsXfade = await (deps.supportsXfade ?? ffmpegSupportsXfade)()
     if (!supportsXfade) {
       deps.logWarn('MergeTask', 'ffmpeg-xfade-unsupported', {
         mergeId: input.mergeId,
         episodeId: input.episodeId,
       })
+      input.onXfadeFallback?.('xfade filter unavailable in ffmpeg')
       strategies = ffmpegMergeStrategies
     }
   }
@@ -90,6 +101,7 @@ export async function runFfmpegMergeStrategies(
           episodeId: input.episodeId,
           reason: lastError.message,
         })
+        input.onXfadeFallback?.(lastError.message)
         continue
       }
       if (strategy === 'copy') {
@@ -185,52 +197,139 @@ async function runFfmpegXfade(input: RunFfmpegConcatInput) {
     throw new Error('xfade strategy requires per-seam transition configs and clipPaths')
   }
 
-  const timeoutMs = resolveFfmpegMergeTimeoutMs()
   const startedAt = Date.now()
-  let lastProgressAt = 0
 
-  const clipDurations = await Promise.all(input.clipPaths.map(getVideoDurationPrecise))
+  const clipInfos = await Promise.all(input.clipPaths.map(getVideoStreamInfo))
+  const clipDurations = clipInfos.map(info => info?.durationSeconds ?? 0)
   if (clipDurations.some(duration => !(duration > 0))) {
     throw new Error('xfade strategy requires positive duration for every clip')
   }
+  const fps = pickXfadeFps(clipInfos.map(info => info?.frameRate))
 
-  const audioLabels = clipDurations.map((_, index) => `[${index}:a]`)
-
-  const built = buildXfadeFilter(
+  const { seamDurations } = computeSeamDurations(
     clipDurations,
-    input.seamTransitions,
-    audioLabels,
+    input.seamTransitions.map(seam => seam.durationMs),
   )
-
-  if (!built) {
+  if (seamDurations.every(seam => seam <= 0)) {
     throw new Error('xfade not applicable: no valid seams (clips too short)')
   }
+
+  const groupSize = resolveXfadeGroupSize()
+  const plan = planXfadeMergeTree(input.clipCount, groupSize)
 
   logTaskStart('MergeTask', 'ffmpeg-xfade', {
     mergeId: input.mergeId,
     episodeId: input.episodeId,
     clips: input.clipCount,
+    fps,
+    groupSize,
+    stages: plan.length,
     seamTransitions: input.seamTransitions.map(seam => `${seam.type}:${seam.durationMs}`),
     clipDurations: clipDurations.map(value => Math.round(value * 1000) / 1000),
-    filter: built.filter,
-    timeoutSeconds: Math.round(timeoutMs / 1000),
   })
 
+  const nodePaths = [...input.clipPaths]
+  const nodeDurations = [...clipDurations]
+  const tempDir = path.dirname(input.listPath)
+  const tempFiles = new Set<string>()
+
+  const removeTempFile = (filePath: string) => {
+    if (!tempFiles.has(filePath)) return
+    tempFiles.delete(filePath)
+    try { fs.unlinkSync(filePath) } catch { /* best effort */ }
+  }
+
+  try {
+    for (let stageIndex = 0; stageIndex < plan.length; stageIndex++) {
+      const step = plan[stageIndex]
+      const isFinal = stageIndex === plan.length - 1
+      const stepOutputPath = isFinal ? input.outputPath : path.join(tempDir, `${uuid()}.xfade.mp4`)
+
+      const built = buildXfadeFilter(
+        step.inputNodes.map(id => nodeDurations[id]),
+        step.seamIndices.map(index => input.seamTransitions![index]),
+        step.inputNodes.map((_, position) => `[${position}:a]`),
+        fps,
+        { emitWhenAllSeamsZero: true },
+      )
+      if (!built) {
+        throw new Error(`xfade plan stage ${stageIndex + 1}/${plan.length} produced no filter`)
+      }
+
+      await runXfadeGraph({
+        mergeId: input.mergeId,
+        episodeId: input.episodeId,
+        stage: `${stageIndex + 1}/${plan.length}`,
+        inputPaths: step.inputNodes.map(id => nodePaths[id]),
+        filter: built.filter,
+        videoOutLabel: built.videoOutLabel,
+        audioOutLabel: built.audioOutLabel,
+        outputOptions: isFinal ? ffmpegMergeOutputOptions('xfade') : ffmpegXfadeIntermediateOutputOptions(),
+        outputPath: stepOutputPath,
+      })
+
+      if (!isFinal) {
+        tempFiles.add(stepOutputPath)
+        const intermediateInfo = await getVideoStreamInfo(stepOutputPath)
+        const intermediateDuration = intermediateInfo?.durationSeconds ?? 0
+        if (!(intermediateDuration > 0)) {
+          throw new Error(`xfade intermediate has invalid duration (stage ${stageIndex + 1}/${plan.length})`)
+        }
+        nodePaths[step.outputNode] = stepOutputPath
+        nodeDurations[step.outputNode] = intermediateDuration
+      }
+
+      for (const id of step.inputNodes) {
+        removeTempFile(nodePaths[id])
+      }
+    }
+  } finally {
+    for (const filePath of [...tempFiles]) {
+      removeTempFile(filePath)
+    }
+  }
+
+  logTaskSuccess('MergeTask', 'ffmpeg-xfade', {
+    mergeId: input.mergeId,
+    episodeId: input.episodeId,
+    clips: input.clipCount,
+    fps,
+    stages: plan.length,
+    elapsedSeconds: Math.round((Date.now() - startedAt) / 1000),
+  })
+}
+
+type RunXfadeGraphInput = {
+  mergeId: number
+  episodeId: number
+  stage: string
+  inputPaths: string[]
+  filter: string
+  videoOutLabel: string
+  audioOutLabel: string
+  outputOptions: string[]
+  outputPath: string
+}
+
+async function runXfadeGraph(input: RunXfadeGraphInput) {
+  const timeoutMs = resolveFfmpegMergeTimeoutMs()
+  const startedAt = Date.now()
+  let lastProgressAt = 0
   let stderrTail = ''
 
   await new Promise<void>((resolve, reject) => {
     const command = ffmpeg()
 
-    for (const clipPath of input.clipPaths!) {
-      command.input(clipPath)
+    for (const inputPath of input.inputPaths) {
+      command.input(inputPath)
     }
 
     command
-      .complexFilter(built.filter)
+      .complexFilter(input.filter)
       .outputOptions([
-        '-map', `[${built.videoOutLabel}]`,
-        '-map', `[${built.audioOutLabel}]`,
-        ...ffmpegMergeOutputOptions('xfade'),
+        '-map', `[${input.videoOutLabel}]`,
+        '-map', `[${input.audioOutLabel}]`,
+        ...input.outputOptions,
       ])
       .output(input.outputPath)
 
@@ -247,7 +346,7 @@ async function runFfmpegXfade(input: RunFfmpegConcatInput) {
 
     const timeout = setTimeout(() => {
       command.kill('SIGKILL')
-      finish(new Error(`FFmpeg xfade merge timed out after ${Math.round(timeoutMs / 1000)}s`))
+      finish(new Error(`FFmpeg xfade stage ${input.stage} timed out after ${Math.round(timeoutMs / 1000)}s`))
     }, timeoutMs)
 
     command
@@ -262,6 +361,7 @@ async function runFfmpegXfade(input: RunFfmpegConcatInput) {
           mergeId: input.mergeId,
           episodeId: input.episodeId,
           strategy: 'xfade',
+          stage: input.stage,
           percent: typeof progress.percent === 'number' ? Math.round(progress.percent * 10) / 10 : undefined,
           timemark: progress.timemark,
           elapsedSeconds: Math.round((nowMs - startedAt) / 1000),
@@ -270,12 +370,5 @@ async function runFfmpegXfade(input: RunFfmpegConcatInput) {
       .on('end', () => finish())
       .on('error', err => finish(err))
       .run()
-  })
-
-  logTaskSuccess('MergeTask', 'ffmpeg-xfade', {
-    mergeId: input.mergeId,
-    episodeId: input.episodeId,
-    clips: input.clipCount,
-    elapsedSeconds: Math.round((Date.now() - startedAt) / 1000),
   })
 }

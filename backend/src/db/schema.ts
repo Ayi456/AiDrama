@@ -304,6 +304,7 @@ export const videoMerges = mysqlTable('video_merges', {
   errorMsg: text('error_msg'),
   transitionType: varchar('transition_type', { length: 32 }),
   transitionDurationMs: int('transition_duration_ms'),
+  claimedAt: varchar('claimed_at', { length: 32 }),
   createdAt: text('created_at').notNull(),
   completedAt: text('completed_at'),
   deletedAt: text('deleted_at'),
