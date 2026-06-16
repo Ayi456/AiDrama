@@ -193,6 +193,37 @@ export const aiServiceProviders = mysqlTable('ai_service_providers', {
   updatedAt: text('updated_at').notNull(),
 })
 
+export const users = mysqlTable('users', {
+  id: int('id').autoincrement().primaryKey(),
+  username: varchar('username', { length: 64 }).notNull(),
+  email: varchar('email', { length: 191 }).notNull(),
+  phone: varchar('phone', { length: 32 }).notNull(),
+  passwordHash: text('password_hash').notNull(),
+  status: varchar('status', { length: 32 }).notNull().default('active'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+  lastLoginAt: text('last_login_at'),
+})
+
+export const authSessions = mysqlTable('auth_sessions', {
+  token: varchar('token', { length: 128 }).primaryKey(),
+  userId: int('user_id').notNull(),
+  expiresAt: text('expires_at').notNull(),
+  createdAt: text('created_at').notNull(),
+})
+
+export const smsCodes = mysqlTable('sms_codes', {
+  id: int('id').autoincrement().primaryKey(),
+  phone: varchar('phone', { length: 32 }).notNull(),
+  purpose: varchar('purpose', { length: 32 }).notNull().default('register'),
+  codeHash: text('code_hash').notNull(),
+  salt: varchar('salt', { length: 64 }).notNull(),
+  expiresAt: text('expires_at').notNull(),
+  usedAt: text('used_at'),
+  attempts: int('attempts').notNull().default(0),
+  createdAt: text('created_at').notNull(),
+})
+
 export const agentConfigs = mysqlTable('agent_configs', {
   id: int('id').autoincrement().primaryKey(),
   agentType: text('agent_type').notNull(),

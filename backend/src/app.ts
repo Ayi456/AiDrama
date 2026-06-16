@@ -26,6 +26,7 @@ import assets from './routes/resources/assets.js'
 import characterAssets from './routes/resources/characterAssets.js'
 import preferences from './routes/resources/preferences.js'
 import webhooks from './routes/webhooks/webhooks.js'
+import auth from './routes/auth/auth.js'
 import { requestLogger, errorHandler } from './middleware/logger.js'
 import { resumeRunningEpisodes } from './services/automation/episode-orchestrator.js'
 import { externalAssetRedirectUrl } from './utils/external-asset-redirect.js'
@@ -58,6 +59,7 @@ export function createApp() {
   app.get('/api/v1/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }))
 
   const api = new Hono()
+  api.route('/auth', auth)
   api.route('/dramas', dramas)
   api.route(chapterRoutePath, chapters)
   api.route('/storyboards', storyboards)

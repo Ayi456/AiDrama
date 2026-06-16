@@ -285,6 +285,44 @@ const tableStatements = [
     updated_at TEXT NOT NULL
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
+  `CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(64) NOT NULL,
+    email VARCHAR(191) NOT NULL,
+    phone VARCHAR(32) NOT NULL,
+    password_hash TEXT NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'active',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    last_login_at TEXT,
+    UNIQUE KEY uniq_users_username (username),
+    UNIQUE KEY uniq_users_email (email),
+    UNIQUE KEY uniq_users_phone (phone)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+  `CREATE TABLE IF NOT EXISTS auth_sessions (
+    token VARCHAR(128) PRIMARY KEY,
+    user_id INT NOT NULL,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    INDEX idx_auth_sessions_user_id (user_id),
+    INDEX idx_auth_sessions_expires_at (expires_at(32))
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+  `CREATE TABLE IF NOT EXISTS sms_codes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    phone VARCHAR(32) NOT NULL,
+    purpose VARCHAR(32) NOT NULL DEFAULT 'register',
+    code_hash TEXT NOT NULL,
+    salt VARCHAR(64) NOT NULL,
+    expires_at TEXT NOT NULL,
+    used_at TEXT,
+    attempts INT NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    INDEX idx_sms_codes_phone_purpose (phone, purpose),
+    INDEX idx_sms_codes_expires_at (expires_at(32))
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
   `CREATE TABLE IF NOT EXISTS agent_configs (
     id INT AUTO_INCREMENT PRIMARY KEY,
     agent_type TEXT NOT NULL,
@@ -523,6 +561,11 @@ async function initializeDatabase(pool: Pool, database: string) {
 
   await ensureIndex(pool, database, 'video_generations', 'idx_video_generations_storyboard_id_id', '(`storyboard_id`, `id`)')
   await ensureIndex(pool, database, 'video_generations', 'idx_video_generations_drama_id_id', '(`drama_id`, `id`)')
+  await ensureIndex(pool, database, 'users', 'uniq_users_username', '(`username`)')
+  await ensureIndex(pool, database, 'users', 'uniq_users_email', '(`email`)')
+  await ensureIndex(pool, database, 'users', 'uniq_users_phone', '(`phone`)')
+  await ensureIndex(pool, database, 'auth_sessions', 'idx_auth_sessions_user_id', '(`user_id`)')
+  await ensureIndex(pool, database, 'sms_codes', 'idx_sms_codes_phone_purpose', '(`phone`, `purpose`)')
 }
 
 await ensureDatabaseExists(mysqlConfig)

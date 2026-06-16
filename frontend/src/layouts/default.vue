@@ -36,6 +36,13 @@
       </nav>
 
       <div class="header-right">
+        <div v-if="auth.state.user" class="user-pill">
+          <UserCircle :size="15" :stroke-width="1.8" />
+          <span>{{ auth.state.user.username }}</span>
+        </div>
+        <button v-if="auth.state.user" class="logout-btn" type="button" title="退出登录" @click="logout">
+          <LogOut :size="15" :stroke-width="1.8" />
+        </button>
         <div class="film-strip">
           <span class="film-frame"></span>
           <span class="film-frame"></span>
@@ -52,9 +59,17 @@
 
 <script setup>
 import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { LogOut, UserCircle } from 'lucide-vue-next'
+import { useAuth } from '../composables/useAuth'
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuth()
+
+async function logout() {
+  await auth.logout()
+  router.replace('/login')
+}
 </script>
 
 <style scoped>
@@ -117,7 +132,46 @@ const router = useRouter()
   font-weight: 600;
 }
 
-.header-right { display: flex; align-items: center; margin-left: auto; }
+.header-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+
+.user-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 180px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  color: var(--text-1);
+  font-size: 12px;
+  font-weight: 600;
+}
+.user-pill span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.logout-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-0);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: all 0.18s var(--ease-out);
+}
+.logout-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-0);
+  border-color: var(--border-strong);
+}
 
 /* Film strip decoration */
 .film-strip {

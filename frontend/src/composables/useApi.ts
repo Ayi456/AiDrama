@@ -11,6 +11,35 @@ type ApiEnvelope<T> = {
 export type ApiEntity = Record<string, unknown> & { id?: number }
 export type ApiList<T> = { items: T[] }
 export type UploadResult = { url: string; path: string }
+export type AuthUser = {
+  id: number
+  username: string
+  email: string
+  phone: string
+  status: string
+  createdAt?: string
+  lastLoginAt?: string | null
+}
+export type AuthSession = {
+  token: string
+  user: AuthUser
+}
+export type AuthLoginPayload = {
+  identifier: string
+  password: string
+}
+export type AuthRegisterPayload = {
+  username: string
+  email: string
+  phone: string
+  password: string
+  sms_code: string
+}
+export type AuthSmsCodePayload = {
+  message?: string
+  dev_code?: string
+  expires_in?: number
+}
 type DirectUploadTarget = UploadResult & {
   upload_url?: string
   uploadUrl?: string
@@ -176,6 +205,18 @@ function compactErrorText(text: string, fallback = '操作失败') {
   return cleaned.length > 120 ? `${cleaned.slice(0, 117)}...` : cleaned
 }
 
+function readAuthTokenFromStorage() {
+  if (typeof window === 'undefined') return ''
+  try {
+    const raw = window.localStorage.getItem('aidrama-auth')
+    if (!raw) return ''
+    const parsed = JSON.parse(raw) as { token?: unknown }
+    return typeof parsed.token === 'string' ? parsed.token : ''
+  } catch {
+    return ''
+  }
+}
+
 function friendlyProviderErrorMessage(rawMessage: string): string | null {
   const payload = parseJsonObjectFromText(rawMessage)
   const error = readRecord(payload?.error)
@@ -228,7 +269,10 @@ export function normalizeApiErrorMessage(message: unknown, fallback = '操作失
 }
 
 async function req<T = ApiEntity>(method: ApiMethod, path: string, body?: ApiRequestBody): Promise<T> {
-  const opts: RequestInit = { method, headers: { 'Content-Type': 'application/json' } }
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  const token = readAuthTokenFromStorage()
+  if (token) headers.Authorization = `Bearer ${token}`
+  const opts: RequestInit = { method, headers }
   if (body) opts.body = JSON.stringify(body)
 
   const start = performance.now()
@@ -291,6 +335,14 @@ export const api = {
   put: <T = ApiEntity>(p: string, b?: ApiRequestBody) => req<T>('PUT', p, b),
   patch: <T = ApiEntity>(p: string, b?: ApiRequestBody) => req<T>('PATCH', p, b),
   del: <T = ApiEntity>(p: string) => req<T>('DELETE', p),
+}
+
+export const authAPI = {
+  login: (data: AuthLoginPayload) => api.post<AuthSession>('/auth/login', data),
+  register: (data: AuthRegisterPayload) => api.post<AuthSession>('/auth/register', data),
+  session: () => api.get<{ user: AuthUser }>('/auth/session'),
+  sendRegisterCode: (phone: string) => api.post<AuthSmsCodePayload>('/auth/sms-code', { phone }),
+  logout: () => api.post('/auth/logout', {}),
 }
 
 function uploadImageMultipart(file: File) {
