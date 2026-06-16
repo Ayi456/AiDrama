@@ -20,7 +20,7 @@ import StudioLayout from './layouts/studio.vue'
 const route = useRoute()
 
 const layoutComponent = computed(() => {
-  if (route.meta.layout === 'auth') return null
+  if (route.meta.layout === 'auth' || route.meta.layout === 'public') return null
   return route.meta.layout === 'studio' ? StudioLayout : DefaultLayout
 })
 

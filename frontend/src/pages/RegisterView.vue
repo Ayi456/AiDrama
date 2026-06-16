@@ -182,7 +182,7 @@ async function submit() {
       sms_code: form.smsCode,
     })
     toast.success('账户已创建')
-    router.replace('/')
+    router.replace('/workspace')
   } catch (err) {
     error.value = readErrorMessage(err)
   } finally {

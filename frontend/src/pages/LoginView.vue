@@ -91,7 +91,7 @@ async function submit() {
     toast.success('登录成功')
     const redirect = typeof route.query.redirect === 'string' && route.query.redirect.startsWith('/')
       ? route.query.redirect
-      : '/'
+      : '/workspace'
     router.replace(redirect)
   } catch (err) {
     error.value = readErrorMessage(err)
