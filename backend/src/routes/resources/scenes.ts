@@ -8,6 +8,8 @@ import { buildSceneImagePrompt, resolveSceneEnvironmentPrompt } from '../../agen
 import { errorMessageFromUnknown } from '../../utils/error.js'
 import { hasOwn, readJsonBody } from '../shared/route-body.js'
 import { toSnakeCase } from '../../utils/transform.js'
+import { getCurrentUser } from '../../middleware/auth.js'
+import { findOwnedDrama, findOwnedEpisode, findOwnedScene } from '../shared/ownership.js'
 
 const app = new Hono()
 
@@ -52,6 +54,7 @@ async function linkSceneToEpisode(episodeId: number, sceneId: number) {
 
 // POST /scenes
 app.post('/', async (c) => {
+  const currentUser = getCurrentUser(c)
   const body = await readJsonBody(c)
   const ts = now()
   const dramaId = readBodyId(body, 'drama_id', 'dramaId')
@@ -62,8 +65,11 @@ app.post('/', async (c) => {
   if (!dramaId) return badRequest(c, 'drama_id is required')
   if (!location) return badRequest(c, '场景地点不能为空')
 
+  const drama = await findOwnedDrama(currentUser.id, dramaId)
+  if (!drama) return badRequest(c, 'Drama not found')
+
   if (episodeId) {
-    const [episode] = await db.select().from(schema.episodes).where(eq(schema.episodes.id, episodeId)).all()
+    const episode = await findOwnedEpisode(currentUser.id, episodeId)
     if (!episode) return badRequest(c, 'Episode not found')
     if (episode.dramaId !== dramaId) return badRequest(c, 'episode_id does not belong to drama_id')
   }
@@ -91,7 +97,10 @@ app.post('/', async (c) => {
 
 // PUT /scenes/:id
 app.put('/:id', async (c) => {
+  const currentUser = getCurrentUser(c)
   const id = Number(c.req.param('id'))
+  const ownedScene = await findOwnedScene(currentUser.id, id)
+  if (!ownedScene) return badRequest(c, 'Scene not found')
   const body = await readJsonBody(c)
   const updates: SceneUpdatePatch = { updatedAt: now() }
   if (hasOwn(body, 'location')) updates.location = body.location as string
@@ -150,9 +159,15 @@ export async function generateSceneImage(sceneId: number, episodeId: number): Pr
 
 // POST /scenes/:id/generate-image
 app.post('/:id/generate-image', async (c) => {
+  const currentUser = getCurrentUser(c)
   const id = Number(c.req.param('id'))
   const body = await readJsonBody(c)
   if (!body.episode_id) return badRequest(c, 'episode_id is required')
+  const scene = await findOwnedScene(currentUser.id, id)
+  if (!scene) return badRequest(c, 'Scene not found')
+  const episode = await findOwnedEpisode(currentUser.id, Number(body.episode_id))
+  if (!episode) return badRequest(c, 'Episode not found')
+  if (episode.dramaId !== scene.dramaId) return badRequest(c, 'episode_id does not belong to scene drama')
   try {
     const genId = await generateSceneImage(id, Number(body.episode_id))
     return success(c, { image_generation_id: genId })
@@ -165,7 +180,10 @@ app.post('/:id/generate-image', async (c) => {
 
 // DELETE /scenes/:id
 app.delete('/:id', async (c) => {
+  const currentUser = getCurrentUser(c)
   const id = Number(c.req.param('id'))
+  const scene = await findOwnedScene(currentUser.id, id)
+  if (!scene) return badRequest(c, 'Scene not found')
   await db.delete(schema.scenes).where(eq(schema.scenes.id, id)).run()
   return success(c)
 })

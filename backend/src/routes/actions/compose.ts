@@ -6,12 +6,17 @@ import { composeStoryboard } from '../../services/compose/ffmpeg-compose.js'
 import { logTaskError, logTaskStart, logTaskSuccess } from '../../utils/task-logger.js'
 import { toSnakeCase } from '../../utils/transform.js'
 import { errorMessageFromUnknown } from '../../utils/error.js'
+import { getCurrentUser } from '../../middleware/auth.js'
+import { findOwnedEpisode, findOwnedStoryboard } from '../shared/ownership.js'
 
 const app = new Hono()
 
 // POST /storyboards/:id/compose — 合成单个镜头
 app.post('/storyboards/:id/compose', async (c) => {
+  const currentUser = getCurrentUser(c)
   const id = Number(c.req.param('id'))
+  const storyboard = await findOwnedStoryboard(currentUser.id, id)
+  if (!storyboard) return badRequest(c, 'Storyboard not found')
   try {
     logTaskStart('ComposeAPI', 'single-compose', { storyboardId: id })
     const composedUrl = await composeStoryboard(id)
@@ -26,7 +31,10 @@ app.post('/storyboards/:id/compose', async (c) => {
 
 // POST /chapters/:id/compose-all — 批量合成全部镜头
 app.post('/chapters/:id/compose-all', async (c) => {
+  const currentUser = getCurrentUser(c)
   const chapterId = Number(c.req.param('id'))
+  const episode = await findOwnedEpisode(currentUser.id, chapterId)
+  if (!episode) return badRequest(c, 'Episode not found')
   const storyboards = (await db.select().from(schema.storyboards)
     .where(eq(schema.storyboards.episodeId, chapterId))
     .orderBy(schema.storyboards.storyboardNumber)
@@ -64,7 +72,10 @@ app.post('/chapters/:id/compose-all', async (c) => {
 
 // GET /chapters/:id/compose-status — 查询批量合成状态
 app.get('/chapters/:id/compose-status', async (c) => {
+  const currentUser = getCurrentUser(c)
   const chapterId = Number(c.req.param('id'))
+  const episode = await findOwnedEpisode(currentUser.id, chapterId)
+  if (!episode) return badRequest(c, 'Episode not found')
   const storyboards = (await db.select().from(schema.storyboards)
     .where(eq(schema.storyboards.episodeId, chapterId))
     .orderBy(schema.storyboards.storyboardNumber)

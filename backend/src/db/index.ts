@@ -104,6 +104,7 @@ async function ensureDatabaseExists(config: PoolOptions) {
 const tableStatements = [
   `CREATE TABLE IF NOT EXISTS dramas (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
     title TEXT NOT NULL,
     description TEXT,
     genre TEXT,
@@ -164,6 +165,7 @@ const tableStatements = [
 
   `CREATE TABLE IF NOT EXISTS character_assets (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
     name TEXT NOT NULL,
     gender VARCHAR(32) DEFAULT 'unknown',
     role_preset VARCHAR(64) DEFAULT 'custom',
@@ -453,6 +455,7 @@ const tableStatements = [
 
   `CREATE TABLE IF NOT EXISTS assets (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
     drama_id INT,
     episode_id INT,
     storyboard_id INT,
@@ -522,6 +525,23 @@ async function ensureIndex(pool: Pool, database: string, table: string, indexNam
   }
 }
 
+async function backfillOwnerColumns(pool: Pool) {
+  const [users] = await pool.query<RowDataPacket[]>('SELECT id FROM users ORDER BY id LIMIT 1')
+  const fallbackUserId = Number(users[0]?.id || 0)
+  if (!fallbackUserId) return
+
+  await pool.query('UPDATE dramas SET user_id = ? WHERE user_id IS NULL', [fallbackUserId])
+  await pool.query('UPDATE character_assets SET user_id = ? WHERE user_id IS NULL', [fallbackUserId])
+  await pool.query(
+    `UPDATE assets a
+        JOIN dramas d ON d.id = a.drama_id
+       SET a.user_id = d.user_id
+     WHERE a.user_id IS NULL
+       AND d.user_id IS NOT NULL`,
+  )
+  await pool.query('UPDATE assets SET user_id = ? WHERE user_id IS NULL', [fallbackUserId])
+}
+
 async function initializeDatabase(pool: Pool, database: string) {
   for (const statement of tableStatements) {
     await pool.query(statement)
@@ -541,8 +561,11 @@ async function initializeDatabase(pool: Pool, database: string) {
   await ensureColumn(pool, database, 'video_merges', 'claimed_at', 'VARCHAR(32)')
   await ensureColumn(pool, database, 'dramas', 'image_config_id', 'INT')
   await ensureColumn(pool, database, 'dramas', 'video_config_id', 'INT')
+  await ensureColumn(pool, database, 'dramas', 'user_id', 'INT')
   await ensureColumn(pool, database, 'characters', 'character_asset_id', 'INT')
   await ensureColumn(pool, database, 'characters', 'image_prompt', 'TEXT')
+  await ensureColumn(pool, database, 'character_assets', 'user_id', 'INT')
+  await ensureColumn(pool, database, 'assets', 'user_id', 'INT')
   await ensureColumn(pool, database, 'image_generations', 'normalized_request', 'TEXT')
   await ensureColumn(pool, database, 'image_generations', 'provider_request', 'TEXT')
   await ensureColumn(pool, database, 'image_generations', 'provider_response', 'TEXT')
@@ -561,11 +584,15 @@ async function initializeDatabase(pool: Pool, database: string) {
 
   await ensureIndex(pool, database, 'video_generations', 'idx_video_generations_storyboard_id_id', '(`storyboard_id`, `id`)')
   await ensureIndex(pool, database, 'video_generations', 'idx_video_generations_drama_id_id', '(`drama_id`, `id`)')
+  await ensureIndex(pool, database, 'dramas', 'idx_dramas_user_id_deleted_at', '(`user_id`, `deleted_at`(32))')
+  await ensureIndex(pool, database, 'character_assets', 'idx_character_assets_user_id_deleted_at', '(`user_id`, `deleted_at`(32))')
+  await ensureIndex(pool, database, 'assets', 'idx_assets_user_id_deleted_at', '(`user_id`, `deleted_at`(32))')
   await ensureIndex(pool, database, 'users', 'uniq_users_username', '(`username`)')
   await ensureIndex(pool, database, 'users', 'uniq_users_email', '(`email`)')
   await ensureIndex(pool, database, 'users', 'uniq_users_phone', '(`phone`)')
   await ensureIndex(pool, database, 'auth_sessions', 'idx_auth_sessions_user_id', '(`user_id`)')
   await ensureIndex(pool, database, 'sms_codes', 'idx_sms_codes_phone_purpose', '(`phone`, `purpose`)')
+  await backfillOwnerColumns(pool)
 }
 
 await ensureDatabaseExists(mysqlConfig)

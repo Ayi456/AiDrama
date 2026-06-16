@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../db/index.js'
+import { getCurrentUser } from '../../middleware/auth.js'
 
 export const DEFAULT_USER_ID = 'default'
 
@@ -34,16 +35,20 @@ export function resolvePreferencesPayload(row: Partial<PreferencesPayload> | nul
 const app = new Hono()
 
 app.get('/', async (c) => {
-  const rows = await db.select().from(schema.userPreferences).where(eq(schema.userPreferences.userId, DEFAULT_USER_ID))
+  const currentUser = getCurrentUser(c)
+  const userId = String(currentUser.id)
+  const rows = await db.select().from(schema.userPreferences).where(eq(schema.userPreferences.userId, userId))
   return c.json({ code: 0, data: resolvePreferencesPayload(rows[0] as Partial<PreferencesPayload> | undefined), message: 'ok' })
 })
 
 app.put('/', async (c) => {
+  const currentUser = getCurrentUser(c)
+  const userId = String(currentUser.id)
   const body = await c.req.json()
-  const payload = resolvePreferencesPayload({ ...body, userId: DEFAULT_USER_ID })
+  const payload = resolvePreferencesPayload({ ...body, userId })
   const now = new Date().toISOString()
 
-  const existing = await db.select().from(schema.userPreferences).where(eq(schema.userPreferences.userId, DEFAULT_USER_ID))
+  const existing = await db.select().from(schema.userPreferences).where(eq(schema.userPreferences.userId, userId))
   if (existing.length) {
     await db.update(schema.userPreferences)
       .set({
@@ -53,7 +58,7 @@ app.put('/', async (c) => {
         autoPipelineConcurrencyVideo: payload.autoPipelineConcurrencyVideo,
         updatedAt: now,
       })
-      .where(eq(schema.userPreferences.userId, DEFAULT_USER_ID))
+      .where(eq(schema.userPreferences.userId, userId))
   } else {
     await db.insert(schema.userPreferences).values({
       userId: DEFAULT_USER_ID,

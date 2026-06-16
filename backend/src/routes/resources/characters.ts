@@ -9,6 +9,13 @@ import { resolveCharacterImagePrompt } from '../../agents/visual-prompt-policy.j
 import { errorMessageFromUnknown } from '../../utils/error.js'
 import { hasOwn, readJsonBody } from '../shared/route-body.js'
 import { toSnakeCase } from '../../utils/transform.js'
+import { getCurrentUser } from '../../middleware/auth.js'
+import {
+  findOwnedCharacter,
+  findOwnedCharacterAsset,
+  findOwnedDrama,
+  findOwnedEpisode,
+} from '../shared/ownership.js'
 
 const app = new Hono()
 
@@ -55,6 +62,7 @@ async function linkCharacterToEpisode(episodeId: number, characterId: number) {
 
 // POST /characters
 app.post('/', async (c) => {
+  const currentUser = getCurrentUser(c)
   const body = await readJsonBody(c)
   const dramaId = readBodyId(body, 'drama_id', 'dramaId')
   const episodeId = readBodyId(body, 'episode_id', 'episodeId')
@@ -64,14 +72,17 @@ app.post('/', async (c) => {
   if (!dramaId) return badRequest(c, 'drama_id is required')
   if (!name) return badRequest(c, '角色名不能为空')
 
+  const drama = await findOwnedDrama(currentUser.id, dramaId)
+  if (!drama) return badRequest(c, 'Drama not found')
+
   if (episodeId) {
-    const [episode] = await db.select().from(schema.episodes).where(eq(schema.episodes.id, episodeId)).all()
+    const episode = await findOwnedEpisode(currentUser.id, episodeId)
     if (!episode) return badRequest(c, 'Episode not found')
     if (episode.dramaId !== dramaId) return badRequest(c, 'episode_id does not belong to drama_id')
   }
 
   if (characterAssetId) {
-    const [asset] = await db.select().from(schema.characterAssets).where(eq(schema.characterAssets.id, characterAssetId)).all()
+    const asset = await findOwnedCharacterAsset(currentUser.id, characterAssetId)
     if (!asset || asset.deletedAt || asset.isActive === false) return badRequest(c, '角色形象未找到')
   }
 
@@ -100,7 +111,10 @@ app.post('/', async (c) => {
 
 // PUT /characters/:id
 app.put('/:id', async (c) => {
+  const currentUser = getCurrentUser(c)
   const id = Number(c.req.param('id'))
+  const character = await findOwnedCharacter(currentUser.id, id)
+  if (!character) return badRequest(c, 'Character not found')
   const body = await readJsonBody(c)
   const updates: CharacterUpdatePatch = { updatedAt: now() }
 
@@ -124,12 +138,15 @@ app.put('/:id', async (c) => {
 
 // POST /characters/:id/bind-asset
 app.post('/:id/bind-asset', async (c) => {
+  const currentUser = getCurrentUser(c)
   const id = Number(c.req.param('id'))
+  const character = await findOwnedCharacter(currentUser.id, id)
+  if (!character) return badRequest(c, 'Character not found')
   const body = await readJsonBody(c)
   const assetId = Number(body.character_asset_id || body.characterAssetId || 0)
   if (!assetId) return badRequest(c, '请选择角色形象')
 
-  const [asset] = await db.select().from(schema.characterAssets).where(eq(schema.characterAssets.id, assetId)).all()
+  const asset = await findOwnedCharacterAsset(currentUser.id, assetId)
   if (!asset || asset.deletedAt || asset.isActive === false) return badRequest(c, '角色形象未找到')
 
   await db.update(schema.characters)
@@ -141,7 +158,10 @@ app.post('/:id/bind-asset', async (c) => {
 
 // DELETE /characters/:id/bind-asset
 app.delete('/:id/bind-asset', async (c) => {
+  const currentUser = getCurrentUser(c)
   const id = Number(c.req.param('id'))
+  const character = await findOwnedCharacter(currentUser.id, id)
+  if (!character) return badRequest(c, 'Character not found')
   await db.update(schema.characters)
     .set({ characterAssetId: null, updatedAt: now() })
     .where(eq(schema.characters.id, id))
@@ -151,21 +171,26 @@ app.delete('/:id/bind-asset', async (c) => {
 
 // DELETE /characters/:id
 app.delete('/:id', async (c) => {
+  const currentUser = getCurrentUser(c)
   const id = Number(c.req.param('id'))
+  const character = await findOwnedCharacter(currentUser.id, id)
+  if (!character) return badRequest(c, 'Character not found')
   await db.update(schema.characters).set({ deletedAt: now() }).where(eq(schema.characters.id, id)).run()
   return success(c)
 })
 
 // POST /characters/:id/generate-image
 app.post('/:id/generate-image', async (c) => {
+  const currentUser = getCurrentUser(c)
   const id = Number(c.req.param('id'))
   const body = await readJsonBody(c)
-  const [char] = (await db.select().from(schema.characters).where(eq(schema.characters.id, id)).all())
+  const char = await findOwnedCharacter(currentUser.id, id)
   if (!char) return badRequest(c, 'Character not found')
   if (!body.episode_id) return badRequest(c, 'episode_id is required')
 
-  const [ep] = (await db.select().from(schema.episodes).where(eq(schema.episodes.id, Number(body.episode_id))).all())
+  const ep = await findOwnedEpisode(currentUser.id, Number(body.episode_id))
   if (!ep) return badRequest(c, 'Episode not found')
+  if (ep.dramaId !== char.dramaId) return badRequest(c, 'episode_id does not belong to character drama')
   const [drama] = (await db.select().from(schema.dramas).where(eq(schema.dramas.id, char.dramaId)).all())
 
   const prompt = resolveCharacterImagePrompt({ ...char, style: drama?.style || '' })
@@ -225,10 +250,18 @@ export async function generateCharacterImageBatch(episodeId: number, characterId
 
 // POST /characters/batch-generate-images
 app.post('/batch-generate-images', async (c) => {
+  const currentUser = getCurrentUser(c)
   const body = await readJsonBody(c)
   const ids = Array.isArray(body.character_ids) ? body.character_ids as number[] : []
   if (!body.episode_id) return badRequest(c, 'episode_id is required')
-  const results = await generateCharacterImageBatch(Number(body.episode_id), ids)
+  const episode = await findOwnedEpisode(currentUser.id, Number(body.episode_id))
+  if (!episode) return badRequest(c, 'Episode not found')
+  const ownedIds: number[] = []
+  for (const id of ids) {
+    const character = await findOwnedCharacter(currentUser.id, Number(id))
+    if (character && character.dramaId === episode.dramaId) ownedIds.push(Number(id))
+  }
+  const results = await generateCharacterImageBatch(Number(body.episode_id), ownedIds)
   return success(c, { count: results.length, ids: results })
 })
 

@@ -11,6 +11,12 @@ import { presentImageGenerationAsset } from '../../utils/public-asset.js'
 import { errorMessageFromUnknown } from '../../utils/error.js'
 import { readJsonBody, readBodyNumber, readBodyObjectArray } from '../shared/route-body.js'
 import { normalizeGridAssignments } from '../policies/grid-route-policy.js'
+import { getCurrentUser } from '../../middleware/auth.js'
+import {
+  findOwnedDrama,
+  findOwnedImageGeneration,
+  findOwnedStoryboard,
+} from '../shared/ownership.js'
 
 const app = new Hono()
 
@@ -412,6 +418,7 @@ async function tryAgentGridPrompt(
 
 // POST /grid/prompt
 app.post('/prompt', async (c) => {
+  const currentUser = getCurrentUser(c)
   const body = await readJsonBody(c)
   const storyboardIds = Array.isArray(body.storyboard_ids)
     ? body.storyboard_ids.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0)
@@ -424,6 +431,10 @@ app.post('/prompt', async (c) => {
 
   if (!storyboardIds.length) return badRequest(c, 'storyboard_ids required')
   if (!rows || !cols) return badRequest(c, 'rows and cols required')
+  if (dramaId && !await findOwnedDrama(currentUser.id, dramaId)) return badRequest(c, 'Drama not found')
+  for (const storyboardId of storyboardIds) {
+    if (!await findOwnedStoryboard(currentUser.id, storyboardId)) return badRequest(c, 'Storyboard not found')
+  }
 
   const storyboards = (await Promise.all(storyboardIds.map(async (id: number) => {
     const [sb] = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.id, id)).all())
@@ -508,6 +519,7 @@ app.post('/prompt', async (c) => {
 
 // POST /grid/generate
 app.post('/generate', async (c) => {
+  const currentUser = getCurrentUser(c)
   const body = await readJsonBody(c)
   const storyboardIds = Array.isArray(body.storyboard_ids)
     ? body.storyboard_ids.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value > 0)
@@ -520,6 +532,10 @@ app.post('/generate', async (c) => {
 
   if (!storyboardIds.length) return badRequest(c, 'storyboard_ids required')
   if (!rows || !cols) return badRequest(c, 'rows and cols required')
+  if (dramaId && !await findOwnedDrama(currentUser.id, dramaId)) return badRequest(c, 'Drama not found')
+  for (const storyboardId of storyboardIds) {
+    if (!await findOwnedStoryboard(currentUser.id, storyboardId)) return badRequest(c, 'Storyboard not found')
+  }
 
   const storyboards = (await Promise.all(storyboardIds.map(async (id: number) => {
     const [sb] = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.id, id)).all())
@@ -577,6 +593,7 @@ app.post('/generate', async (c) => {
 
 // POST /grid/split
 app.post('/split', async (c) => {
+  const currentUser = getCurrentUser(c)
   const body = await readJsonBody(c)
   const imageGenerationId = readBodyNumber(body, 'image_generation_id')
   const rows = readBodyNumber(body, 'rows')
@@ -586,6 +603,10 @@ app.post('/split', async (c) => {
   if (!imageGenerationId) return badRequest(c, 'image_generation_id required')
   if (!rows || !cols) return badRequest(c, 'rows and cols required')
   if (!assignments.length) return badRequest(c, 'assignments required')
+  if (!await findOwnedImageGeneration(currentUser.id, imageGenerationId)) return badRequest(c, 'Image generation not found')
+  for (const assignment of assignments) {
+    if (!await findOwnedStoryboard(currentUser.id, assignment.storyboardId)) return badRequest(c, 'Storyboard not found')
+  }
 
   const [imgRecord] = (await db.select().from(schema.imageGenerations)
     .where(eq(schema.imageGenerations.id, imageGenerationId)).all())
@@ -645,9 +666,9 @@ app.post('/split', async (c) => {
 
 // GET /grid/status/:id
 app.get('/status/:id', async (c) => {
+  const currentUser = getCurrentUser(c)
   const id = Number(c.req.param('id'))
-  const [row] = (await db.select().from(schema.imageGenerations)
-    .where(eq(schema.imageGenerations.id, id)).all())
+  const row = await findOwnedImageGeneration(currentUser.id, id)
   if (!row) return badRequest(c, 'Not found')
   const asset = presentImageGenerationAsset(row)
   return success(c, {

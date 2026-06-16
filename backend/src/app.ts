@@ -27,6 +27,7 @@ import characterAssets from './routes/resources/characterAssets.js'
 import preferences from './routes/resources/preferences.js'
 import webhooks from './routes/webhooks/webhooks.js'
 import auth from './routes/auth/auth.js'
+import { requireAuth } from './middleware/auth.js'
 import { requestLogger, errorHandler } from './middleware/logger.js'
 import { resumeRunningEpisodes } from './services/automation/episode-orchestrator.js'
 import { externalAssetRedirectUrl } from './utils/external-asset-redirect.js'
@@ -60,6 +61,8 @@ export function createApp() {
 
   const api = new Hono()
   api.route('/auth', auth)
+  api.route('/assets', assets)
+  api.use('*', requireAuth)
   api.route('/dramas', dramas)
   api.route(chapterRoutePath, chapters)
   api.route('/storyboards', storyboards)
@@ -76,7 +79,6 @@ export function createApp() {
   api.route('/merge', merge)
   api.route('/grid', grid)
   api.route('/skills', skills)
-  api.route('/assets', assets)
   api.route('/character-assets', characterAssets)
   api.route('/preferences', preferences)
   api.route('/', automation)

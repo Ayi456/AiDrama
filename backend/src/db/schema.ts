@@ -5,6 +5,7 @@ import { mysqlTable, text, int, double, boolean, primaryKey, varchar } from 'dri
 
 export const dramas = mysqlTable('dramas', {
   id: int('id').autoincrement().primaryKey(),
+  userId: int('user_id'),
   title: text('title').notNull(),
   description: text('description'),
   genre: text('genre'),
@@ -68,6 +69,7 @@ export const characters = mysqlTable('characters', {
 
 export const characterAssets = mysqlTable('character_assets', {
   id: int('id').autoincrement().primaryKey(),
+  userId: int('user_id'),
   name: text('name').notNull(),
   gender: varchar('gender', { length: 32 }).default('unknown'),
   rolePreset: varchar('role_preset', { length: 64 }).default('custom'),
@@ -358,6 +360,7 @@ export const props = mysqlTable('props', {
 
 export const assets = mysqlTable('assets', {
   id: int('id').autoincrement().primaryKey(),
+  userId: int('user_id'),
   dramaId: int('drama_id'),
   episodeId: int('episode_id'),
   storyboardId: int('storyboard_id'),

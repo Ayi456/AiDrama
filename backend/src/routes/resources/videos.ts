@@ -16,14 +16,24 @@ import {
   validateVideoGenerateBody,
   type VideoGenerateBody,
 } from '../policies/video-route-policy.js'
+import { getCurrentUser } from '../../middleware/auth.js'
+import {
+  filterOwnedVideoGenerations,
+  findOwnedDrama,
+  findOwnedStoryboard,
+  findOwnedVideoGeneration,
+} from '../shared/ownership.js'
 
 const app = new Hono()
 
 // POST /videos - Generate video
 app.post('/', async (c) => {
+  const currentUser = getCurrentUser(c)
   const body = await c.req.json() as VideoGenerateBody
   const validationError = validateVideoGenerateBody(body)
   if (validationError) return badRequest(c, validationError)
+  if (body.drama_id && !await findOwnedDrama(currentUser.id, Number(body.drama_id))) return badRequest(c, 'Drama not found')
+  if (body.storyboard_id && !await findOwnedStoryboard(currentUser.id, Number(body.storyboard_id))) return badRequest(c, 'Storyboard not found')
 
   try {
     let configId: number | undefined = body.config_id
@@ -52,9 +62,9 @@ app.post('/', async (c) => {
 
 // GET /videos/:id
 app.get('/:id', async (c) => {
+  const currentUser = getCurrentUser(c)
   const id = Number(c.req.param('id'))
-  const [row] = (await db.select().from(schema.videoGenerations)
-    .where(eq(schema.videoGenerations.id, id)).all())
+  const row = await findOwnedVideoGeneration(currentUser.id, id)
   if (!row) return success(c, null)
 
   const effective = await loadLatestEffectiveVideoGeneration(row)
@@ -63,10 +73,13 @@ app.get('/:id', async (c) => {
 
 // GET /videos - List by storyboard_id or drama_id
 app.get('/', async (c) => {
+  const currentUser = getCurrentUser(c)
   const storyboardId = readVideoListNumber(c.req.query('storyboard_id'))
   const dramaId = readVideoListNumber(c.req.query('drama_id'))
   const limit = readVideoListLimit(c.req.query('limit'))
   const conditions: SQL[] = []
+  if (storyboardId && !await findOwnedStoryboard(currentUser.id, storyboardId)) return success(c, [])
+  if (dramaId && !await findOwnedDrama(currentUser.id, dramaId)) return success(c, [])
 
   if (storyboardId) conditions.push(eq(schema.videoGenerations.storyboardId, storyboardId))
   if (dramaId) conditions.push(eq(schema.videoGenerations.dramaId, dramaId))
@@ -82,12 +95,15 @@ app.get('/', async (c) => {
       .limit(limit)
       .all()
 
-  return success(c, presentVideoGenerationAssets(rows))
+  return success(c, presentVideoGenerationAssets(await filterOwnedVideoGenerations(currentUser.id, rows)))
 })
 
 // DELETE /videos/:id
 app.delete('/:id', async (c) => {
+  const currentUser = getCurrentUser(c)
   const id = Number(c.req.param('id'))
+  const row = await findOwnedVideoGeneration(currentUser.id, id)
+  if (!row) return badRequest(c, 'Video generation not found')
   await db.delete(schema.videoGenerations).where(eq(schema.videoGenerations.id, id)).run()
   return success(c)
 })

@@ -1,10 +1,12 @@
 import { Hono } from 'hono'
-import { eq, isNull, desc } from 'drizzle-orm'
+import { and, eq, isNull, desc } from 'drizzle-orm'
 import { db, schema } from '../../db/index.js'
 import { success, notFound, created, now } from '../../utils/response.js'
 import { toSnakeCase, toSnakeCaseArray } from '../../utils/transform.js'
 import { readJsonBody } from '../shared/route-body.js'
 import { resolveCharacterImagePrompt, resolveSceneEnvironmentPrompt } from '../../agents/visual-prompt-policy.js'
+import { getCurrentUser } from '../../middleware/auth.js'
+import { findOwnedDrama } from '../shared/ownership.js'
 import {
   buildDramaCreateValues,
   buildDramaEpisodeValues,
@@ -34,12 +36,14 @@ function enrichScenesWithEnvironmentPrompt(scenes: SceneRow[]) {
 
 // GET /dramas - List dramas
 app.get('/', async (c) => {
+  const currentUser = getCurrentUser(c)
   const page = Number(c.req.query('page') || 1)
   const pageSize = Number(c.req.query('page_size') || 20)
   const status = c.req.query('status')
   const keyword = c.req.query('keyword')
 
-  const query = db.select().from(schema.dramas).where(isNull(schema.dramas.deletedAt))
+  const query = db.select().from(schema.dramas)
+    .where(and(eq(schema.dramas.userId, currentUser.id), isNull(schema.dramas.deletedAt)))
   const allRows = await query.orderBy(desc(schema.dramas.updatedAt))
   let filtered = allRows
 
@@ -73,6 +77,7 @@ app.get('/', async (c) => {
 
 // POST /dramas - Create drama
 app.post('/', async (c) => {
+  const currentUser = getCurrentUser(c)
   const body = await readJsonBody(c)
   const ts = now()
   const { imageConfigId: requestedImageConfigId, videoConfigId: requestedVideoConfigId } = readDramaConfigIds(body)
@@ -82,7 +87,7 @@ app.post('/', async (c) => {
   const fallbackVideoConfigId = requestedVideoConfigId ?? allConfigs.find((row) => row.serviceType === 'video' && row.isActive)?.id ?? null
 
   const res = await db.insert(schema.dramas).values(
-    buildDramaCreateValues(body, ts, fallbackImageConfigId, fallbackVideoConfigId),
+    { ...buildDramaCreateValues(body, ts, fallbackImageConfigId, fallbackVideoConfigId), userId: currentUser.id },
   ).run()
 
   const [result] = await db.select().from(schema.dramas)
@@ -101,7 +106,10 @@ app.post('/', async (c) => {
 
 // GET /dramas/stats - must be before /:id
 app.get('/stats', async (c) => {
-  const all = await db.select().from(schema.dramas).where(isNull(schema.dramas.deletedAt)).all()
+  const currentUser = getCurrentUser(c)
+  const all = await db.select().from(schema.dramas)
+    .where(and(eq(schema.dramas.userId, currentUser.id), isNull(schema.dramas.deletedAt)))
+    .all()
   const byStatus = Object.entries(
     all.reduce((acc, drama) => {
       acc[drama.status || 'draft'] = (acc[drama.status || 'draft'] || 0) + 1
@@ -113,8 +121,9 @@ app.get('/stats', async (c) => {
 
 // GET /dramas/:id - Get drama detail
 app.get('/:id', async (c) => {
+  const currentUser = getCurrentUser(c)
   const id = Number(c.req.param('id'))
-  const [drama] = await db.select().from(schema.dramas).where(eq(schema.dramas.id, id))
+  const drama = await findOwnedDrama(currentUser.id, id)
   if (!drama) return notFound(c, '剧本不存在')
 
   const eps = await db.select().from(schema.episodes).where(eq(schema.episodes.dramaId, id))
@@ -134,7 +143,10 @@ app.get('/:id', async (c) => {
 
 // PUT /dramas/:id - Update drama
 app.put('/:id', async (c) => {
+  const currentUser = getCurrentUser(c)
   const id = Number(c.req.param('id'))
+  const drama = await findOwnedDrama(currentUser.id, id)
+  if (!drama) return notFound(c)
   const body = await readJsonBody(c)
   const updates = buildDramaUpdatePatch(body, now())
   await db.update(schema.dramas).set(updates).where(eq(schema.dramas.id, id)).run()
@@ -143,14 +155,20 @@ app.put('/:id', async (c) => {
 
 // DELETE /dramas/:id - Soft delete
 app.delete('/:id', async (c) => {
+  const currentUser = getCurrentUser(c)
   const id = Number(c.req.param('id'))
+  const drama = await findOwnedDrama(currentUser.id, id)
+  if (!drama) return notFound(c)
   await db.update(schema.dramas).set({ deletedAt: now() }).where(eq(schema.dramas.id, id))
   return success(c)
 })
 
 // PUT /dramas/:id/characters - Save characters
 app.put('/:id/characters', async (c) => {
+  const currentUser = getCurrentUser(c)
   const dramaId = Number(c.req.param('id'))
+  const drama = await findOwnedDrama(currentUser.id, dramaId)
+  if (!drama) return notFound(c)
   const body = await c.req.json()
   const chars = body.characters || []
   const ts = now()
@@ -167,7 +185,10 @@ app.put('/:id/characters', async (c) => {
 
 // PUT /dramas/:id/chapters - Save chapters
 app.put('/:id/chapters', async (c) => {
+  const currentUser = getCurrentUser(c)
   const dramaId = Number(c.req.param('id'))
+  const drama = await findOwnedDrama(currentUser.id, dramaId)
+  if (!drama) return notFound(c)
   const body = await c.req.json()
   const episodes = body.episodes || []
   const ts = now()

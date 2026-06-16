@@ -18,6 +18,8 @@ import {
   type StoryboardCreateBody,
   type StoryboardUpdateBody,
 } from '../policies/storyboard-route-policy.js'
+import { getCurrentUser } from '../../middleware/auth.js'
+import { findOwnedEpisode, findOwnedStoryboard } from '../shared/ownership.js'
 
 const app = new Hono()
 type StoryboardRow = typeof schema.storyboards.$inferSelect
@@ -109,7 +111,10 @@ async function validateStoryboardBindings(episodeId: number, sceneId: number | n
 
 // POST /storyboards
 app.post('/', async (c) => {
+  const currentUser = getCurrentUser(c)
   const body = await c.req.json() as StoryboardCreateBody
+  const episode = await findOwnedEpisode(currentUser.id, Number(body.episode_id))
+  if (!episode) return badRequest(c, 'Episode not found')
   const ts = now()
 
   logTaskStart('StoryboardAPI', 'create', buildStoryboardCreateLogContext(body))
@@ -145,9 +150,10 @@ app.post('/', async (c) => {
 
 // PUT /storyboards/:id
 app.put('/:id', async (c) => {
+  const currentUser = getCurrentUser(c)
   const id = Number(c.req.param('id'))
   const body = await c.req.json() as StoryboardUpdateBody
-  const [storyboard] = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.id, id)).all())
+  const storyboard = await findOwnedStoryboard(currentUser.id, id)
   if (!storyboard) return badRequest(c, 'Storyboard not found')
 
   logTaskStart('StoryboardAPI', 'update', {
@@ -191,7 +197,10 @@ app.put('/:id', async (c) => {
 
 // DELETE /storyboards/:id
 app.delete('/:id', async (c) => {
+  const currentUser = getCurrentUser(c)
   const id = Number(c.req.param('id'))
+  const storyboard = await findOwnedStoryboard(currentUser.id, id)
+  if (!storyboard) return badRequest(c, 'Storyboard not found')
   logTaskStart('StoryboardAPI', 'delete', { storyboardId: id })
   await db.delete(schema.storyboardCharacters).where(eq(schema.storyboardCharacters.storyboardId, id)).run()
   await db.delete(schema.storyboards).where(eq(schema.storyboards.id, id)).run()

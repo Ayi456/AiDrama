@@ -20,6 +20,8 @@ import {
   type NormalizedToolCall,
   type NormalizedToolResult,
 } from '../../agents/result-normalizer.js'
+import { getCurrentUser } from '../../middleware/auth.js'
+import { findOwnedDrama, findOwnedEpisode } from '../shared/ownership.js'
 
 const app = new Hono()
 
@@ -347,11 +349,15 @@ export async function runChunkedStoryboardBreaker(
 
 // 返回分镜 chunk 计划，供前端逐 chunk 驱动（规避 SCF 单请求 900s 上限）。
 app.post('/storyboard_breaker/plan', async (c) => {
+  const currentUser = getCurrentUser(c)
   const body = await c.req.json()
   const { drama_id, episode_id } = body
   if (!episode_id || !drama_id) {
     return badRequest(c, 'drama_id and episode_id are required')
   }
+  const drama = await findOwnedDrama(currentUser.id, Number(drama_id))
+  const episode = await findOwnedEpisode(currentUser.id, Number(episode_id))
+  if (!drama || !episode || episode.dramaId !== drama.id) return badRequest(c, 'Drama or episode not found')
   try {
     const { chunks, maxChars } = await getStoryboardChunks(
       Number(episode_id),
@@ -372,6 +378,7 @@ app.post('/storyboard_breaker/plan', async (c) => {
 
 // 处理单个分镜 chunk。chunk_index 从 1 开始，第 1 个会清空已有分镜后再写入。
 app.post('/storyboard_breaker/chunk', async (c) => {
+  const currentUser = getCurrentUser(c)
   const body = await c.req.json()
   const { drama_id, episode_id, chunk_index } = body
   if (!episode_id || !drama_id) {
@@ -381,6 +388,9 @@ app.post('/storyboard_breaker/chunk', async (c) => {
   if (!Number.isInteger(index) || index < 1) {
     return badRequest(c, 'chunk_index must be a positive integer')
   }
+  const drama = await findOwnedDrama(currentUser.id, Number(drama_id))
+  const episode = await findOwnedEpisode(currentUser.id, Number(episode_id))
+  if (!drama || !episode || episode.dramaId !== drama.id) return badRequest(c, 'Drama or episode not found')
 
   const startTime = performance.now()
   try {
@@ -423,6 +433,7 @@ app.post('/storyboard_breaker/chunk', async (c) => {
 })
 
 app.post('/:type/chat', async (c) => {
+  const currentUser = getCurrentUser(c)
   const agentType = c.req.param('type')
   if (!isValidAgentType(agentType)) {
     return badRequest(c, `Invalid agent type: ${agentType}`)
@@ -445,6 +456,9 @@ app.post('/:type/chat', async (c) => {
 
   const dramaId = Number(drama_id)
   const episodeId = Number(episode_id)
+  const drama = await findOwnedDrama(currentUser.id, dramaId)
+  const episode = await findOwnedEpisode(currentUser.id, episodeId)
+  if (!drama || !episode || episode.dramaId !== drama.id) return badRequest(c, 'Drama or episode not found')
   const startTime = performance.now()
 
   try {

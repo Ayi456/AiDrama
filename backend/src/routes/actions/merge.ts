@@ -10,6 +10,8 @@ import { isStaleProcessingMerge, resolveStaleMergeTimeoutMs } from '../../servic
 import { errorMessageFromUnknown } from '../../utils/error.js'
 import { readJsonBody } from '../shared/route-body.js'
 import { selectedStoryboardIdsFromBody } from '../policies/merge-route-policy.js'
+import { getCurrentUser } from '../../middleware/auth.js'
+import { findOwnedEpisode, findOwnedStoryboard } from '../shared/ownership.js'
 
 const app = new Hono()
 
@@ -20,13 +22,18 @@ app.get('/diagnostics/ffmpeg', async (c) => {
 
 // POST /chapters/:id/merge — 拼接全集视频
 app.post('/chapters/:id/merge', async (c) => {
+  const currentUser = getCurrentUser(c)
   const chapterId = Number(c.req.param('id'))
-  const [ep] = (await db.select().from(schema.episodes).where(eq(schema.episodes.id, chapterId)).all())
+  const ep = await findOwnedEpisode(currentUser.id, chapterId)
   if (!ep) return badRequest(c, 'Episode not found')
 
   try {
     const body = await readJsonBody(c)
     const storyboardIds = selectedStoryboardIdsFromBody(body)
+    for (const storyboardId of storyboardIds || []) {
+      const storyboard = await findOwnedStoryboard(currentUser.id, storyboardId)
+      if (!storyboard || storyboard.episodeId !== chapterId) return badRequest(c, 'Storyboard not found')
+    }
     logTaskStart('MergeAPI', 'chapter-merge', { episodeId: chapterId, dramaId: ep.dramaId, storyboardIds })
     const mergeId = await mergeEpisodeVideos(chapterId, ep.dramaId, { storyboardIds })
     logTaskSuccess('MergeAPI', 'chapter-merge', { episodeId: chapterId, mergeId, storyboardIds })
@@ -40,7 +47,10 @@ app.post('/chapters/:id/merge', async (c) => {
 
 // GET /chapters/:id/merge — 查询拼接状态
 app.get('/chapters/:id/merge', async (c) => {
+  const currentUser = getCurrentUser(c)
   const chapterId = Number(c.req.param('id'))
+  const ep = await findOwnedEpisode(currentUser.id, chapterId)
+  if (!ep) return badRequest(c, 'Episode not found')
   const merges = (await db.select().from(schema.videoMerges)
     .where(eq(schema.videoMerges.episodeId, chapterId))
     .all())

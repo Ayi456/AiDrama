@@ -4,6 +4,8 @@ import { db, schema } from '../../db/index.js'
 import { success, notFound, badRequest, now } from '../../utils/response.js'
 import { toSnakeCaseArray, toSnakeCase } from '../../utils/transform.js'
 import { readJsonBody } from '../shared/route-body.js'
+import { getCurrentUser } from '../../middleware/auth.js'
+import { findOwnedDrama, findOwnedEpisode } from '../shared/ownership.js'
 import { resolveCharacterImagePrompt, resolveSceneEnvironmentPrompt } from '../../agents/visual-prompt-policy.js'
 import {
   buildChapterCreateValues,
@@ -53,9 +55,12 @@ async function loadEpisodeDramaStyle(episodeId: number): Promise<string> {
 
 // POST /chapters - Create a new chapter
 app.post('/', async (c) => {
+  const currentUser = getCurrentUser(c)
   const body = await readJsonBody(c)
   const dramaId = readChapterDramaId(body)
   if (!dramaId) return badRequest(c, 'drama_id required')
+  const drama = await findOwnedDrama(currentUser.id, dramaId)
+  if (!drama) return notFound(c, 'Drama not found')
 
   const imageConfigId = readChapterConfigId(body, 'image_config_id')
   const videoConfigId = readChapterConfigId(body, 'video_config_id')
@@ -89,7 +94,10 @@ app.post('/', async (c) => {
 
 // PUT /chapters/:id - Update chapter fields
 app.put('/:id', async (c) => {
+  const currentUser = getCurrentUser(c)
   const id = Number(c.req.param('id'))
+  const episode = await findOwnedEpisode(currentUser.id, id)
+  if (!episode) return notFound(c, 'Chapter not found')
   const body = await readJsonBody(c)
 
   const updates = buildChapterUpdatePatch(body, now())
@@ -101,7 +109,10 @@ app.put('/:id', async (c) => {
 
 // GET /chapters/:id/characters - characters linked to this chapter
 app.get('/:id/characters', async (c) => {
+  const currentUser = getCurrentUser(c)
   const episodeId = Number(c.req.param('id'))
+  const episode = await findOwnedEpisode(currentUser.id, episodeId)
+  if (!episode) return notFound(c, 'Chapter not found')
   const links = await db.select().from(schema.episodeCharacters)
     .where(eq(schema.episodeCharacters.episodeId, episodeId))
     .all()
@@ -117,7 +128,10 @@ app.get('/:id/characters', async (c) => {
 
 // GET /chapters/:id/scenes - scenes linked to this chapter
 app.get('/:id/scenes', async (c) => {
+  const currentUser = getCurrentUser(c)
   const episodeId = Number(c.req.param('id'))
+  const episode = await findOwnedEpisode(currentUser.id, episodeId)
+  if (!episode) return notFound(c, 'Chapter not found')
   const links = await db.select().from(schema.episodeScenes)
     .where(eq(schema.episodeScenes.episodeId, episodeId))
     .all()
@@ -134,7 +148,10 @@ app.get('/:id/scenes', async (c) => {
 
 // GET /chapters/:episode_id/storyboards
 app.get('/:episode_id/storyboards', async (c) => {
+  const currentUser = getCurrentUser(c)
   const episodeId = Number(c.req.param('episode_id'))
+  const episode = await findOwnedEpisode(currentUser.id, episodeId)
+  if (!episode) return notFound(c, 'Chapter not found')
   const rows = await db.select().from(schema.storyboards)
     .where(eq(schema.storyboards.episodeId, episodeId))
     .orderBy(schema.storyboards.storyboardNumber)
@@ -168,7 +185,10 @@ app.get('/:episode_id/storyboards', async (c) => {
 
 // GET /chapters/:id/pipeline-status - production pipeline progress
 app.get('/:id/pipeline-status', async (c) => {
+  const currentUser = getCurrentUser(c)
   const episodeId = Number(c.req.param('id'))
+  const ownedEpisode = await findOwnedEpisode(currentUser.id, episodeId)
+  if (!ownedEpisode) return notFound(c, 'Chapter not found')
   const [ep] = await db.select().from(schema.episodes).where(eq(schema.episodes.id, episodeId)).all()
   if (!ep) return notFound(c, 'Chapter not found')
 

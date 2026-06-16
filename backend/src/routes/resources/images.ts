@@ -7,14 +7,31 @@ import { logTaskError, logTaskPayload, logTaskStart, logTaskSuccess } from '../.
 import { presentImageGenerationAsset, presentImageGenerationAssets } from '../../utils/public-asset.js'
 import { errorMessageFromUnknown } from '../../utils/error.js'
 import { readJsonBody } from '../shared/route-body.js'
+import { getCurrentUser } from '../../middleware/auth.js'
+import {
+  filterOwnedImageGenerations,
+  findOwnedCharacter,
+  findOwnedDrama,
+  findOwnedImageGeneration,
+  findOwnedScene,
+  findOwnedStoryboard,
+} from '../shared/ownership.js'
 
 const app = new Hono()
 
 // POST /images — Generate image
 app.post('/', async (c) => {
+  const currentUser = getCurrentUser(c)
   const body = await readJsonBody(c)
   const prompt = typeof body.prompt === 'string' ? body.prompt : ''
   if (!prompt) return badRequest(c, 'prompt is required')
+  if (body.drama_id && !await findOwnedDrama(currentUser.id, Number(body.drama_id))) return badRequest(c, 'Drama not found')
+  if (body.storyboard_id && !await findOwnedStoryboard(currentUser.id, Number(body.storyboard_id))) return badRequest(c, 'Storyboard not found')
+  if (body.scene_id && !await findOwnedScene(currentUser.id, Number(body.scene_id))) return badRequest(c, 'Scene not found')
+  if (body.character_id && !await findOwnedCharacter(currentUser.id, Number(body.character_id))) return badRequest(c, 'Character not found')
+  if (!body.drama_id && !body.storyboard_id && !body.scene_id && !body.character_id) {
+    return badRequest(c, 'drama_id, storyboard_id, scene_id, or character_id is required')
+  }
 
   try {
     let configId: number | undefined = typeof body.config_id === 'number' ? body.config_id : undefined
@@ -60,28 +77,34 @@ app.post('/', async (c) => {
 
 // GET /images/:id
 app.get('/:id', async (c) => {
+  const currentUser = getCurrentUser(c)
   const id = Number(c.req.param('id'))
-  const [row] = (await db.select().from(schema.imageGenerations)
-    .where(eq(schema.imageGenerations.id, id)).all())
+  const row = await findOwnedImageGeneration(currentUser.id, id)
   return success(c, row ? presentImageGenerationAsset(row) : null)
 })
 
 // GET /images — List by storyboard_id or drama_id
 app.get('/', async (c) => {
+  const currentUser = getCurrentUser(c)
   const storyboardId = c.req.query('storyboard_id')
   const dramaId = c.req.query('drama_id')
+  if (storyboardId && !await findOwnedStoryboard(currentUser.id, Number(storyboardId))) return success(c, [])
+  if (dramaId && !await findOwnedDrama(currentUser.id, Number(dramaId))) return success(c, [])
 
   let rows = (await db.select().from(schema.imageGenerations).all())
 
   if (storyboardId) rows = rows.filter(r => r.storyboardId === Number(storyboardId))
   if (dramaId) rows = rows.filter(r => r.dramaId === Number(dramaId))
 
-  return success(c, presentImageGenerationAssets(rows))
+  return success(c, presentImageGenerationAssets(await filterOwnedImageGenerations(currentUser.id, rows)))
 })
 
 // DELETE /images/:id
 app.delete('/:id', async (c) => {
+  const currentUser = getCurrentUser(c)
   const id = Number(c.req.param('id'))
+  const row = await findOwnedImageGeneration(currentUser.id, id)
+  if (!row) return badRequest(c, 'Image generation not found')
   await db.delete(schema.imageGenerations).where(eq(schema.imageGenerations.id, id)).run()
   return success(c)
 })

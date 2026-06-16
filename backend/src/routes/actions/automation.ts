@@ -5,6 +5,8 @@ import { start, cancel, resume, abort, advance, resumeRunningEpisodes } from '..
 import { getAutomationProgress } from '../../services/automation/progress-state.js'
 import { normalizeAutomationStage } from '../../services/automation/stage-policy.js'
 import * as automationRoutePolicy from '../policies/automation-route-policy.js'
+import { getCurrentUser } from '../../middleware/auth.js'
+import { findOwnedEpisode } from '../shared/ownership.js'
 
 export type DerivedProgress = automationRoutePolicy.DerivedProgress
 export type ProgressInput = automationRoutePolicy.ProgressInput
@@ -26,16 +28,20 @@ app.post('/automation/tick', async (c) => {
 })
 
 app.post('/episodes/:id/automation/start', async (c) => {
+  const currentUser = getCurrentUser(c)
   const episodeId = Number(c.req.param('id'))
   if (!Number.isFinite(episodeId)) return c.json({ code: 1, data: null, message: 'invalid episode id' }, 400)
+  if (!await findOwnedEpisode(currentUser.id, episodeId)) return c.json({ code: 404, data: null, message: 'episode not found' }, 404)
   const res = await start(episodeId)
   if (!res.ok) return c.json({ code: 409, data: null, message: res.message ?? 'cannot start' }, 409)
   return c.json({ code: 0, data: { status: res.status }, message: 'ok' })
 })
 
 app.patch('/episodes/:id/automation', async (c) => {
+  const currentUser = getCurrentUser(c)
   const episodeId = Number(c.req.param('id'))
   if (!Number.isFinite(episodeId)) return c.json({ code: 1, data: null, message: 'invalid episode id' }, 400)
+  if (!await findOwnedEpisode(currentUser.id, episodeId)) return c.json({ code: 404, data: null, message: 'episode not found' }, 404)
   const body = await c.req.json()
   const action = automationRoutePolicy.normalizePatchAction(body?.action ?? '')
   if (!action) return c.json({ code: 1, data: null, message: 'unknown action' }, 400)
@@ -46,8 +52,10 @@ app.patch('/episodes/:id/automation', async (c) => {
 })
 
 app.get('/episodes/:id/automation', async (c) => {
+  const currentUser = getCurrentUser(c)
   const episodeId = Number(c.req.param('id'))
   if (!Number.isFinite(episodeId)) return c.json({ code: 1, data: null, message: 'invalid episode id' }, 400)
+  if (!await findOwnedEpisode(currentUser.id, episodeId)) return c.json({ code: 404, data: null, message: 'episode not found' }, 404)
 
   const epRows = await db.select().from(schema.episodes).where(eq(schema.episodes.id, episodeId))
   if (!epRows.length) return c.json({ code: 404, data: null, message: 'episode not found' }, 404)
