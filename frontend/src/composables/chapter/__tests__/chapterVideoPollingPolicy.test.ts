@@ -85,3 +85,15 @@ runTest('exhausted client polling is not treated as generation failure', () => {
     message: '视频仍在生成中，后台会继续处理，稍后刷新即可查看结果',
   })
 })
+
+runTest('billing required completion prompts recharge instead of generic failure', () => {
+  assert.deepEqual(
+    resolveVideoPollOutcome({
+      status: 'completed',
+      billing_status: 'billing_required',
+      billing_amount: '8.00',
+      billed_seconds: '8.00',
+    }),
+    { type: 'billing_required', message: '余额不足，请充值后继续结算' },
+  )
+})

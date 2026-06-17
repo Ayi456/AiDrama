@@ -5,6 +5,8 @@ import SettingsView from './pages/SettingsView.vue'
 import CharacterAssetsView from './pages/CharacterAssetsView.vue'
 import DramaDetailView from './pages/DramaDetailView.vue'
 import ChapterStudioView from './pages/ChapterStudioView.vue'
+import WalletView from './pages/WalletView.vue'
+import ProfileView from './pages/ProfileView.vue'
 import LoginView from './pages/LoginView.vue'
 import RegisterView from './pages/RegisterView.vue'
 import { useAuth } from './composables/useAuth'
@@ -17,6 +19,8 @@ export const router = createRouter({
     { path: '/', name: 'home', component: HomeView, meta: { layout: 'public' } },
     { path: '/workspace', name: 'workspace', component: WorkspaceView, meta: { requiresAuth: true } },
     { path: '/character-assets', name: 'character-assets', component: CharacterAssetsView, meta: { requiresAuth: true } },
+    { path: '/wallet', name: 'wallet', component: WalletView, meta: { requiresAuth: true } },
+    { path: '/profile', name: 'profile', component: ProfileView, meta: { requiresAuth: true } },
     { path: '/settings', name: 'settings', component: SettingsView, meta: { requiresAuth: true } },
     { path: '/drama/:id', name: 'drama-detail', component: DramaDetailView, meta: { requiresAuth: true } },
     {

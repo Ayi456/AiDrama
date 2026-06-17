@@ -1,7 +1,7 @@
 ﻿/**
  * Drizzle schema for the current MySQL database.
  */
-import { mysqlTable, text, int, double, boolean, primaryKey, varchar } from 'drizzle-orm/mysql-core'
+import { mysqlTable, text, int, double, boolean, primaryKey, varchar, decimal } from 'drizzle-orm/mysql-core'
 
 export const dramas = mysqlTable('dramas', {
   id: int('id').autoincrement().primaryKey(),
@@ -280,6 +280,7 @@ export const imageGenerations = mysqlTable('image_generations', {
 
 export const videoGenerations = mysqlTable('video_generations', {
   id: int('id').autoincrement().primaryKey(),
+  userId: int('user_id'),
   storyboardId: int('storyboard_id'),
   dramaId: int('drama_id'),
   provider: text('provider'),
@@ -319,7 +320,72 @@ export const videoGenerations = mysqlTable('video_generations', {
   defectCheckParentId: int('defect_check_parent_id'),
   defectCheckResult: text('defect_check_result'),
   tailFrameUrl: text('tail_frame_url'),
+  billingStatus: varchar('billing_status', { length: 32 }).notNull().default('unbilled'),
+  billedSeconds: decimal('billed_seconds', { precision: 10, scale: 2 }).notNull().default('0.00'),
+  billingAmount: decimal('billing_amount', { precision: 12, scale: 2 }).notNull().default('0.00'),
+  billingError: text('billing_error'),
+  pendingVideoUrl: text('pending_video_url'),
+  pendingLocalPath: text('pending_local_path'),
+  pendingDurationSeconds: decimal('pending_duration_seconds', { precision: 10, scale: 2 }),
   deletedAt: text('deleted_at'),
+})
+
+export const walletAccounts = mysqlTable('wallet_accounts', {
+  userId: int('user_id').primaryKey(),
+  balance: decimal('balance', { precision: 12, scale: 2 }).notNull().default('0.00'),
+  totalRecharged: decimal('total_recharged', { precision: 12, scale: 2 }).notNull().default('0.00'),
+  totalConsumed: decimal('total_consumed', { precision: 12, scale: 2 }).notNull().default('0.00'),
+  createdAt: varchar('created_at', { length: 32 }).notNull(),
+  updatedAt: varchar('updated_at', { length: 32 }).notNull(),
+})
+
+export const walletTransactions = mysqlTable('wallet_transactions', {
+  id: int('id').autoincrement().primaryKey(),
+  transactionNo: varchar('transaction_no', { length: 64 }).notNull(),
+  userId: int('user_id').notNull(),
+  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+  balanceAfter: decimal('balance_after', { precision: 12, scale: 2 }).notNull(),
+  type: varchar('type', { length: 32 }).notNull(),
+  relatedOrderNo: varchar('related_order_no', { length: 64 }),
+  relatedVideoGenerationId: int('related_video_generation_id'),
+  description: text('description'),
+  createdAt: varchar('created_at', { length: 32 }).notNull(),
+})
+
+export const paymentOrders = mysqlTable('payment_orders', {
+  id: int('id').autoincrement().primaryKey(),
+  orderNo: varchar('order_no', { length: 64 }).notNull(),
+  userId: int('user_id').notNull(),
+  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+  status: varchar('status', { length: 32 }).notNull().default('pending'),
+  provider: varchar('provider', { length: 32 }).notNull().default('alipay'),
+  alipayTradeNo: varchar('alipay_trade_no', { length: 64 }),
+  alipayAppId: varchar('alipay_app_id', { length: 64 }),
+  alipaySellerId: varchar('alipay_seller_id', { length: 64 }),
+  rawNotify: text('raw_notify'),
+  paidAt: varchar('paid_at', { length: 32 }),
+  createdAt: varchar('created_at', { length: 32 }).notNull(),
+  updatedAt: varchar('updated_at', { length: 32 }).notNull(),
+})
+
+export const billingSettings = mysqlTable('billing_settings', {
+  settingKey: varchar('setting_key', { length: 64 }).primaryKey(),
+  settingValue: decimal('setting_value', { precision: 12, scale: 2 }).notNull(),
+  updatedAt: varchar('updated_at', { length: 32 }).notNull(),
+})
+
+export const videoBillingEvents = mysqlTable('video_billing_events', {
+  id: int('id').autoincrement().primaryKey(),
+  eventNo: varchar('event_no', { length: 64 }).notNull(),
+  userId: int('user_id').notNull(),
+  videoGenerationId: int('video_generation_id').notNull(),
+  secondsDelta: decimal('seconds_delta', { precision: 10, scale: 2 }).notNull(),
+  pricePerSecond: decimal('price_per_second', { precision: 12, scale: 2 }).notNull(),
+  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+  billedTotalSeconds: decimal('billed_total_seconds', { precision: 10, scale: 2 }).notNull(),
+  walletTransactionNo: varchar('wallet_transaction_no', { length: 64 }).notNull(),
+  idempotencyKey: varchar('idempotency_key', { length: 128 }).notNull(),
+  createdAt: varchar('created_at', { length: 32 }).notNull(),
 })
 
 export const videoMerges = mysqlTable('video_merges', {

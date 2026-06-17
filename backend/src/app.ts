@@ -21,10 +21,12 @@ import compose from './routes/actions/compose.js'
 import merge from './routes/actions/merge.js'
 import grid from './routes/actions/grid.js'
 import automation from './routes/actions/automation.js'
+import payments from './routes/actions/payments.js'
 import skills from './routes/configs/skills.js'
 import assets from './routes/resources/assets.js'
 import characterAssets from './routes/resources/characterAssets.js'
 import preferences from './routes/resources/preferences.js'
+import wallet from './routes/resources/wallet.js'
 import webhooks from './routes/webhooks/webhooks.js'
 import auth from './routes/auth/auth.js'
 import { requireAuth } from './middleware/auth.js'
@@ -70,6 +72,8 @@ export function createApp() {
   api.route('/characters', characters)
   api.route('/images', images)
   api.route('/videos', videos)
+  api.route('/payments', payments)
+  api.route('/wallet', wallet)
   api.route('/upload', upload)
   api.route('/ai-configs', aiConfigs)
   api.route('/ai-providers', aiProviders)

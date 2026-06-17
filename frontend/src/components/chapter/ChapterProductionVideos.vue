@@ -327,6 +327,30 @@
             </div>
             <div class="prod-error">{{ state.videoFailMessage(selectedShot.id) }}</div>
           </div>
+
+          <div v-if="selectedBillingVisible" class="shot-studio__group shot-studio__group--optional">
+            <div class="video-billing-card" :class="billingToneClass">
+              <div class="video-billing-card__icon">
+                <ReceiptText v-if="selectedBillingInfo.status === 'settled'" :size="16" :stroke-width="1.9" />
+                <CircleAlert v-else :size="16" :stroke-width="1.9" />
+              </div>
+              <div class="video-billing-card__main">
+                <div class="video-billing-card__title">{{ billingStatusLabel }}</div>
+                <div class="video-billing-card__meta">
+                  已确认 {{ selectedBillingInfo.billedSeconds || '0.00' }} 秒，已扣 ¥{{ billingAmountLabel }}
+                </div>
+              </div>
+              <div v-if="selectedBillingInfo.status === 'billing_required'" class="video-billing-card__actions">
+                <button class="btn btn-sm" type="button" @click="goWallet">
+                  <Wallet :size="12" :stroke-width="2" />
+                  去充值
+                </button>
+                <button class="btn btn-sm" type="button" @click="retrySelectedBilling">
+                  重试结算
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="shot-studio__footer">
@@ -438,6 +462,22 @@
               {{ selectedVideoUrl ? '上一版视频已保留在历史记录中，新结果通过检测后会自动替换。' : '生成完成并通过检测后会自动显示在这里。' }}
             </div>
           </div>
+          <div v-else-if="selectedBillingInfo.status === 'billing_required'" class="prod-cover-empty video-workbench__billing-required">
+            <CircleAlert :size="28" :stroke-width="1.6" />
+            <div class="video-workbench__pending-title">余额不足，视频待结算</div>
+            <div class="video-workbench__pending-note">
+              已确认 {{ selectedBillingInfo.billedSeconds || '0.00' }} 秒，待充值后继续扣费并发布成品。
+            </div>
+            <div class="video-workbench__billing-actions">
+              <button class="btn btn-sm" type="button" @click="goWallet">
+                <Wallet :size="12" :stroke-width="2" />
+                去充值
+              </button>
+              <button class="btn btn-primary btn-sm" type="button" @click="retrySelectedBilling">
+                重试结算
+              </button>
+            </div>
+          </div>
           <video
             v-else-if="state.hasVid(selectedShot)"
             ref="selectedVideoEl"
@@ -512,8 +552,9 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
-import { Camera, Check, Film, History, Image as ImageIcon, Loader2, Music, RefreshCw, Trash2 } from 'lucide-vue-next'
+import { Camera, Check, CircleAlert, Film, History, Image as ImageIcon, Loader2, Music, ReceiptText, RefreshCw, Trash2, Wallet } from 'lucide-vue-next'
 import { uploadAPI } from '@/composables/useApi'
 import { buildAllMultimodalReferenceOptions, buildMultimodalReferenceOptions } from '@/composables/chapter/chapterShotMediaPolicy'
 import {
@@ -535,6 +576,8 @@ const props = defineProps({
     required: true,
   },
 })
+
+const router = useRouter()
 
 const selectedShot = computed(() => (
   props.state.activeVideoSb || props.state.sbs[0] || null
@@ -868,6 +911,49 @@ const pendingCount = computed(() => (
   props.state.sbs.filter(sb => props.state.isPendingVideo(sb.id)).length
 ))
 
+const emptyBillingInfo = {
+  generationId: 0,
+  status: '',
+  billedSeconds: '0.00',
+  billingAmount: '0.00',
+  message: '',
+}
+
+const selectedBillingInfo = computed(() => {
+  if (!selectedShot.value || typeof props.state.videoBillingInfo !== 'function') return emptyBillingInfo
+  return props.state.videoBillingInfo(selectedShot.value.id) || emptyBillingInfo
+})
+
+const selectedBillingVisible = computed(() => {
+  const info = selectedBillingInfo.value
+  return Boolean(
+    info.status ||
+    Number(info.billingAmount || 0) > 0 ||
+    Number(info.billedSeconds || 0) > 0,
+  )
+})
+
+const billingStatusLabel = computed(() => {
+  const status = selectedBillingInfo.value.status
+  if (status === 'settled') return '视频费用已结算'
+  if (status === 'billing_required') return selectedBillingInfo.value.message || '余额不足，请充值后继续结算'
+  if (status === 'billing_failed') return selectedBillingInfo.value.message || '结算失败'
+  return '视频费用结算中'
+})
+
+const billingToneClass = computed(() => {
+  const status = selectedBillingInfo.value.status
+  if (status === 'settled') return 'is-settled'
+  if (status === 'billing_required') return 'is-warning'
+  if (status === 'billing_failed') return 'is-error'
+  return 'is-pending'
+})
+
+const billingAmountLabel = computed(() => {
+  const value = Number(selectedBillingInfo.value.billingAmount || 0)
+  return Number.isFinite(value) ? value.toFixed(2) : '0.00'
+})
+
 async function savePromptDraft(nextValue = promptDraft.value) {
   if (!selectedShot.value) return false
   const shot = selectedShot.value
@@ -920,6 +1006,15 @@ function applyDefaultPrompt() {
 
 function selectShot(sb) {
   props.handlers.handleShotSelection(sb)
+}
+
+function goWallet() {
+  router.push('/wallet')
+}
+
+function retrySelectedBilling() {
+  if (!selectedShot.value) return
+  props.handlers.retryVideoBilling(selectedShot.value.id)
 }
 
 async function generateSelectedVideo() {

@@ -23,6 +23,14 @@ type VideoPollGeneration = {
   minioUrl?: unknown
   public_url?: unknown
   publicUrl?: unknown
+  billing_status?: unknown
+  billingStatus?: unknown
+  billing_error?: unknown
+  billingError?: unknown
+  billing_amount?: unknown
+  billingAmount?: unknown
+  billed_seconds?: unknown
+  billedSeconds?: unknown
 }
 
 type VideoPollOptions = {
@@ -32,6 +40,7 @@ type VideoPollOptions = {
 export type VideoPollOutcome =
   | { type: 'completed' }
   | { type: 'failed'; message: string }
+  | { type: 'billing_required'; message: string }
   | { type: 'pending' }
 
 function stringValue(value: unknown) {
@@ -65,6 +74,18 @@ export function resolveVideoPollOutcome(
   if (options.storyboardHasVideo) return { type: 'completed' }
 
   const status = stringValue(generation?.effective_status || generation?.effectiveStatus || generation?.status).toLowerCase()
+  const billingStatus = stringValue(generation?.billing_status || generation?.billingStatus).toLowerCase()
+  if (billingStatus === 'billing_required') {
+    return {
+      type: 'billing_required',
+      message: normalizeApiErrorMessage(
+        generation?.billing_error ||
+        generation?.billingError,
+        '余额不足，请充值后继续结算',
+      ),
+    }
+  }
+
   if (status === 'completed') {
     return getVideoPollGenerationUrl(generation) ? { type: 'completed' } : { type: 'pending' }
   }

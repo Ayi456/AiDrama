@@ -30,6 +30,14 @@ type VideoMonitor = {
   watchAsyncResult: (check: () => boolean, attempts?: number, delay?: number) => void
 }
 
+export type VideoBillingSnapshot = {
+  generationId: number
+  status: string
+  billedSeconds: string
+  billingAmount: string
+  message: string
+}
+
 type ChapterVideoWorkflowOptions = VideoMonitor & {
   dramaId: number
   sbs: Ref<ChapterStoryboard[]>
@@ -41,6 +49,7 @@ type ChapterVideoWorkflowOptions = VideoMonitor & {
 export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
   const pendingVideoIds = ref<number[]>([])
   const failedVideoMessages = ref<Record<number, string>>({})
+  const videoBillingByStoryboard = ref<Record<number, VideoBillingSnapshot>>({})
   const videoHistory = ref<Record<number, VideoGeneration[]>>({})
   const loadingVideoHistoryIds = ref<number[]>([])
   const videoHistoryLoadTokens = ref<Record<number, number>>({})
@@ -54,6 +63,34 @@ export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
   }
 
   const videoHistoryUrl = getVideoHistoryUrl
+
+  function videoBillingInfo(id: number) {
+    return videoBillingByStoryboard.value[Number(id)] || null
+  }
+
+  function readVideoBillingSnapshot(generation: VideoGeneration, generationId: number): VideoBillingSnapshot | null {
+    const status = String(generation?.billing_status || generation?.billingStatus || '').trim()
+    const billedSeconds = String(generation?.billed_seconds || generation?.billedSeconds || '').trim()
+    const billingAmount = String(generation?.billing_amount || generation?.billingAmount || '').trim()
+    const message = String(generation?.billing_error || generation?.billingError || '').trim()
+    if (!status && !billedSeconds && !billingAmount && !message) return null
+    return {
+      generationId,
+      status: status || 'billing',
+      billedSeconds: billedSeconds || '0.00',
+      billingAmount: billingAmount || '0.00',
+      message,
+    }
+  }
+
+  function recordVideoBilling(storyboardId: number, generation: VideoGeneration, generationId: number) {
+    const snapshot = readVideoBillingSnapshot(generation, generationId)
+    if (!snapshot) return
+    videoBillingByStoryboard.value = {
+      ...videoBillingByStoryboard.value,
+      [storyboardId]: snapshot,
+    }
+  }
 
   function getVideoHistory(storyboardId: number) {
     return videoHistory.value[Number(storyboardId)] || []
@@ -118,6 +155,7 @@ export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
       delete failedVideoMessages.value[storyboardId]
       if (!isPendingVideo(storyboardId)) pendingVideoIds.value.push(storyboardId)
       const generation = await videoAPI.generate(params)
+      recordVideoBilling(storyboardId, generation, Number(generation?.id || 0))
       toast.success('视频生成中')
       await options.refresh()
       void pollVideoGeneration(Number(generation?.id || 0), storyboardId, previousVideoUrl)
@@ -142,6 +180,7 @@ export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
       await options.sleep(VIDEO_CLIENT_POLL_DELAY_MS)
       try {
         const res = await videoAPI.get(generationId)
+        recordVideoBilling(storyboardId, res, generationId)
         await options.refresh()
         const target = options.sbs.value.find(s => Number(s.id) === storyboardId)
         const targetVideoUrl = getVideoUrl(target)
@@ -166,6 +205,15 @@ export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
             [storyboardId]: outcome.message,
           }
           toast.error(failedVideoMessages.value[storyboardId])
+          return
+        }
+        if (outcome.type === 'billing_required') {
+          pendingVideoIds.value = pendingVideoIds.value.filter(item => item !== storyboardId)
+          failedVideoMessages.value = {
+            ...failedVideoMessages.value,
+            [storyboardId]: outcome.message,
+          }
+          toast.warning(outcome.message)
           return
         }
       } catch {}
@@ -197,13 +245,35 @@ export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
     }), 80, 4000)
   }
 
+  async function retryVideoBilling(storyboardId: number) {
+    const snapshot = videoBillingInfo(storyboardId)
+    const generationId = Number(snapshot?.generationId || 0)
+    if (!generationId) {
+      toast.warning('没有可重试的结算任务')
+      return
+    }
+
+    try {
+      const generation = await videoAPI.retryBilling(generationId)
+      recordVideoBilling(storyboardId, generation, generationId)
+      delete failedVideoMessages.value[storyboardId]
+      await options.refresh()
+      await loadVideoHistory(storyboardId)
+      toast.success('视频结算已重试')
+    } catch (error: unknown) {
+      toast.error(errorMessageFromUnknown(error, '重试结算失败'))
+    }
+  }
+
   return {
     pendingVideoIds,
     failedVideoMessages,
+    videoBillingByStoryboard,
     videoHistory,
     loadingVideoHistoryIds,
     isPendingVideo,
     videoFailMessage,
+    videoBillingInfo,
     getVideoHistory,
     isVideoHistoryLoading,
     loadVideoHistory,
@@ -212,5 +282,6 @@ export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
     genVid,
     pollVideoGeneration,
     batchVideos,
+    retryVideoBilling,
   }
 }

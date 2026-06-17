@@ -66,7 +66,7 @@ export type CompleteGeneratedVideoJobInput = {
 }
 
 export type CompletedGeneratedJobResult = CompletedAssetInput & {
-  action?: 'publish' | 'regenerate' | 'failed'
+  action?: 'publish' | 'regenerate' | 'failed' | 'billing_required'
 }
 
 export type ImageCompletionPatch = ReturnType<typeof buildImageCompletionPatch>
@@ -91,13 +91,38 @@ export type DefectCheckCallback = (input: {
   storyboardId: number | null | undefined
 }) => Promise<{ action: 'publish' | 'regenerate' | 'failed' }>
 
+export type VideoSettlementInput = {
+  id: number
+  publicUrl: string
+  localPath: string
+  duration: number | null | undefined
+  storyboardId: number | null | undefined
+}
+
+export type VideoSettlementResult =
+  | { status: 'settled' }
+  | { status: 'billing_required'; message: string }
+
+export type PendingVideoSettlementPatch = {
+  pendingVideoUrl: string
+  pendingLocalPath: string
+  pendingDurationSeconds: string
+  billingStatus: 'billing_required'
+  billingError: string
+  status: 'billing_required'
+  updatedAt: string
+}
+
 export type CompleteGeneratedVideoJobDeps = MaterializeGeneratedVideoDeps & {
   now: () => string
   uploadGeneratedAsset: UploadGeneratedAsset
+  readVideoDuration?: (localPath: string) => Promise<number>
   persistVideoCompletion: (patch: VideoCompletionPatch) => Promise<void>
+  persistPendingVideoSettlement?: (patch: PendingVideoSettlementPatch) => Promise<void>
   publishStoryboardVideo: (storyboardId: number, patch: StoryboardVideoPatch) => Promise<void>
   logSuccess: (taskName: string, event: string, payload: Record<string, unknown>) => void
   defectCheck?: DefectCheckCallback
+  settleVideoCompletion?: (input: VideoSettlementInput) => Promise<VideoSettlementResult>
 }
 
 export async function publishGeneratedAsset(localPath: string, upload: UploadGeneratedAsset) {
@@ -214,17 +239,41 @@ export async function completeGeneratedVideoJob(
   const materialized = await materializeGeneratedVideo(input.source, deps)
   const localPath = materialized.localPath
   const publicUrl = await publishGeneratedAsset(localPath, deps.uploadGeneratedAsset)
+  const measuredDuration = deps.readVideoDuration ? await deps.readVideoDuration(localPath) : 0
+  const completionDuration = measuredDuration > 0 ? measuredDuration : input.duration
 
   if (deps.defectCheck) {
     const decision = await deps.defectCheck({
       id: input.id,
       publicUrl,
       localPath,
-      duration: input.duration,
+      duration: completionDuration,
       storyboardId: input.storyboardId,
     })
     if (decision.action === 'regenerate' || decision.action === 'failed') {
       return { action: decision.action, publicUrl, localPath }
+    }
+  }
+
+  if (deps.settleVideoCompletion) {
+    const settlement = await deps.settleVideoCompletion({
+      id: input.id,
+      publicUrl,
+      localPath,
+      duration: completionDuration,
+      storyboardId: input.storyboardId,
+    })
+    if (settlement.status === 'billing_required') {
+      await deps.persistPendingVideoSettlement?.({
+        pendingVideoUrl: publicUrl,
+        pendingLocalPath: localPath,
+        pendingDurationSeconds: Number(completionDuration || 0).toFixed(2),
+        billingStatus: 'billing_required',
+        billingError: settlement.message,
+        status: 'billing_required',
+        updatedAt: deps.now(),
+      })
+      return { action: 'billing_required', publicUrl, localPath }
     }
   }
 
@@ -238,13 +287,13 @@ export async function completeGeneratedVideoJob(
     localPath,
     publicUrl,
     storyboardId: input.storyboardId,
-    duration: input.duration,
+    duration: completionDuration,
   })
 
   if (input.storyboardId) {
     await deps.publishStoryboardVideo(
       input.storyboardId,
-      buildStoryboardVideoPatch(publicUrl, input.duration, deps.now()),
+      buildStoryboardVideoPatch(publicUrl, completionDuration, deps.now()),
     )
   }
 

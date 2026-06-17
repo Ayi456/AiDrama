@@ -317,6 +317,36 @@ runTest('completeGeneratedVideoJob: defectCheck=publish runs persist + publishSt
   assert.deepEqual(calls, ['persist', 'publish'])
 })
 
+runTest('completeGeneratedVideoJob: billing_required skips visible video publish and persists pending settlement', async () => {
+  const calls: string[] = []
+  const result = await completeGeneratedVideoJob({
+    id: 88,
+    source: { type: 'url', videoUrl: 'https://x/v.mp4' },
+    duration: 6,
+    storyboardId: 9,
+  }, {
+    now: () => '2026-06-17T02:30:00.000Z',
+    downloadFile: async () => 'static/videos/pending.mp4',
+    uploadGeneratedAsset: async () => 'https://cdn/pending.mp4',
+    persistVideoCompletion: async () => { calls.push('persist') },
+    publishStoryboardVideo: async () => { calls.push('publish') },
+    persistPendingVideoSettlement: async (patch) => {
+      calls.push(`pending:${patch.pendingVideoUrl}:${patch.pendingDurationSeconds}`)
+    },
+    logSuccess: () => {},
+    settleVideoCompletion: async (input) => {
+      calls.push(`settle:${input.publicUrl}:${input.duration}`)
+      return { status: 'billing_required', message: '余额不足，请充值后继续结算' }
+    },
+  })
+
+  assert.deepEqual(calls, [
+    'settle:https://cdn/pending.mp4:6',
+    'pending:https://cdn/pending.mp4:6.00',
+  ])
+  assert.equal(result.action, 'billing_required')
+})
+
 runTest('completeGeneratedVideoJob: defectCheck=regenerate skips persist and publishStoryboardVideo', async () => {
   const calls: string[] = []
   const result = await completeGeneratedVideoJob({

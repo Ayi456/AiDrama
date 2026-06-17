@@ -26,6 +26,10 @@
           </svg>
           <span>形象库</span>
         </RouterLink>
+        <RouterLink to="/wallet" class="nav-link" :class="{ active: route.path === '/wallet' }">
+          <Wallet :size="15" :stroke-width="1.8" />
+          <span>钱包</span>
+        </RouterLink>
         <RouterLink to="/settings" class="nav-link" :class="{ active: route.path === '/settings' }">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3"/>
@@ -36,10 +40,13 @@
       </nav>
 
       <div class="header-right">
-        <div v-if="auth.state.user" class="user-pill">
+        <button v-if="auth.state.user && walletBalance" class="balance-chip" type="button" @click="router.push('/wallet')">
+          ¥{{ walletBalance }}
+        </button>
+        <button v-if="auth.state.user" class="user-pill" type="button" @click="router.push('/profile')">
           <UserCircle :size="15" :stroke-width="1.8" />
           <span>{{ auth.state.user.username }}</span>
-        </div>
+        </button>
         <button v-if="auth.state.user" class="logout-btn" type="button" title="退出登录" @click="logout">
           <LogOut :size="15" :stroke-width="1.8" />
         </button>
@@ -58,18 +65,31 @@
 </template>
 
 <script setup>
+import { onMounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { LogOut, UserCircle } from 'lucide-vue-next'
+import { LogOut, UserCircle, Wallet } from 'lucide-vue-next'
 import { useAuth } from '../composables/useAuth'
+import { walletAPI } from '../composables/useApi'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuth()
+const walletBalance = ref('')
 
 async function logout() {
   await auth.logout()
   router.replace('/login')
 }
+
+onMounted(async () => {
+  if (!auth.state.user) return
+  try {
+    const wallet = await walletAPI.get()
+    walletBalance.value = wallet.balance
+  } catch {
+    walletBalance.value = ''
+  }
+})
 </script>
 
 <style scoped>
@@ -134,17 +154,35 @@ async function logout() {
 
 .header-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 
+.balance-chip,
 .user-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  max-width: 180px;
-  min-height: 32px;
-  padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-2);
   color: var(--text-1);
+  cursor: pointer;
+  transition: all 0.18s var(--ease-out);
+}
+.balance-chip {
+  min-height: 32px;
+  padding: 0 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+}
+.balance-chip:hover,
+.user-pill:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+  color: var(--text-0);
+}
+.user-pill {
+  gap: 6px;
+  max-width: 180px;
+  min-height: 32px;
+  padding: 0 10px;
   font-size: 12px;
   font-weight: 600;
 }

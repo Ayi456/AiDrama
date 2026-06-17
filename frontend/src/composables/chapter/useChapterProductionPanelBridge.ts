@@ -76,6 +76,7 @@ type ProductionPanelBridgeOptions = {
   activeVideoSb: ValueRef<unknown>
   activeVideoShotIndexLabel: ValueRef<string>
   videoFailMessage: BridgeHandler
+  videoBillingInfo: BridgeHandler
   getFirstFrame: BridgeHandler
   getLastFrame: BridgeHandler
   getRefs: BridgeHandler
@@ -138,6 +139,7 @@ type ProductionPanelBridgeOptions = {
   handleGridDialogFinish: BridgeHandler
   batchVideos: BridgeHandler
   genVid: BridgeHandler
+  retryVideoBilling: BridgeHandler
   restoreVideoFromHistory: BridgeHandler
   openImageViewer: (path: string, title?: string) => unknown
   resolveAssetUrl: (path: string) => string
@@ -232,6 +234,7 @@ export function useChapterProductionPanelBridge(options: ProductionPanelBridgeOp
     getVideoReferenceSummary: options.getVideoReferenceSummary,
     isPendingVideo: options.isPendingVideo,
     videoFailMessage: options.videoFailMessage,
+    videoBillingInfo: options.videoBillingInfo,
     getVideoHistory: options.getVideoHistory,
     isVideoHistoryLoading: options.isVideoHistoryLoading,
     loadVideoHistory: options.loadVideoHistory,
@@ -289,6 +292,7 @@ export function useChapterProductionPanelBridge(options: ProductionPanelBridgeOp
     handleGridDialogFinish: options.handleGridDialogFinish,
     batchVideos: options.batchVideos,
     genVid: options.genVid,
+    retryVideoBilling: options.retryVideoBilling,
     restoreVideoFromHistory: options.restoreVideoFromHistory,
     openImageByPath: (path: string, title?: string) => {
       if (path) options.openImageViewer(options.resolveAssetUrl(path), title)

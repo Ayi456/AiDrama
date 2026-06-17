@@ -5,6 +5,7 @@ import {
   buildVideoRouteLogContext,
   errorMessageFromUnknown,
   presentEffectiveVideoGenerationAsset,
+  resolveVideoStartDuration,
   validateVideoGenerateBody,
 } from '../video-route-policy.js'
 
@@ -76,6 +77,13 @@ runTest('buildVideoRouteLogContext exposes route-owned log fields', () => {
     referenceMode: 'first_last',
     duration: 8,
   })
+})
+
+runTest('resolveVideoStartDuration uses request duration before storyboard duration and default', () => {
+  assert.equal(resolveVideoStartDuration({ duration: 15 }, 8), 15)
+  assert.equal(resolveVideoStartDuration({}, 12), 12)
+  assert.equal(resolveVideoStartDuration({}, null), 5)
+  assert.equal(resolveVideoStartDuration({ duration: 0 }, 9), 9)
 })
 
 runTest('errorMessageFromUnknown normalizes thrown values without any', () => {
@@ -180,4 +188,30 @@ runTest('presentEffectiveVideoGenerationAsset exposes failed regeneration error 
   assert.equal(result.error_msg, 'provider failed')
   assert.equal(result.effectiveErrorMsg, 'provider failed')
   assert.equal(result.effective_error_msg, 'provider failed')
+})
+
+runTest('presentEffectiveVideoGenerationAsset exposes effective billing fields', () => {
+  const result = presentEffectiveVideoGenerationAsset(
+    {
+      id: 71,
+      status: 'failed_defect',
+      billingStatus: 'settled',
+      billedSeconds: '4.00',
+      billingAmount: '4.00',
+    },
+    {
+      id: 72,
+      status: 'billing_required',
+      billingStatus: 'billing_required',
+      billedSeconds: '0.00',
+      billingAmount: '0.00',
+      billingError: '余额不足，请充值后继续结算',
+    },
+  )
+
+  assert.equal(result.status, 'billing_required')
+  assert.equal(result.billingStatus, 'billing_required')
+  assert.equal(result.billing_status, 'billing_required')
+  assert.equal(result.billingError, '余额不足，请充值后继续结算')
+  assert.equal(result.billing_error, '余额不足，请充值后继续结算')
 })

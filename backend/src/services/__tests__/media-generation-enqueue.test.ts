@@ -123,6 +123,19 @@ runTest('buildVideoGenerationEnqueueRecord creates processing rows with AiDrama 
   })
 })
 
+runTest('buildVideoGenerationEnqueueRecord includes owner user id when provided', () => {
+  const record = buildVideoGenerationEnqueueRecord({
+    params: {
+      userId: 9,
+      prompt: 'Animate the scene',
+    },
+    config,
+    enqueuedAt: 't3',
+  })
+
+  assert.equal(record.userId, 9)
+})
+
 runTest('buildVideoGenerationEnqueueStartContext mirrors the video enqueue log payload', () => {
   assert.deepEqual(
     buildVideoGenerationEnqueueStartContext({

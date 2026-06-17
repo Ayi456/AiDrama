@@ -325,6 +325,71 @@ const tableStatements = [
     INDEX idx_sms_codes_expires_at (expires_at(32))
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
+  `CREATE TABLE IF NOT EXISTS wallet_accounts (
+    user_id INT PRIMARY KEY,
+    balance DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    total_recharged DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    total_consumed DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    created_at VARCHAR(32) NOT NULL,
+    updated_at VARCHAR(32) NOT NULL
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+  `CREATE TABLE IF NOT EXISTS wallet_transactions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    transaction_no VARCHAR(64) NOT NULL UNIQUE,
+    user_id INT NOT NULL,
+    amount DECIMAL(12,2) NOT NULL,
+    balance_after DECIMAL(12,2) NOT NULL,
+    type VARCHAR(32) NOT NULL,
+    related_order_no VARCHAR(64),
+    related_video_generation_id INT,
+    description TEXT,
+    created_at VARCHAR(32) NOT NULL,
+    INDEX idx_wallet_transactions_user_created (user_id, created_at),
+    INDEX idx_wallet_transactions_order (related_order_no),
+    INDEX idx_wallet_transactions_video (related_video_generation_id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+  `CREATE TABLE IF NOT EXISTS payment_orders (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_no VARCHAR(64) NOT NULL UNIQUE,
+    user_id INT NOT NULL,
+    amount DECIMAL(12,2) NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'pending',
+    provider VARCHAR(32) NOT NULL DEFAULT 'alipay',
+    alipay_trade_no VARCHAR(64),
+    alipay_app_id VARCHAR(64),
+    alipay_seller_id VARCHAR(64),
+    raw_notify TEXT,
+    paid_at VARCHAR(32),
+    created_at VARCHAR(32) NOT NULL,
+    updated_at VARCHAR(32) NOT NULL,
+    INDEX idx_payment_orders_user_created (user_id, created_at),
+    INDEX idx_payment_orders_status (status)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+  `CREATE TABLE IF NOT EXISTS billing_settings (
+    setting_key VARCHAR(64) PRIMARY KEY,
+    setting_value DECIMAL(12,2) NOT NULL,
+    updated_at VARCHAR(32) NOT NULL
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+  `CREATE TABLE IF NOT EXISTS video_billing_events (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    event_no VARCHAR(64) NOT NULL UNIQUE,
+    user_id INT NOT NULL,
+    video_generation_id INT NOT NULL,
+    seconds_delta DECIMAL(10,2) NOT NULL,
+    price_per_second DECIMAL(12,2) NOT NULL,
+    amount DECIMAL(12,2) NOT NULL,
+    billed_total_seconds DECIMAL(10,2) NOT NULL,
+    wallet_transaction_no VARCHAR(64) NOT NULL,
+    idempotency_key VARCHAR(128) NOT NULL UNIQUE,
+    created_at VARCHAR(32) NOT NULL,
+    INDEX idx_video_billing_user_created (user_id, created_at),
+    INDEX idx_video_billing_generation (video_generation_id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
   `CREATE TABLE IF NOT EXISTS agent_configs (
     id INT AUTO_INCREMENT PRIMARY KEY,
     agent_type TEXT NOT NULL,
@@ -379,6 +444,7 @@ const tableStatements = [
 
   `CREATE TABLE IF NOT EXISTS video_generations (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
     storyboard_id INT,
     drama_id INT,
     provider TEXT,
@@ -414,6 +480,13 @@ const tableStatements = [
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     completed_at TEXT,
+    billing_status VARCHAR(32) NOT NULL DEFAULT 'unbilled',
+    billed_seconds DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    billing_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    billing_error TEXT,
+    pending_video_url TEXT,
+    pending_local_path TEXT,
+    pending_duration_seconds DECIMAL(10,2),
     deleted_at TEXT
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
@@ -570,6 +643,7 @@ async function initializeDatabase(pool: Pool, database: string) {
   await ensureColumn(pool, database, 'image_generations', 'provider_request', 'TEXT')
   await ensureColumn(pool, database, 'image_generations', 'provider_response', 'TEXT')
   await ensureColumn(pool, database, 'video_generations', 'normalized_request', 'TEXT')
+  await ensureColumn(pool, database, 'video_generations', 'user_id', 'INT')
   await ensureColumn(pool, database, 'video_generations', 'provider_request', 'TEXT')
   await ensureColumn(pool, database, 'video_generations', 'provider_response', 'TEXT')
   await ensureColumn(pool, database, 'video_generations', 'reference_video_urls', 'TEXT')
@@ -578,12 +652,20 @@ async function initializeDatabase(pool: Pool, database: string) {
   await ensureColumn(pool, database, 'video_generations', 'defect_check_parent_id', 'INT')
   await ensureColumn(pool, database, 'video_generations', 'defect_check_result', 'TEXT')
   await ensureColumn(pool, database, 'video_generations', 'tail_frame_url', 'TEXT')
+  await ensureColumn(pool, database, 'video_generations', 'billing_status', "VARCHAR(32) NOT NULL DEFAULT 'unbilled'")
+  await ensureColumn(pool, database, 'video_generations', 'billed_seconds', 'DECIMAL(10,2) NOT NULL DEFAULT 0.00')
+  await ensureColumn(pool, database, 'video_generations', 'billing_amount', 'DECIMAL(12,2) NOT NULL DEFAULT 0.00')
+  await ensureColumn(pool, database, 'video_generations', 'billing_error', 'TEXT')
+  await ensureColumn(pool, database, 'video_generations', 'pending_video_url', 'TEXT')
+  await ensureColumn(pool, database, 'video_generations', 'pending_local_path', 'TEXT')
+  await ensureColumn(pool, database, 'video_generations', 'pending_duration_seconds', 'DECIMAL(10,2)')
   await ensureColumn(pool, database, 'scenes', 'reference_image', 'TEXT')
   await ensureColumn(pool, database, 'storyboards', 'transition_type', 'VARCHAR(32)')
   await ensureColumn(pool, database, 'storyboards', 'transition_duration_ms', 'INT')
 
   await ensureIndex(pool, database, 'video_generations', 'idx_video_generations_storyboard_id_id', '(`storyboard_id`, `id`)')
   await ensureIndex(pool, database, 'video_generations', 'idx_video_generations_drama_id_id', '(`drama_id`, `id`)')
+  await ensureIndex(pool, database, 'video_generations', 'idx_video_generations_user_id_id', '(`user_id`, `id`)')
   await ensureIndex(pool, database, 'dramas', 'idx_dramas_user_id_deleted_at', '(`user_id`, `deleted_at`(32))')
   await ensureIndex(pool, database, 'character_assets', 'idx_character_assets_user_id_deleted_at', '(`user_id`, `deleted_at`(32))')
   await ensureIndex(pool, database, 'assets', 'idx_assets_user_id_deleted_at', '(`user_id`, `deleted_at`(32))')
@@ -592,6 +674,18 @@ async function initializeDatabase(pool: Pool, database: string) {
   await ensureIndex(pool, database, 'users', 'uniq_users_phone', '(`phone`)')
   await ensureIndex(pool, database, 'auth_sessions', 'idx_auth_sessions_user_id', '(`user_id`)')
   await ensureIndex(pool, database, 'sms_codes', 'idx_sms_codes_phone_purpose', '(`phone`, `purpose`)')
+  await ensureIndex(pool, database, 'wallet_transactions', 'idx_wallet_transactions_user_created', '(`user_id`, `created_at`)')
+  await ensureIndex(pool, database, 'wallet_transactions', 'idx_wallet_transactions_order', '(`related_order_no`)')
+  await ensureIndex(pool, database, 'wallet_transactions', 'idx_wallet_transactions_video', '(`related_video_generation_id`)')
+  await ensureIndex(pool, database, 'payment_orders', 'idx_payment_orders_user_created', '(`user_id`, `created_at`)')
+  await ensureIndex(pool, database, 'payment_orders', 'idx_payment_orders_status', '(`status`)')
+  await ensureIndex(pool, database, 'video_billing_events', 'idx_video_billing_user_created', '(`user_id`, `created_at`)')
+  await ensureIndex(pool, database, 'video_billing_events', 'idx_video_billing_generation', '(`video_generation_id`)')
+  await pool.query(
+    `INSERT IGNORE INTO billing_settings (setting_key, setting_value, updated_at)
+     VALUES ('video_price_per_second', 1.00, ?)`,
+    [new Date().toISOString()],
+  )
   await backfillOwnerColumns(pool)
 }
 

@@ -16,6 +16,7 @@ export type ImageGenerationEnqueueParams = {
 }
 
 export type VideoGenerationEnqueueParams = {
+  userId?: number
   storyboardId?: number
   dramaId?: number
   prompt: string
@@ -63,6 +64,7 @@ export function buildVideoGenerationEnqueueRecord(input: {
   enqueuedAt: string
 }) {
   return {
+    ...(input.params.userId === undefined ? {} : { userId: input.params.userId }),
     storyboardId: input.params.storyboardId,
     dramaId: input.params.dramaId,
     prompt: input.params.prompt,

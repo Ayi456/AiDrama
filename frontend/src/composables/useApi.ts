@@ -160,12 +160,69 @@ export type VideoGeneration = GenerationStatus & {
   provider?: string
   model?: string
   prompt?: string
+  billing_status?: string
+  billingStatus?: string
+  billed_seconds?: string
+  billedSeconds?: string
+  billing_amount?: string
+  billingAmount?: string
+  billing_error?: string
+  billingError?: string
   created_at?: string
   createdAt?: string
 }
 export type ImageGenerationStart = {
   image_generation_id: number
   imageGenerationId?: number
+}
+export type WalletSummary = {
+  balance: string
+  totalRecharged: string
+  totalConsumed: string
+  videoPricePerSecond: string
+}
+export type WalletTransaction = {
+  transactionNo?: string
+  transaction_no?: string
+  amount: string
+  balanceAfter?: string
+  balance_after?: string
+  type: string
+  description?: string
+  relatedOrderNo?: string
+  related_order_no?: string
+  relatedVideoGenerationId?: number
+  related_video_generation_id?: number
+  createdAt?: string
+  created_at?: string
+}
+export type PaymentOrder = {
+  orderNo?: string
+  order_no?: string
+  amount: string
+  status: string
+  provider?: string
+  alipayTradeNo?: string
+  alipay_trade_no?: string
+  paidAt?: string
+  paid_at?: string
+  createdAt?: string
+  created_at?: string
+}
+export type RechargeOrder = {
+  orderNo: string
+  amount: string
+  paymentFormHtml: string
+}
+export type PendingVideoSettlement = {
+  videoGenerationId: number
+  storyboardId?: number
+  title?: string
+  durationSeconds: string
+  amountDue: string
+  billingStatus: string
+  generationStatus?: string
+  createdAt?: string
 }
 
 function getErrorMessage(error: unknown) {
@@ -467,12 +524,26 @@ export const gridAPI = {
 export const videoAPI = {
   generate: (d: ApiRequestBody) => api.post<VideoGeneration>('/videos', d),
   get: (id: number) => api.get<VideoGeneration>(`/videos/${id}`),
+  retryBilling: (id: number) => api.post<VideoGeneration>(`/videos/${id}/billing/retry`, {}),
   list: (params?: { drama_id?: number; storyboard_id?: number }) => {
     const query = new URLSearchParams()
     if (params?.drama_id) query.set('drama_id', String(params.drama_id))
     if (params?.storyboard_id) query.set('storyboard_id', String(params.storyboard_id))
     return api.get<VideoGeneration[]>(`/videos${query.size ? `?${query.toString()}` : ''}`)
   },
+}
+export const walletAPI = {
+  get: () => api.get<WalletSummary>('/wallet'),
+  transactions: (limit = 20) => api.get<{ items: WalletTransaction[] }>(`/wallet/transactions?limit=${limit}`),
+  videoPrice: () => api.get<{ videoPricePerSecond: string }>('/wallet/video-price'),
+  pendingSettlements: () => api.get<{ items: PendingVideoSettlement[] }>('/wallet/pending-settlements'),
+}
+export const paymentAPI = {
+  createRechargeOrder: (amount: string) => api.post<RechargeOrder>('/payments/recharge-orders', { amount }),
+  getOrder: (orderNo: string) => api.get<PaymentOrder>(`/payments/orders/${orderNo}`),
+  listOrders: (limit = 20) => api.get<{ items: PaymentOrder[] }>(`/payments/orders?limit=${limit}`),
+  continueOrder: (orderNo: string) => api.post<RechargeOrder>(`/payments/orders/${encodeURIComponent(orderNo)}/pay`, {}),
+  cancelOrder: (orderNo: string) => api.post<PaymentOrder>(`/payments/orders/${encodeURIComponent(orderNo)}/cancel`, {}),
 }
 export const composeAPI = {
   shot: (id: number) => api.post(`/compose/storyboards/${id}/compose`),

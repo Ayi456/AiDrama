@@ -13,10 +13,13 @@ import {
   presentEffectiveVideoGenerationAsset,
   readVideoListLimit,
   readVideoListNumber,
+  resolveVideoStartDuration,
   validateVideoGenerateBody,
   type VideoGenerateBody,
 } from '../policies/video-route-policy.js'
 import { getCurrentUser } from '../../middleware/auth.js'
+import { assertCanStartVideo, isInsufficientBalanceError } from '../../services/billing/wallet.js'
+import { retryVideoSettlement } from '../../services/billing/video-billing.js'
 import {
   filterOwnedVideoGenerations,
   findOwnedDrama,
@@ -33,27 +36,39 @@ app.post('/', async (c) => {
   const validationError = validateVideoGenerateBody(body)
   if (validationError) return badRequest(c, validationError)
   if (body.drama_id && !await findOwnedDrama(currentUser.id, Number(body.drama_id))) return badRequest(c, 'Drama not found')
-  if (body.storyboard_id && !await findOwnedStoryboard(currentUser.id, Number(body.storyboard_id))) return badRequest(c, 'Storyboard not found')
+  const ownedStoryboard = body.storyboard_id
+    ? await findOwnedStoryboard(currentUser.id, Number(body.storyboard_id))
+    : null
+  if (body.storyboard_id && !ownedStoryboard) return badRequest(c, 'Storyboard not found')
 
   try {
+    await assertCanStartVideo(currentUser.id, resolveVideoStartDuration(body, ownedStoryboard?.duration ?? null))
+
     let configId: number | undefined = body.config_id
-    if (body.storyboard_id) {
-      const [sb] = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.id, Number(body.storyboard_id))).all())
-      if (sb) {
-        const [ep] = (await db.select().from(schema.episodes).where(eq(schema.episodes.id, sb.episodeId)).all())
-        if (ep?.videoConfigId != null) configId = ep.videoConfigId
-      }
+    if (ownedStoryboard) {
+      const [ep] = (await db.select().from(schema.episodes).where(eq(schema.episodes.id, ownedStoryboard.episodeId)).all())
+      if (ep?.videoConfigId != null) configId = ep.videoConfigId
     }
 
     logTaskStart('VideoAPI', 'generate', buildVideoRouteLogContext(body))
     logTaskPayload('VideoAPI', 'request body', body)
-    const id = await generateVideo(buildVideoGenerationInput(body, configId))
+    const id = await generateVideo({
+      ...buildVideoGenerationInput(body, configId),
+      userId: currentUser.id,
+    })
 
     const [record] = (await db.select().from(schema.videoGenerations)
       .where(eq(schema.videoGenerations.id, id)).all())
     logTaskSuccess('VideoAPI', 'generate', { generationId: id, provider: record?.provider })
     return created(c, record ? presentVideoGenerationAsset(record) : record)
   } catch (err: unknown) {
+    if (isInsufficientBalanceError(err)) {
+      return c.json({
+        code: 400,
+        data: { reason: 'INSUFFICIENT_BALANCE' },
+        message: '余额不足，请先充值',
+      }, 400)
+    }
     const message = errorMessageFromUnknown(err)
     logTaskError('VideoAPI', 'generate', { error: message })
     return badRequest(c, message)
@@ -69,6 +84,31 @@ app.get('/:id', async (c) => {
 
   const effective = await loadLatestEffectiveVideoGeneration(row)
   return success(c, presentEffectiveVideoGenerationAsset(row, effective))
+})
+
+// POST /videos/:id/billing/retry
+app.post('/:id/billing/retry', async (c) => {
+  const currentUser = getCurrentUser(c)
+  const id = Number(c.req.param('id'))
+  const row = await findOwnedVideoGeneration(currentUser.id, id)
+  if (!row) return badRequest(c, 'Video generation not found')
+
+  try {
+    await retryVideoSettlement(currentUser.id, id)
+    const [updated] = await db.select().from(schema.videoGenerations)
+      .where(eq(schema.videoGenerations.id, id))
+      .all()
+    return success(c, updated ? presentVideoGenerationAsset(updated) : null)
+  } catch (err) {
+    if (isInsufficientBalanceError(err)) {
+      return c.json({
+        code: 400,
+        data: { reason: 'INSUFFICIENT_BALANCE' },
+        message: '余额不足，请先充值',
+      }, 400)
+    }
+    return badRequest(c, errorMessageFromUnknown(err))
+  }
 })
 
 // GET /videos - List by storyboard_id or drama_id
@@ -132,8 +172,12 @@ export async function generateStoryboardVideo(input: GenerateStoryboardVideoInpu
   const basePrompt = sb.videoPrompt || sb.imagePrompt || sb.description || sb.title || `镜头 ${sb.storyboardNumber ?? sb.id}`
   const prompt = appendProjectStyleToVideoPrompt(basePrompt, drama?.style)
   const configId = typeof ep.videoConfigId === 'number' ? ep.videoConfigId : undefined
+  const ownerUserId = typeof drama?.userId === 'number' ? drama.userId : undefined
+  const duration = sb.duration && sb.duration > 0 ? sb.duration : undefined
+  if (ownerUserId) await assertCanStartVideo(ownerUserId, duration || 5)
 
   const id = await generateVideo({
+    userId: ownerUserId,
     storyboardId: input.storyboardId,
     dramaId,
     prompt,
@@ -143,7 +187,7 @@ export async function generateStoryboardVideo(input: GenerateStoryboardVideoInpu
     referenceImageUrls: input.referenceImageUrls,
     referenceVideoUrls: input.referenceVideoUrls,
     referenceAudioUrls: input.referenceAudioUrls,
-    duration: sb.duration && sb.duration > 0 ? sb.duration : undefined,
+    duration,
     configId,
   })
 

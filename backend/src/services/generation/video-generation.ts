@@ -4,6 +4,7 @@ import { getActiveConfig, getConfigById } from '../ai/ai.js'
 import { now } from '../../utils/response.js'
 import { downloadFile, readImageAsCompressedDataUrl } from '../../utils/storage.js'
 import { uploadStaticAssetToCos } from '../../utils/cos.js'
+import { getVideoDurationPrecise } from '../ffmpeg/ffmpeg.js'
 import { getVideoAdapter } from '../adapters/registry.js'
 import type { AIConfig } from '../adapters/types.js'
 import {
@@ -43,6 +44,11 @@ import { isProviderApiError, sendProviderJsonRequest } from '../media/provider/m
 import { logTaskError, logTaskPayload, logTaskProgress, logTaskStart, logTaskSuccess, logTaskWarn, redactUrl } from '../../utils/task-logger.js'
 import { buildDefectCheckCallback } from './video-defect-check-binding.js'
 import { captureAndPersistTailFrame, notifyAutomationAfterVideo } from '../automation/video-side-effects.js'
+import {
+  persistPendingVideoSettlement,
+  resolveVideoGenerationUserId,
+  settleCompletedVideo,
+} from '../billing/video-billing.js'
 
 type GenerateVideoParams = VideoGenerationEnqueueParams
 export type VideoGenerationRefreshResult = 'missing' | 'idle' | 'processing' | 'completed' | 'failed'
@@ -348,9 +354,34 @@ async function completeGeneratedVideo(
     now,
     downloadFile,
     uploadGeneratedAsset: uploadStaticAssetToCos,
+    readVideoDuration: getVideoDurationPrecise,
     persistVideoCompletion: persistence.persistVideoCompletion,
+    persistPendingVideoSettlement: async (patch) => {
+      await persistPendingVideoSettlement({
+        videoGenerationId: id,
+        publicUrl: patch.pendingVideoUrl,
+        localPath: patch.pendingLocalPath,
+        durationSeconds: patch.pendingDurationSeconds,
+        message: patch.billingError,
+      })
+    },
     publishStoryboardVideo: persistence.publishStoryboardVideo,
     logSuccess: logTaskSuccess,
+    settleVideoCompletion: async (settlement) => {
+      const ownerUserId = await resolveVideoGenerationUserId(id)
+      if (!ownerUserId) throw new Error('Video generation owner not found')
+      const status = await settleCompletedVideo({
+        userId: ownerUserId,
+        videoGenerationId: id,
+        videoUrl: settlement.publicUrl,
+        localPath: settlement.localPath,
+        durationSeconds: settlement.duration || 0,
+      })
+      if (status === 'billing_required') {
+        return { status, message: '余额不足，请充值后继续结算' }
+      }
+      return { status }
+    },
     defectCheck: buildDefectCheckCallback(async (params) => {
       return await generateVideo({
         storyboardId: params.storyboardId ?? undefined,
@@ -374,6 +405,7 @@ async function completeGeneratedVideo(
   })
 
   if (result.action === 'regenerate') return
+  if (result.action === 'billing_required') return
   if (result.action === 'failed') {
     await notifyAutomationAfterVideo(id, storyboardId ?? null, 'failed')
     return

@@ -29,6 +29,7 @@ export type VideoListQuery = {
 
 export const DEFAULT_VIDEO_LIST_LIMIT = 24
 export const MAX_VIDEO_LIST_LIMIT = 100
+export const DEFAULT_VIDEO_START_DURATION = 5
 
 export function validateVideoGenerateBody(body: VideoGenerateBody) {
   return body.prompt ? null : 'prompt is required'
@@ -43,6 +44,16 @@ export function readVideoListLimit(value: unknown) {
   const parsed = readVideoListNumber(value)
   if (!parsed) return DEFAULT_VIDEO_LIST_LIMIT
   return Math.min(parsed, MAX_VIDEO_LIST_LIMIT)
+}
+
+export function resolveVideoStartDuration(body: VideoGenerateBody, storyboardDuration?: number | null) {
+  const requestedDuration = Number(body.duration)
+  if (Number.isFinite(requestedDuration) && requestedDuration > 0) return requestedDuration
+
+  const storedDuration = Number(storyboardDuration)
+  if (Number.isFinite(storedDuration) && storedDuration > 0) return storedDuration
+
+  return DEFAULT_VIDEO_START_DURATION
 }
 
 export function buildVideoGenerationInput(
@@ -141,6 +152,10 @@ export function presentEffectiveVideoGenerationAsset<T extends AssetRecord>(
   copyEffectiveField(result, effective, ['taskId', 'task_id'], hasRegeneration)
   copyEffectiveField(result, effective, ['completedAt', 'completed_at'], hasRegeneration)
   copyEffectiveField(result, effective, ['updatedAt', 'updated_at'], hasRegeneration)
+  copyEffectiveField(result, effective, ['billingStatus', 'billing_status'], hasRegeneration)
+  copyEffectiveField(result, effective, ['billedSeconds', 'billed_seconds'], hasRegeneration)
+  copyEffectiveField(result, effective, ['billingAmount', 'billing_amount'], hasRegeneration)
+  copyEffectiveField(result, effective, ['billingError', 'billing_error'], hasRegeneration)
 
   const effectiveVideoUrl = readFirst(result, ['videoUrl', 'video_url', 'minioUrl', 'minio_url', 'publicUrl', 'public_url'])
   if (effectiveVideoUrl !== undefined) {

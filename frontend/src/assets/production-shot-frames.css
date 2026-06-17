@@ -3084,6 +3084,77 @@
   color: var(--text-3);
 }
 
+.video-billing-card {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 11px;
+  border: 1px solid rgba(222, 229, 241, 0.96);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.video-billing-card__icon {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--bg-2);
+  color: var(--text-2);
+}
+
+.video-billing-card.is-settled .video-billing-card__icon {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.video-billing-card.is-warning .video-billing-card__icon,
+.video-billing-card.is-pending .video-billing-card__icon {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.video-billing-card.is-error .video-billing-card__icon {
+  background: var(--error-bg);
+  color: var(--error);
+}
+
+.video-billing-card__main {
+  min-width: 0;
+}
+
+.video-billing-card__title {
+  color: var(--text-0);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.video-billing-card__meta {
+  margin-top: 3px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.video-billing-card__actions,
+.video-workbench__billing-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.video-workbench__billing-required {
+  flex-direction: column;
+  gap: 10px;
+  padding: 28px;
+  text-align: center;
+  color: var(--warning);
+  background:
+    linear-gradient(180deg, rgba(255, 252, 245, 0.98), rgba(255, 247, 229, 0.95));
+}
+
 .video-history-panel {
   margin-top: 12px;
   gap: 10px;
@@ -3237,5 +3308,15 @@
 @media (max-width: 860px) {
   .video-workbench__refs {
     grid-template-columns: 1fr;
+  }
+
+  .video-billing-card {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .video-billing-card__actions {
+    grid-column: 2;
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 }

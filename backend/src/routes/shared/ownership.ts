@@ -66,6 +66,7 @@ export async function findOwnedVideoGeneration(userId: number, videoGenerationId
   if (!Number.isFinite(videoGenerationId) || videoGenerationId <= 0) return null
   const [row] = await db.select().from(schema.videoGenerations).where(eq(schema.videoGenerations.id, videoGenerationId)).all()
   if (!row || row.deletedAt) return null
+  if (row.userId === userId) return row
   if (row.dramaId && await findOwnedDrama(userId, row.dramaId)) return row
   if (row.storyboardId && await findOwnedStoryboard(userId, row.storyboardId)) return row
   return null
@@ -85,7 +86,8 @@ export async function filterOwnedImageGenerations<T extends typeof schema.imageG
 export async function filterOwnedVideoGenerations<T extends typeof schema.videoGenerations.$inferSelect>(userId: number, rows: T[]) {
   const owned: T[] = []
   for (const row of rows) {
-    if (row.dramaId && await findOwnedDrama(userId, row.dramaId)) owned.push(row)
+    if (row.userId === userId) owned.push(row)
+    else if (row.dramaId && await findOwnedDrama(userId, row.dramaId)) owned.push(row)
     else if (row.storyboardId && await findOwnedStoryboard(userId, row.storyboardId)) owned.push(row)
   }
   return owned

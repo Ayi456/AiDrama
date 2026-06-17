@@ -48,4 +48,7 @@ temp/
 # Prompt
 prompt/
 
+# alipay
+alipay_*
+
 
