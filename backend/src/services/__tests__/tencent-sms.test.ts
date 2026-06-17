@@ -24,6 +24,24 @@ test('normalizeTencentSmsConfig detects missing Tencent SMS credentials', () => 
   ])
 })
 
+test('normalizeTencentSmsConfig accepts Drama-compatible SMS env aliases', () => {
+  const config = normalizeTencentSmsConfig({
+    TENCENT_SECRET_ID: 'sid',
+    TENCENT_SECRET_KEY: 'skey',
+    TENCENT_REGION: 'ap-shanghai',
+    SMS_SDK_APP_ID: '1400000000',
+    SMS_SIGN_NAME: 'AiDrama',
+    SMS_TEMPLATE_ID: '12345',
+  })
+
+  assert.equal(config.enabled, true)
+  assert.deepEqual(config.missing, [])
+  assert.equal(config.region, 'ap-shanghai')
+  assert.equal(config.sdkAppId, '1400000000')
+  assert.equal(config.signName, 'AiDrama')
+  assert.equal(config.templateId, '12345')
+})
+
 test('buildTencentSmsPayload formats Chinese mobile numbers for Tencent SMS', () => {
   const payload = buildTencentSmsPayload({
     phone: '13800138000',

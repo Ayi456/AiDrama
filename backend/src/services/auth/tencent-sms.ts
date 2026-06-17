@@ -30,14 +30,22 @@ function envValue(env: Record<string, string | undefined>, key: string) {
   return String(env[key] || '').trim()
 }
 
+function firstEnvValue(env: Record<string, string | undefined>, ...keys: string[]) {
+  for (const key of keys) {
+    const value = envValue(env, key)
+    if (value) return value
+  }
+  return ''
+}
+
 export function normalizeTencentSmsConfig(env: Record<string, string | undefined> = process.env): TencentSmsConfig {
   const config = {
-    secretId: envValue(env, 'TENCENT_SECRET_ID'),
-    secretKey: envValue(env, 'TENCENT_SECRET_KEY'),
-    region: envValue(env, 'TENCENT_SMS_REGION') || 'ap-guangzhou',
-    sdkAppId: envValue(env, 'TENCENT_SMS_SDK_APP_ID'),
-    signName: envValue(env, 'TENCENT_SMS_SIGN_NAME'),
-    templateId: envValue(env, 'TENCENT_SMS_TEMPLATE_ID'),
+    secretId: firstEnvValue(env, 'TENCENT_SECRET_ID', 'TENCENTCLOUD_SECRET_ID'),
+    secretKey: firstEnvValue(env, 'TENCENT_SECRET_KEY', 'TENCENTCLOUD_SECRET_KEY'),
+    region: firstEnvValue(env, 'TENCENT_SMS_REGION', 'TENCENT_REGION') || 'ap-guangzhou',
+    sdkAppId: firstEnvValue(env, 'TENCENT_SMS_SDK_APP_ID', 'SMS_SDK_APP_ID'),
+    signName: firstEnvValue(env, 'TENCENT_SMS_SIGN_NAME', 'SMS_SIGN_NAME'),
+    templateId: firstEnvValue(env, 'TENCENT_SMS_TEMPLATE_ID', 'SMS_TEMPLATE_ID'),
   }
   const missing = [
     !config.secretId && 'TENCENT_SECRET_ID',

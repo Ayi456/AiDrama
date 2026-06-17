@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { db, schema } from '../../db/index.js'
 import { getCurrentUser } from '../../middleware/auth.js'
 
@@ -32,13 +32,36 @@ export function resolvePreferencesPayload(row: Partial<PreferencesPayload> | nul
   }
 }
 
+export function buildPreferencesInsertValues(userId: string, body: Partial<PreferencesPayload>, timestamp: string) {
+  const payload = resolvePreferencesPayload({ ...body, userId })
+  return {
+    userId: payload.userId,
+    autoPipelineEnabled: payload.autoPipelineEnabled,
+    autoPipelineMaxRetries: payload.autoPipelineMaxRetries,
+    autoPipelineConcurrencyImage: payload.autoPipelineConcurrencyImage,
+    autoPipelineConcurrencyVideo: payload.autoPipelineConcurrencyVideo,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }
+}
+
+export function selectPreferencesRowForUser(rows: Array<Partial<PreferencesPayload>>, userId: string) {
+  return rows.find(row => row.userId === userId) || rows.find(row => row.userId === DEFAULT_USER_ID)
+}
+
 const app = new Hono()
 
 app.get('/', async (c) => {
   const currentUser = getCurrentUser(c)
   const userId = String(currentUser.id)
-  const rows = await db.select().from(schema.userPreferences).where(eq(schema.userPreferences.userId, userId))
-  return c.json({ code: 0, data: resolvePreferencesPayload(rows[0] as Partial<PreferencesPayload> | undefined), message: 'ok' })
+  const rows = await db.select()
+    .from(schema.userPreferences)
+    .where(inArray(schema.userPreferences.userId, [userId, DEFAULT_USER_ID]))
+  return c.json({
+    code: 0,
+    data: resolvePreferencesPayload(selectPreferencesRowForUser(rows as Partial<PreferencesPayload>[], userId)),
+    message: 'ok',
+  })
 })
 
 app.put('/', async (c) => {
@@ -60,15 +83,7 @@ app.put('/', async (c) => {
       })
       .where(eq(schema.userPreferences.userId, userId))
   } else {
-    await db.insert(schema.userPreferences).values({
-      userId: DEFAULT_USER_ID,
-      autoPipelineEnabled: payload.autoPipelineEnabled,
-      autoPipelineMaxRetries: payload.autoPipelineMaxRetries,
-      autoPipelineConcurrencyImage: payload.autoPipelineConcurrencyImage,
-      autoPipelineConcurrencyVideo: payload.autoPipelineConcurrencyVideo,
-      createdAt: now,
-      updatedAt: now,
-    })
+    await db.insert(schema.userPreferences).values(buildPreferencesInsertValues(userId, body, now))
   }
 
   return c.json({ code: 0, data: payload, message: 'ok' })
