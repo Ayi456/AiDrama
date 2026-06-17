@@ -53,6 +53,10 @@ type PaymentOrderRow = RowDataPacket & {
   updated_at: string
 }
 
+type CountRow = RowDataPacket & {
+  total: number
+}
+
 export function buildRechargeOrderNo(date = new Date(), random = () => Math.floor(Math.random() * 10000).toString().padStart(4, '0')) {
   const stamp = date.toISOString().replace(/\D/g, '').slice(0, 14)
   return `R${stamp}${random()}`
@@ -184,16 +188,35 @@ export async function getPaymentOrderForUser(userId: number, orderNo: string): P
   return rows[0] ? mapOrder(rows[0]) : null
 }
 
-export async function listPaymentOrdersForUser(userId: number, limit = 20): Promise<PaymentOrder[]> {
+export async function countPaymentOrdersForUser(userId: number): Promise<number> {
   const { mysqlPool } = await import('../../db/index.js')
-  const safeLimit = Math.min(Math.max(Math.floor(Number(limit)) || 20, 1), 100)
+  const [rows] = await mysqlPool.execute<CountRow[]>(
+    `SELECT COUNT(*) AS total
+       FROM payment_orders
+      WHERE user_id = ?`,
+    [userId],
+  )
+  return Number(rows[0]?.total || 0)
+}
+
+export async function listPaymentOrdersForUser(
+  userId: number,
+  options: number | { pageSize?: number; offset?: number } = 20,
+): Promise<PaymentOrder[]> {
+  const { mysqlPool } = await import('../../db/index.js')
+  const pageSize = typeof options === 'number'
+    ? Math.min(Math.max(Math.floor(Number(options)) || 20, 1), 100)
+    : Math.min(Math.max(Math.floor(Number(options.pageSize)) || 20, 1), 100)
+  const offset = typeof options === 'number'
+    ? 0
+    : Math.max(Math.floor(Number(options.offset)) || 0, 0)
   const [rows] = await mysqlPool.execute<PaymentOrderRow[]>(
     `SELECT id, order_no, user_id, amount, status, provider, alipay_trade_no,
             alipay_app_id, alipay_seller_id, paid_at, created_at, updated_at
        FROM payment_orders
       WHERE user_id = ?
       ORDER BY created_at DESC, id DESC
-      LIMIT ${safeLimit}`,
+      LIMIT ${pageSize} OFFSET ${offset}`,
     [userId],
   )
   return rows.map(mapOrder)

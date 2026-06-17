@@ -68,6 +68,10 @@ type WalletTransactionRow = RowDataPacket & {
   created_at: string
 }
 
+type CountRow = RowDataPacket & {
+  total: number
+}
+
 export class InsufficientBalanceError extends Error {
   readonly code = 'INSUFFICIENT_BALANCE'
 
@@ -220,16 +224,35 @@ export async function getOrCreateWallet(userId: number): Promise<WalletAccount> 
   }
 }
 
-export async function getWalletTransactions(userId: number, limit = 20): Promise<WalletTransaction[]> {
+export async function countWalletTransactions(userId: number): Promise<number> {
   const { mysqlPool } = await import('../../db/index.js')
-  const safeLimit = Math.min(Math.max(Math.floor(Number(limit)) || 20, 1), 100)
+  const [rows] = await mysqlPool.execute<CountRow[]>(
+    `SELECT COUNT(*) AS total
+       FROM wallet_transactions
+      WHERE user_id = ?`,
+    [userId],
+  )
+  return Number(rows[0]?.total || 0)
+}
+
+export async function getWalletTransactions(
+  userId: number,
+  options: number | { pageSize?: number; offset?: number } = 20,
+): Promise<WalletTransaction[]> {
+  const { mysqlPool } = await import('../../db/index.js')
+  const pageSize = typeof options === 'number'
+    ? Math.min(Math.max(Math.floor(Number(options)) || 20, 1), 100)
+    : Math.min(Math.max(Math.floor(Number(options.pageSize)) || 20, 1), 100)
+  const offset = typeof options === 'number'
+    ? 0
+    : Math.max(Math.floor(Number(options.offset)) || 0, 0)
   const [rows] = await mysqlPool.execute<WalletTransactionRow[]>(
     `SELECT transaction_no, user_id, amount, balance_after, type, related_order_no,
             related_video_generation_id, description, created_at
        FROM wallet_transactions
       WHERE user_id = ?
       ORDER BY created_at DESC, id DESC
-      LIMIT ${safeLimit}`,
+      LIMIT ${pageSize} OFFSET ${offset}`,
     [userId],
   )
   return rows.map(mapWalletTransaction)

@@ -24,6 +24,22 @@ export type PendingSettlementLike = {
   amount_due?: string
 }
 
+export type WalletPaginationMetaLike = {
+  page?: number
+  pageSize?: number
+  total?: number
+  totalPages?: number
+}
+
+export type WalletPaginationState = {
+  page: number
+  pageSize: number
+  total: number
+  totalPages: number
+  canPrevious: boolean
+  canNext: boolean
+}
+
 export type WalletStatusMeta = {
   label: string
   tone: WalletTone
@@ -49,6 +65,13 @@ export function formatMoney(value: unknown): string {
   const numeric = Number(value)
   if (!Number.isFinite(numeric)) return '0.00'
   return numeric.toFixed(2)
+}
+
+export function formatTransactionAmount(value: unknown): string {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric) || numeric === 0) return '¥0.00'
+  const prefix = numeric < 0 ? '-¥' : '¥'
+  return `${prefix}${Math.abs(numeric).toFixed(2)}`
 }
 
 export function normalizeRechargeAmountInput(value: string): string | null {
@@ -139,6 +162,26 @@ export function getPendingSettlementSummary(item: PendingSettlementLike) {
 export function isPendingSettlementRetryable(item: PendingSettlementLike) {
   const billingStatus = readPendingSettlementBillingStatus(item)
   return billingStatus === 'billing_required' || billingStatus === 'billing_failed'
+}
+
+export function getWalletPaginationState(meta: WalletPaginationMetaLike): WalletPaginationState {
+  const pageSize = Math.max(Math.floor(Number(meta.pageSize)) || 10, 1)
+  const total = Math.max(Math.floor(Number(meta.total)) || 0, 0)
+  const totalPages = Math.max(Math.floor(Number(meta.totalPages)) || Math.ceil(total / pageSize), 1)
+  const page = Math.min(Math.max(Math.floor(Number(meta.page)) || 1, 1), totalPages)
+  return {
+    page,
+    pageSize,
+    total,
+    totalPages,
+    canPrevious: page > 1,
+    canNext: page < totalPages,
+  }
+}
+
+export function getWalletPaginationLabel(meta: WalletPaginationMetaLike) {
+  const state = getWalletPaginationState(meta)
+  return `第 ${state.page} / ${state.totalPages} 页，共 ${state.total} 条`
 }
 
 export function getTransactionTone(transaction: WalletTransactionLike): TransactionTone {

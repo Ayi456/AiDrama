@@ -5,8 +5,13 @@ import { mysqlPool } from '../../db/index.js'
 import { getCurrentUser } from '../../middleware/auth.js'
 import { success } from '../../utils/response.js'
 import { getVideoPricePerSecond } from '../../services/billing/billing-settings.js'
-import { getOrCreateWallet, getWalletTransactions } from '../../services/billing/wallet.js'
-import { readWalletListLimit, shouldExposePendingSettlement } from '../policies/wallet-route-policy.js'
+import { countWalletTransactions, getOrCreateWallet, getWalletTransactions } from '../../services/billing/wallet.js'
+import {
+  buildWalletPageMeta,
+  buildWalletPaginatedPayload,
+  readWalletPagination,
+  shouldExposePendingSettlement,
+} from '../policies/wallet-route-policy.js'
 import { toMoney } from '../../services/billing/money.js'
 
 const app = new Hono()
@@ -22,6 +27,10 @@ type PendingSettlementRow = RowDataPacket & {
   status: string | null
   duration: number | null
   created_at: string | null
+}
+
+type CountRow = RowDataPacket & {
+  total: number
 }
 
 app.get('/', async (c) => {
@@ -40,8 +49,18 @@ app.get('/', async (c) => {
 
 app.get('/transactions', async (c) => {
   const currentUser = getCurrentUser(c)
-  const limit = readWalletListLimit(c.req.query('limit'))
-  return success(c, { items: await getWalletTransactions(currentUser.id, limit) })
+  const pagination = readWalletPagination({
+    page: c.req.query('page'),
+    pageSize: c.req.query('pageSize'),
+    limit: c.req.query('limit'),
+  })
+  const total = await countWalletTransactions(currentUser.id)
+  const meta = buildWalletPageMeta(pagination, total)
+  const items = await getWalletTransactions(currentUser.id, {
+    pageSize: meta.pageSize,
+    offset: meta.offset,
+  })
+  return success(c, buildWalletPaginatedPayload(items, meta))
 })
 
 app.get('/video-price', async (c) => {
@@ -50,7 +69,25 @@ app.get('/video-price', async (c) => {
 
 app.get('/pending-settlements', async (c) => {
   const currentUser = getCurrentUser(c)
-  const limit = readWalletListLimit(c.req.query('limit'))
+  const pagination = readWalletPagination({
+    page: c.req.query('page'),
+    pageSize: c.req.query('pageSize'),
+    limit: c.req.query('limit'),
+  })
+  const whereSql = `vg.billing_status IN ('billing', 'billing_required', 'billing_failed')
+        AND (vg.user_id = ? OR d.user_id = ? OR sd.user_id = ?)`
+  const params = [currentUser.id, currentUser.id, currentUser.id]
+  const [countRows] = await mysqlPool.execute<CountRow[]>(
+    `SELECT COUNT(*) AS total
+       FROM video_generations vg
+       LEFT JOIN storyboards sb ON sb.id = vg.storyboard_id
+       LEFT JOIN episodes ep ON ep.id = sb.episode_id
+       LEFT JOIN dramas sd ON sd.id = ep.drama_id
+       LEFT JOIN dramas d ON d.id = vg.drama_id
+      WHERE ${whereSql}`,
+    params,
+  )
+  const meta = buildWalletPageMeta(pagination, countRows[0]?.total || 0)
   const [rows] = await mysqlPool.execute<PendingSettlementRow[]>(
     `SELECT vg.id,
             vg.storyboard_id,
@@ -67,18 +104,14 @@ app.get('/pending-settlements', async (c) => {
        LEFT JOIN episodes ep ON ep.id = sb.episode_id
        LEFT JOIN dramas sd ON sd.id = ep.drama_id
        LEFT JOIN dramas d ON d.id = vg.drama_id
-      WHERE (
-            vg.billing_status IN ('billing', 'billing_required', 'billing_failed')
-            OR (vg.billing_status = 'unbilled' AND vg.status IN ('pending', 'processing', 'checking_defect'))
-          )
-        AND (vg.user_id = ? OR d.user_id = ? OR sd.user_id = ?)
+      WHERE ${whereSql}
       ORDER BY vg.updated_at DESC, vg.id DESC
-      LIMIT ${limit}`,
-    [currentUser.id, currentUser.id, currentUser.id],
+      LIMIT ${meta.pageSize} OFFSET ${meta.offset}`,
+    params,
   )
 
-  return success(c, {
-    items: rows
+  return success(c, buildWalletPaginatedPayload(
+    rows
       .filter(row => shouldExposePendingSettlement({
         billingStatus: row.billing_status,
         generationStatus: row.status,
@@ -93,7 +126,8 @@ app.get('/pending-settlements', async (c) => {
         generationStatus: row.status || undefined,
         createdAt: row.created_at || undefined,
       })),
-  })
+    meta,
+  ))
 })
 
 export default app

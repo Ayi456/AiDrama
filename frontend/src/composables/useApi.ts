@@ -224,6 +224,18 @@ export type PendingVideoSettlement = {
   generationStatus?: string
   createdAt?: string
 }
+export type PaginatedResponse<T> = {
+  items: T[]
+  page: number
+  pageSize: number
+  total: number
+  totalPages: number
+}
+export type PaginationParams = {
+  page?: number
+  pageSize?: number
+  limit?: number
+}
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error)
@@ -532,16 +544,37 @@ export const videoAPI = {
     return api.get<VideoGeneration[]>(`/videos${query.size ? `?${query.toString()}` : ''}`)
   },
 }
+function paginationQuery(params?: PaginationParams | number) {
+  const query = new URLSearchParams()
+  if (typeof params === 'number') {
+    query.set('pageSize', String(params))
+  } else if (params) {
+    if (params.page) query.set('page', String(params.page))
+    if (params.pageSize) query.set('pageSize', String(params.pageSize))
+    if (params.limit) query.set('limit', String(params.limit))
+  }
+  return query.toString()
+}
+
 export const walletAPI = {
   get: () => api.get<WalletSummary>('/wallet'),
-  transactions: (limit = 20) => api.get<{ items: WalletTransaction[] }>(`/wallet/transactions?limit=${limit}`),
+  transactions: (params?: PaginationParams | number) => {
+    const query = paginationQuery(params)
+    return api.get<PaginatedResponse<WalletTransaction>>(`/wallet/transactions${query ? `?${query}` : ''}`)
+  },
   videoPrice: () => api.get<{ videoPricePerSecond: string }>('/wallet/video-price'),
-  pendingSettlements: () => api.get<{ items: PendingVideoSettlement[] }>('/wallet/pending-settlements'),
+  pendingSettlements: (params?: PaginationParams | number) => {
+    const query = paginationQuery(params)
+    return api.get<PaginatedResponse<PendingVideoSettlement>>(`/wallet/pending-settlements${query ? `?${query}` : ''}`)
+  },
 }
 export const paymentAPI = {
   createRechargeOrder: (amount: string) => api.post<RechargeOrder>('/payments/recharge-orders', { amount }),
   getOrder: (orderNo: string) => api.get<PaymentOrder>(`/payments/orders/${orderNo}`),
-  listOrders: (limit = 20) => api.get<{ items: PaymentOrder[] }>(`/payments/orders?limit=${limit}`),
+  listOrders: (params?: PaginationParams | number) => {
+    const query = paginationQuery(params)
+    return api.get<PaginatedResponse<PaymentOrder>>(`/payments/orders${query ? `?${query}` : ''}`)
+  },
   continueOrder: (orderNo: string) => api.post<RechargeOrder>(`/payments/orders/${encodeURIComponent(orderNo)}/pay`, {}),
   cancelOrder: (orderNo: string) => api.post<PaymentOrder>(`/payments/orders/${encodeURIComponent(orderNo)}/cancel`, {}),
 }

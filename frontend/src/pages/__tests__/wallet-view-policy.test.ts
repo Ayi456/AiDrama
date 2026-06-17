@@ -2,11 +2,14 @@ import assert from 'node:assert/strict'
 
 import {
   formatMoney,
+  formatTransactionAmount,
   getBillingStatusMeta,
   getOrderStatusMeta,
   getPaymentOrderActions,
   getPendingSettlementMeta,
   getPendingSettlementSummary,
+  getWalletPaginationLabel,
+  getWalletPaginationState,
   getTransactionTone,
   hasPendingPaymentOrders,
   isPendingSettlementRetryable,
@@ -46,6 +49,13 @@ runTest('money formatting always renders two decimals', () => {
   assert.equal(formatMoney('8.5'), '8.50')
   assert.equal(formatMoney('-8'), '-8.00')
   assert.equal(formatMoney('bad'), '0.00')
+})
+
+runTest('transaction amount formatting keeps the minus sign before the yuan symbol', () => {
+  assert.equal(formatTransactionAmount('-8'), '-¥8.00')
+  assert.equal(formatTransactionAmount('-8.5'), '-¥8.50')
+  assert.equal(formatTransactionAmount('8'), '¥8.00')
+  assert.equal(formatTransactionAmount('bad'), '¥0.00')
 })
 
 runTest('order status labels match payment state', () => {
@@ -127,4 +137,24 @@ runTest('in-flight pending settlements are visible but not retryable', () => {
   }
   assert.equal(getPendingSettlementMeta(required).action, '充值后继续结算')
   assert.equal(isPendingSettlementRetryable(required), true)
+})
+
+runTest('wallet pagination state exposes page controls without resetting refreshes', () => {
+  assert.deepEqual(getWalletPaginationState({ page: 2, pageSize: 10, total: 35, totalPages: 4 }), {
+    page: 2,
+    pageSize: 10,
+    total: 35,
+    totalPages: 4,
+    canPrevious: true,
+    canNext: true,
+  })
+  assert.deepEqual(getWalletPaginationState({ page: 4, pageSize: 10, total: 35, totalPages: 4 }), {
+    page: 4,
+    pageSize: 10,
+    total: 35,
+    totalPages: 4,
+    canPrevious: true,
+    canNext: false,
+  })
+  assert.equal(getWalletPaginationLabel({ page: 2, pageSize: 10, total: 35, totalPages: 4 }), '第 2 / 4 页，共 35 条')
 })

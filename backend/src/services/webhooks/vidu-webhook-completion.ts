@@ -17,10 +17,18 @@ export type CompleteViduWebhookVideoInput = {
 
 export type CompleteViduWebhookVideoDeps = CompleteGeneratedVideoJobDeps
 
+function assertBillingDeps(deps: CompleteGeneratedVideoJobDeps) {
+  if (!deps.readVideoDuration || !deps.settleVideoCompletion || !deps.persistPendingVideoSettlement) {
+    throw new Error('Vidu webhook video completion requires billing dependencies')
+  }
+}
+
 export async function completeViduWebhookVideo(
   input: CompleteViduWebhookVideoInput,
   deps: CompleteViduWebhookVideoDeps,
 ): Promise<CompletedGeneratedJobResult> {
+  assertBillingDeps(deps)
+
   return await completeGeneratedVideoJob({
     id: input.record.id,
     source: { type: 'url', videoUrl: input.videoUrl },

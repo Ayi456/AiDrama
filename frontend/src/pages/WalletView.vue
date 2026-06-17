@@ -17,7 +17,7 @@
           </div>
           <div>
             <b>¥{{ summary.totalConsumed }}</b>
-            <span>累计消耗</span>
+            <span>累计消费</span>
           </div>
           <div>
             <b>¥{{ summary.videoPricePerSecond }}/秒</b>
@@ -85,134 +85,180 @@
 
     <section v-if="pendingSettlements.length" class="wallet-settlement-banner">
       <div>
-        <h2>有 {{ pendingSettlements.length }} 个视频等待结算</h2>
-        <p>充值后可以继续扣费并发布成品视频。</p>
+        <h2>有 {{ pendingSettlementTotal }} 个视频等待结算</h2>
+        <p>余额不足或结算失败时，可充值后继续扣费并发布成品视频。</p>
       </div>
-      <button class="btn" type="button" @click="activeTab = 'pending'">
+      <button class="btn" type="button" @click="scrollToPendingList">
         查看待结算
       </button>
     </section>
 
-    <section class="wallet-ledger">
-      <div class="wallet-tabs" role="tablist" aria-label="钱包记录">
-        <button
-          v-for="tab in tabs"
-          :key="tab.key"
-          type="button"
-          :class="{ active: activeTab === tab.key }"
-          @click="activeTab = tab.key"
-        >
-          <component :is="tab.icon" :size="14" :stroke-width="1.9" />
-          <span>{{ tab.label }}</span>
-          <small>{{ tab.count }}</small>
-        </button>
-      </div>
-
-      <div v-if="activeTab === 'orders'" class="wallet-list">
-        <article v-for="order in orders" :key="readOrderNo(order)" class="wallet-row">
-          <span :class="['wallet-row-icon', getOrderStatusMeta(order.status).tone]">
-            <ReceiptText :size="15" :stroke-width="1.9" />
-          </span>
-          <div class="wallet-row-main">
-            <strong>{{ readOrderNo(order) }}</strong>
-            <span>{{ formatDateTime(order.createdAt || order.created_at) }}</span>
+    <div class="wallet-ledger-grid">
+      <section id="wallet-orders" class="wallet-ledger wallet-ledger--orders">
+        <div class="wallet-section-head">
+          <div>
+            <h2>充值订单</h2>
+            <p>待支付订单可继续支付或取消，每个列表独立分页。</p>
           </div>
-          <div class="wallet-row-side">
-            <div class="wallet-order-summary">
-              <b>¥{{ formatMoney(order.amount) }}</b>
-              <span :class="['wallet-status', getOrderStatusMeta(order.status).tone]">
-                {{ getOrderStatusMeta(order.status).label }}
-              </span>
+          <span class="wallet-section-count">{{ ordersPage.total }} 条</span>
+        </div>
+
+        <div class="wallet-list">
+          <article v-for="order in orders" :key="readOrderNo(order)" class="wallet-row">
+            <span :class="['wallet-row-icon', getOrderStatusMeta(order.status).tone]">
+              <ReceiptText :size="15" :stroke-width="1.9" />
+            </span>
+            <div class="wallet-row-main">
+              <strong>{{ readOrderNo(order) }}</strong>
+              <span>{{ formatDateTime(order.createdAt || order.created_at) }}</span>
             </div>
-            <div v-if="getPaymentOrderActions(order).canContinuePay" class="wallet-order-actions">
+            <div class="wallet-row-side">
+              <div class="wallet-order-summary">
+                <b>¥{{ formatMoney(order.amount) }}</b>
+                <span :class="['wallet-status', getOrderStatusMeta(order.status).tone]">
+                  {{ getOrderStatusMeta(order.status).label }}
+                </span>
+              </div>
+              <div v-if="getPaymentOrderActions(order).canContinuePay" class="wallet-order-actions">
+                <button
+                  class="btn btn-sm"
+                  type="button"
+                  :disabled="orderActionOrderNo === readOrderNo(order)"
+                  @click="continuePayment(order)"
+                >
+                  <CreditCard :size="13" :stroke-width="2" />
+                  继续支付
+                </button>
+                <button
+                  class="btn btn-sm wallet-order-cancel"
+                  type="button"
+                  :disabled="orderActionOrderNo === readOrderNo(order)"
+                  @click="cancelPayment(order)"
+                >
+                  <XCircle :size="13" :stroke-width="2" />
+                  取消
+                </button>
+              </div>
+            </div>
+          </article>
+
+          <div v-if="!orders.length" class="wallet-empty">
+            <ReceiptText :size="22" :stroke-width="1.7" />
+            <strong>暂无充值订单</strong>
+            <span>{{ ordersError || '创建充值订单后会显示在这里。' }}</span>
+          </div>
+        </div>
+
+        <div v-if="shouldShowPagination(ordersPage)" class="wallet-pagination">
+          <button class="btn btn-sm" type="button" :disabled="!ordersPager.canPrevious" @click="goOrdersPage(ordersPage.page - 1)">
+            上一页
+          </button>
+          <span>{{ getWalletPaginationLabel(ordersPage) }}</span>
+          <button class="btn btn-sm" type="button" :disabled="!ordersPager.canNext" @click="goOrdersPage(ordersPage.page + 1)">
+            下一页
+          </button>
+        </div>
+      </section>
+
+      <section id="wallet-transactions" class="wallet-ledger wallet-ledger--transactions">
+        <div class="wallet-section-head">
+          <div>
+            <h2>余额流水</h2>
+            <p>充值入账和视频扣费会按时间倒序记录。</p>
+          </div>
+          <span class="wallet-section-count">{{ transactionsPage.total }} 条</span>
+        </div>
+
+        <div class="wallet-list">
+          <article v-for="transaction in transactions" :key="readTransactionNo(transaction)" class="wallet-row">
+            <span :class="['wallet-row-icon', getTransactionTone(transaction)]">
+              <ArrowDownLeft v-if="getTransactionTone(transaction) === 'income'" :size="15" :stroke-width="1.9" />
+              <ArrowUpRight v-else :size="15" :stroke-width="1.9" />
+            </span>
+            <div class="wallet-row-main">
+              <strong>{{ transaction.description || describeTransaction(transaction) }}</strong>
+              <span>{{ formatDateTime(transaction.createdAt || transaction.created_at) }}</span>
+            </div>
+            <div class="wallet-row-side">
+              <b :class="getTransactionTone(transaction)">{{ formatTransactionAmount(transaction.amount) }}</b>
+              <span>余额 ¥{{ formatMoney(transaction.balanceAfter || transaction.balance_after) }}</span>
+            </div>
+          </article>
+
+          <div v-if="!transactions.length" class="wallet-empty">
+            <ListChecks :size="22" :stroke-width="1.7" />
+            <strong>暂无余额流水</strong>
+            <span>{{ transactionsError || '充值到账和视频扣费都会记录在这里。' }}</span>
+          </div>
+        </div>
+
+        <div v-if="shouldShowPagination(transactionsPage)" class="wallet-pagination">
+          <button class="btn btn-sm" type="button" :disabled="!transactionsPager.canPrevious" @click="goTransactionsPage(transactionsPage.page - 1)">
+            上一页
+          </button>
+          <span>{{ getWalletPaginationLabel(transactionsPage) }}</span>
+          <button class="btn btn-sm" type="button" :disabled="!transactionsPager.canNext" @click="goTransactionsPage(transactionsPage.page + 1)">
+            下一页
+          </button>
+        </div>
+      </section>
+
+      <section id="wallet-pending" class="wallet-ledger wallet-ledger--pending">
+        <div class="wallet-section-head">
+          <div>
+            <h2>视频待结算</h2>
+          <p>结算中、余额不足和结算失败的视频会实时更新。</p>
+          </div>
+          <span class="wallet-section-count">{{ pendingPage.total }} 条</span>
+        </div>
+
+        <div class="wallet-list">
+          <article v-for="item in pendingSettlements" :key="item.videoGenerationId" class="wallet-row wallet-row--pending">
+            <span :class="['wallet-row-icon', getPendingSettlementMeta(item).tone]">
+              <Clock3 :size="15" :stroke-width="1.9" />
+            </span>
+            <div class="wallet-row-main">
+              <strong>{{ item.title || `视频任务 #${item.videoGenerationId}` }}</strong>
+              <span>{{ getPendingSettlementSummary(item) }}</span>
+            </div>
+            <div class="wallet-row-side">
+              <span :class="['wallet-status', getPendingSettlementMeta(item).tone]">
+                {{ getPendingSettlementMeta(item).label }}
+              </span>
               <button
+                v-if="isPendingSettlementRetryable(item)"
                 class="btn btn-sm"
                 type="button"
-                :disabled="orderActionOrderNo === readOrderNo(order)"
-                @click="continuePayment(order)"
+                @click="retrySettlement(item.videoGenerationId)"
               >
-                <CreditCard :size="13" :stroke-width="2" />
-                继续支付
-              </button>
-              <button
-                class="btn btn-sm wallet-order-cancel"
-                type="button"
-                :disabled="orderActionOrderNo === readOrderNo(order)"
-                @click="cancelPayment(order)"
-              >
-                <XCircle :size="13" :stroke-width="2" />
-                取消
+                重试结算
               </button>
             </div>
-          </div>
-        </article>
+          </article>
 
-        <div v-if="!orders.length" class="wallet-empty">
-          <ReceiptText :size="22" :stroke-width="1.7" />
-          <strong>暂无充值订单</strong>
-          <span>{{ ordersError || '创建充值订单后会显示在这里。' }}</span>
+          <div v-if="!pendingSettlements.length" class="wallet-empty">
+            <CheckCircle2 :size="22" :stroke-width="1.7" />
+            <strong>没有待结算视频</strong>
+            <span>{{ pendingError || '余额足够时，视频完成后会自动结算。' }}</span>
+          </div>
         </div>
-      </div>
 
-      <div v-else-if="activeTab === 'transactions'" class="wallet-list">
-        <article v-for="transaction in transactions" :key="readTransactionNo(transaction)" class="wallet-row">
-          <span :class="['wallet-row-icon', getTransactionTone(transaction)]">
-            <ArrowDownLeft v-if="getTransactionTone(transaction) === 'income'" :size="15" :stroke-width="1.9" />
-            <ArrowUpRight v-else :size="15" :stroke-width="1.9" />
-          </span>
-          <div class="wallet-row-main">
-            <strong>{{ transaction.description || describeTransaction(transaction) }}</strong>
-            <span>{{ formatDateTime(transaction.createdAt || transaction.created_at) }}</span>
-          </div>
-          <div class="wallet-row-side">
-            <b :class="getTransactionTone(transaction)">¥{{ formatMoney(transaction.amount) }}</b>
-            <span>余额 ¥{{ formatMoney(transaction.balanceAfter || transaction.balance_after) }}</span>
-          </div>
-        </article>
-
-        <div v-if="!transactions.length" class="wallet-empty">
-          <ListChecks :size="22" :stroke-width="1.7" />
-          <strong>暂无余额流水</strong>
-          <span>{{ transactionsError || '充值到账和视频扣费都会记录在这里。' }}</span>
+        <div v-if="shouldShowPagination(pendingPage)" class="wallet-pagination">
+          <button class="btn btn-sm" type="button" :disabled="!pendingPager.canPrevious" @click="goPendingPage(pendingPage.page - 1)">
+            上一页
+          </button>
+          <span>{{ getWalletPaginationLabel(pendingPage) }}</span>
+          <button class="btn btn-sm" type="button" :disabled="!pendingPager.canNext" @click="goPendingPage(pendingPage.page + 1)">
+            下一页
+          </button>
         </div>
-      </div>
-
-      <div v-else class="wallet-list">
-        <article v-for="item in pendingSettlements" :key="item.videoGenerationId" class="wallet-row wallet-row--pending">
-          <span :class="['wallet-row-icon', getPendingSettlementMeta(item).tone]">
-            <Clock3 :size="15" :stroke-width="1.9" />
-          </span>
-          <div class="wallet-row-main">
-            <strong>{{ item.title || `视频任务 #${item.videoGenerationId}` }}</strong>
-            <span>{{ getPendingSettlementSummary(item) }}</span>
-          </div>
-          <div class="wallet-row-side">
-            <span :class="['wallet-status', getPendingSettlementMeta(item).tone]">
-              {{ getPendingSettlementMeta(item).label }}
-            </span>
-            <button
-              v-if="isPendingSettlementRetryable(item)"
-              class="btn btn-sm"
-              type="button"
-              @click="retrySettlement(item.videoGenerationId)"
-            >
-              重试结算
-            </button>
-          </div>
-        </article>
-
-        <div v-if="!pendingSettlements.length" class="wallet-empty">
-          <CheckCircle2 :size="22" :stroke-width="1.7" />
-          <strong>没有待结算视频</strong>
-          <span>{{ pendingError || '余额足够时，视频完成后会自动结算。' }}</span>
-        </div>
-      </div>
-    </section>
+      </section>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, type Ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { toast } from 'vue-sonner'
 import {
@@ -222,7 +268,6 @@ import {
   CircleAlert,
   Clock3,
   CreditCard,
-  FileClock,
   ListChecks,
   Loader2,
   ReceiptText,
@@ -233,6 +278,7 @@ import {
   paymentAPI,
   videoAPI,
   walletAPI,
+  type PaginatedResponse,
   type PaymentOrder,
   type PendingVideoSettlement,
   type WalletSummary,
@@ -242,22 +288,27 @@ import {
   describeTransaction,
   formatDateTime,
   formatMoney,
+  formatTransactionAmount,
+  getOrderStatusMeta,
   getPaymentOrderActions,
   getPendingSettlementMeta,
   getPendingSettlementSummary,
-  getOrderStatusMeta,
   getTransactionTone,
+  getWalletPaginationLabel,
+  getWalletPaginationState,
   hasPendingPaymentOrders,
   isPendingSettlementRetryable,
   normalizeRechargeAmountInput,
   upsertPaymentOrder,
+  type WalletPaginationState,
 } from './wallet-view-policy'
 import '@/assets/wallet.css'
 
-type WalletTab = 'orders' | 'transactions' | 'pending'
+type PageState = Pick<WalletPaginationState, 'page' | 'pageSize' | 'total' | 'totalPages'>
 
 const route = useRoute()
 const quickAmounts = ['1.00', '10.00', '50.00', '100.00', '500.00']
+const pageSize = 10
 const defaultSummary: WalletSummary = {
   balance: '0.00',
   totalRecharged: '0.00',
@@ -269,7 +320,9 @@ const summary = ref<WalletSummary>({ ...defaultSummary })
 const orders = ref<PaymentOrder[]>([])
 const transactions = ref<WalletTransaction[]>([])
 const pendingSettlements = ref<PendingVideoSettlement[]>([])
-const activeTab = ref<WalletTab>('orders')
+const ordersPage = ref(createPageState())
+const transactionsPage = ref(createPageState())
+const pendingPage = ref(createPageState())
 const rechargeAmount = ref('100.00')
 const rechargeError = ref('')
 const walletError = ref('')
@@ -282,11 +335,32 @@ const activeOrder = ref<PaymentOrder | null>(null)
 let orderRefreshTimer: number | undefined
 let settlementRefreshTimer: number | undefined
 
-const tabs = computed(() => [
-  { key: 'orders' as const, label: '订单', icon: ReceiptText, count: orders.value.length },
-  { key: 'transactions' as const, label: '流水', icon: ListChecks, count: transactions.value.length },
-  { key: 'pending' as const, label: '待结算', icon: FileClock, count: pendingSettlements.value.length },
-])
+const ordersPager = computed(() => getWalletPaginationState(ordersPage.value))
+const transactionsPager = computed(() => getWalletPaginationState(transactionsPage.value))
+const pendingPager = computed(() => getWalletPaginationState(pendingPage.value))
+const pendingSettlementTotal = computed(() => pendingPage.value.total || pendingSettlements.value.length)
+
+function createPageState(): PageState {
+  return {
+    page: 1,
+    pageSize,
+    total: 0,
+    totalPages: 1,
+  }
+}
+
+function applyPageState<T>(target: Ref<PageState>, response: PaginatedResponse<T>) {
+  target.value = {
+    page: response.page || 1,
+    pageSize: response.pageSize || pageSize,
+    total: response.total || 0,
+    totalPages: response.totalPages || 1,
+  }
+}
+
+function shouldShowPagination(meta: PageState) {
+  return getWalletPaginationState(meta).totalPages > 1
+}
 
 function readOrderNo(order: PaymentOrder) {
   return order.orderNo || order.order_no || '未生成订单号'
@@ -306,30 +380,36 @@ async function loadSummary() {
   }
 }
 
-async function loadOrders() {
+async function loadOrders(page = ordersPage.value.page) {
   ordersError.value = ''
   try {
-    orders.value = (await paymentAPI.listOrders(30)).items || []
+    const response = await paymentAPI.listOrders({ page, pageSize: ordersPage.value.pageSize })
+    orders.value = response.items || []
+    applyPageState(ordersPage, response)
   } catch {
     orders.value = []
     ordersError.value = '订单列表接口暂未可用。'
   }
 }
 
-async function loadTransactions() {
+async function loadTransactions(page = transactionsPage.value.page) {
   transactionsError.value = ''
   try {
-    transactions.value = (await walletAPI.transactions(30)).items || []
+    const response = await walletAPI.transactions({ page, pageSize: transactionsPage.value.pageSize })
+    transactions.value = response.items || []
+    applyPageState(transactionsPage, response)
   } catch {
     transactions.value = []
     transactionsError.value = '流水接口暂未可用。'
   }
 }
 
-async function loadPendingSettlements() {
+async function loadPendingSettlements(page = pendingPage.value.page) {
   pendingError.value = ''
   try {
-    pendingSettlements.value = (await walletAPI.pendingSettlements()).items || []
+    const response = await walletAPI.pendingSettlements({ page, pageSize: pendingPage.value.pageSize })
+    pendingSettlements.value = response.items || []
+    applyPageState(pendingPage, response)
   } catch {
     pendingSettlements.value = []
     pendingError.value = '待结算列表接口暂未可用。'
@@ -348,9 +428,9 @@ async function refreshAll() {
 async function refreshPendingPaymentOrders() {
   if (!hasPendingPaymentOrders(orders.value)) return
   await Promise.all([
-    loadOrders(),
+    loadOrders(ordersPage.value.page),
     loadSummary(),
-    loadTransactions(),
+    loadTransactions(transactionsPage.value.page),
   ])
 }
 
@@ -369,9 +449,9 @@ function stopOrderRefresh() {
 
 async function refreshPendingSettlementSnapshot() {
   await Promise.all([
-    loadPendingSettlements(),
+    loadPendingSettlements(pendingPage.value.page),
     loadSummary(),
-    loadTransactions(),
+    loadTransactions(transactionsPage.value.page),
   ])
 }
 
@@ -402,6 +482,26 @@ function replaceOrderInList(updatedOrder: PaymentOrder) {
   orders.value = upsertPaymentOrder(orders.value, updatedOrder)
 }
 
+async function goOrdersPage(page: number) {
+  if (page < 1 || page > ordersPage.value.totalPages) return
+  await loadOrders(page)
+}
+
+async function goTransactionsPage(page: number) {
+  if (page < 1 || page > transactionsPage.value.totalPages) return
+  await loadTransactions(page)
+}
+
+async function goPendingPage(page: number) {
+  if (page < 1 || page > pendingPage.value.totalPages) return
+  await loadPendingSettlements(page)
+}
+
+function scrollToPendingList() {
+  if (typeof document === 'undefined') return
+  document.getElementById('wallet-pending')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
 async function createRechargeOrder() {
   rechargeError.value = ''
   const normalizedAmount = normalizeRechargeAmountInput(rechargeAmount.value)
@@ -415,14 +515,21 @@ async function createRechargeOrder() {
     rechargeAmount.value = normalizedAmount
     const order = await paymentAPI.createRechargeOrder(normalizedAmount)
     activeOrder.value = { orderNo: order.orderNo, amount: order.amount, status: 'pending' }
-    orders.value = upsertPaymentOrder(orders.value, {
+    const wasOnFirstOrderPage = ordersPage.value.page === 1
+    const nextTotal = ordersPage.value.total + 1
+    ordersPage.value = {
+      ...ordersPage.value,
+      page: 1,
+      total: nextTotal,
+      totalPages: Math.max(Math.ceil(nextTotal / ordersPage.value.pageSize), 1),
+    }
+    orders.value = upsertPaymentOrder(wasOnFirstOrderPage ? orders.value : [], {
       orderNo: order.orderNo,
       amount: order.amount,
       status: 'pending',
       provider: 'alipay',
       createdAt: new Date().toISOString(),
     })
-    activeTab.value = 'orders'
     submitPaymentForm(order.paymentFormHtml)
   } catch (error) {
     toast.error(error instanceof Error ? error.message : '创建充值订单失败')
@@ -488,7 +595,7 @@ async function pollOrder(orderNo: string) {
         return
       }
       if (order.status === 'closed') {
-        await loadOrders()
+        await loadOrders(ordersPage.value.page)
         return
       }
     } catch {}

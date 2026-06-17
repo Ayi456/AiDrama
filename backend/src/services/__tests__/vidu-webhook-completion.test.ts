@@ -18,6 +18,7 @@ runTest('completeViduWebhookVideo reuses generated video completion and preserve
   let tick = 0
   const videoPatches: unknown[] = []
   const storyboardPatches: unknown[] = []
+  const settlements: unknown[] = []
   const logs: unknown[] = []
 
   const result = await completeViduWebhookVideo({
@@ -37,11 +38,22 @@ runTest('completeViduWebhookVideo reuses generated video completion and preserve
       assert.equal(localPath, 'static/videos/vidu.mp4')
       return 'https://cos.example.com/videos/vidu.mp4'
     },
+    readVideoDuration: async (localPath: string) => {
+      assert.equal(localPath, 'static/videos/vidu.mp4')
+      return 8.25
+    },
     persistVideoCompletion: async (patch) => {
       videoPatches.push(patch)
     },
     publishStoryboardVideo: async (storyboardId, patch) => {
       storyboardPatches.push({ storyboardId, patch })
+    },
+    persistPendingVideoSettlement: async () => {
+      assert.fail('Settled Vidu webhook videos should not persist pending settlement data')
+    },
+    settleVideoCompletion: async (input) => {
+      settlements.push(input)
+      return { status: 'settled' }
     },
     logSuccess: (taskName, event, payload) => {
       logs.push({ taskName, event, payload })
@@ -65,9 +77,16 @@ runTest('completeViduWebhookVideo reuses generated video completion and preserve
     storyboardId: 12,
     patch: {
       videoUrl: 'https://cos.example.com/videos/vidu.mp4',
-      duration: undefined,
+      duration: 8.25,
       updatedAt: 't2',
     },
+  }])
+  assert.deepEqual(settlements, [{
+    id: 31,
+    publicUrl: 'https://cos.example.com/videos/vidu.mp4',
+    localPath: 'static/videos/vidu.mp4',
+    duration: 8.25,
+    storyboardId: 12,
   }])
   assert.deepEqual(logs, [{
     taskName: 'Webhook',
@@ -80,4 +99,29 @@ runTest('completeViduWebhookVideo reuses generated video completion and preserve
       publicUrl: 'https://cos.example.com/videos/vidu.mp4',
     },
   }])
+})
+
+runTest('completeViduWebhookVideo refuses to publish without billing dependencies', async () => {
+  await assert.rejects(
+    () => completeViduWebhookVideo({
+      taskId: 'vidu-task-no-billing',
+      record: {
+        id: 32,
+        storyboardId: 12,
+      },
+      videoUrl: 'https://provider.example.com/vidu.mp4',
+    }, {
+      now: () => 't1',
+      downloadFile: async () => 'static/videos/vidu.mp4',
+      uploadGeneratedAsset: async () => 'https://cos.example.com/videos/vidu.mp4',
+      persistVideoCompletion: async () => {
+        assert.fail('Vidu webhook should not persist a completed video before billing is wired')
+      },
+      publishStoryboardVideo: async () => {
+        assert.fail('Vidu webhook should not publish storyboard video before billing is wired')
+      },
+      logSuccess: () => {},
+    }),
+    /requires billing dependencies/,
+  )
 })

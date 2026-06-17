@@ -12,6 +12,12 @@ import { buildDefectCheckCallback } from '../../services/generation/video-defect
 import { generateVideo } from '../../services/generation/video-generation.js'
 import { captureAndPersistTailFrame, notifyAutomationAfterVideo } from '../../services/automation/video-side-effects.js'
 import { logTaskError, logTaskProgress, logTaskSuccess, logTaskWarn } from '../../utils/task-logger.js'
+import { getVideoDurationPrecise } from '../../services/ffmpeg/ffmpeg.js'
+import {
+  persistPendingVideoSettlement,
+  resolveVideoGenerationUserId,
+  settleCompletedVideo,
+} from '../../services/billing/video-billing.js'
 
 const app = new Hono()
 
@@ -53,11 +59,21 @@ app.post('/vidu', async (c) => {
         now,
         downloadFile,
         uploadGeneratedAsset: uploadStaticAssetToCos,
+        readVideoDuration: getVideoDurationPrecise,
         persistVideoCompletion: async (patch) => {
           await db.update(schema.videoGenerations)
             .set(patch)
             .where(eq(schema.videoGenerations.id, record.id))
             .run()
+        },
+        persistPendingVideoSettlement: async (patch) => {
+          await persistPendingVideoSettlement({
+            videoGenerationId: record.id,
+            publicUrl: patch.pendingVideoUrl,
+            localPath: patch.pendingLocalPath,
+            durationSeconds: patch.pendingDurationSeconds,
+            message: patch.billingError,
+          })
         },
         publishStoryboardVideo: async (storyboardId, patch) => {
           await db.update(schema.storyboards)
@@ -66,6 +82,21 @@ app.post('/vidu', async (c) => {
             .run()
         },
         logSuccess: logTaskSuccess,
+        settleVideoCompletion: async (settlement) => {
+          const ownerUserId = await resolveVideoGenerationUserId(record.id)
+          if (!ownerUserId) throw new Error('Video generation owner not found')
+          const status = await settleCompletedVideo({
+            userId: ownerUserId,
+            videoGenerationId: record.id,
+            videoUrl: settlement.publicUrl,
+            localPath: settlement.localPath,
+            durationSeconds: settlement.duration || 0,
+          })
+          if (status === 'billing_required') {
+            return { status, message: '余额不足，请充值后继续结算' }
+          }
+          return { status }
+        },
         defectCheck: buildDefectCheckCallback(async (params) => {
           return await generateVideo({
             storyboardId: params.storyboardId ?? undefined,
@@ -87,6 +118,16 @@ app.post('/vidu', async (c) => {
           })
         }),
       })
+      if (result.action === 'billing_required') {
+        return success(c, { message: 'Video completed and is waiting for billing' })
+      }
+      if (result.action === 'regenerate') {
+        return success(c, { message: 'Video queued for regeneration' })
+      }
+      if (result.action === 'failed') {
+        await notifyAutomationAfterVideo(record.id, record.storyboardId ?? null, 'failed')
+        return success(c, { message: 'Video defect check failed' })
+      }
       try {
         await captureAndPersistTailFrame(record.id, result.localPath)
       } catch (err) {

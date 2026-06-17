@@ -4,13 +4,18 @@ import { getCurrentUser } from '../../middleware/auth.js'
 import { badRequest, created, success } from '../../utils/response.js'
 import {
   cancelPaymentOrderForUser,
+  countPaymentOrdersForUser,
   continuePaymentOrderForUser,
   createRechargeOrder,
   getPaymentOrderForUser,
   handleAlipayNotify,
   listPaymentOrdersForUser,
 } from '../../services/payments/payment-orders.js'
-import { readWalletListLimit } from '../policies/wallet-route-policy.js'
+import {
+  buildWalletPageMeta,
+  buildWalletPaginatedPayload,
+  readWalletPagination,
+} from '../policies/wallet-route-policy.js'
 
 const app = new Hono()
 
@@ -28,8 +33,18 @@ app.post('/recharge-orders', async (c) => {
 
 app.get('/orders', async (c) => {
   const currentUser = getCurrentUser(c)
-  const limit = readWalletListLimit(c.req.query('limit'))
-  return success(c, { items: await listPaymentOrdersForUser(currentUser.id, limit) })
+  const pagination = readWalletPagination({
+    page: c.req.query('page'),
+    pageSize: c.req.query('pageSize'),
+    limit: c.req.query('limit'),
+  })
+  const total = await countPaymentOrdersForUser(currentUser.id)
+  const meta = buildWalletPageMeta(pagination, total)
+  const items = await listPaymentOrdersForUser(currentUser.id, {
+    pageSize: meta.pageSize,
+    offset: meta.offset,
+  })
+  return success(c, buildWalletPaginatedPayload(items, meta))
 })
 
 app.get('/orders/:orderNo', async (c) => {
