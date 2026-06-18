@@ -6,7 +6,7 @@
           <span class="home-kicker">{{ stats.total }} 个项目正在该账号下管理</span>
           <h1 id="home-title" class="home-title">短剧工作台</h1>
           <p class="home-lead">
-            把项目、角色资产、分集脚本和自动化任务放在同一张制作桌上。首页优先回答三件事：有哪些项目，下一步做什么，哪些任务正在跑。
+            在这里查看和管理你的短剧项目，快速进入制作、继续未完成任务，并掌握正在生成的进度。
           </p>
           <div class="home-action-row">
             <button class="btn btn-primary" type="button" @click="showCreate = true">

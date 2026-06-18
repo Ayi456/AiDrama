@@ -7,6 +7,7 @@ import { success } from '../../utils/response.js'
 import { getVideoPricePerSecond } from '../../services/billing/billing-settings.js'
 import { countWalletTransactions, getOrCreateWallet, getWalletTransactions } from '../../services/billing/wallet.js'
 import {
+  buildPendingSettlementInFlightCutoffs,
   buildWalletPageMeta,
   buildWalletPaginatedPayload,
   readWalletPagination,
@@ -25,8 +26,10 @@ type PendingSettlementRow = RowDataPacket & {
   billed_seconds: string | null
   billing_status: string | null
   status: string | null
+  task_id: string | null
   duration: number | null
   created_at: string | null
+  updated_at: string | null
 }
 
 type CountRow = RowDataPacket & {
@@ -74,9 +77,32 @@ app.get('/pending-settlements', async (c) => {
     pageSize: c.req.query('pageSize'),
     limit: c.req.query('limit'),
   })
-  const whereSql = `vg.billing_status IN ('billing', 'billing_required', 'billing_failed')
+  const cutoffs = buildPendingSettlementInFlightCutoffs()
+  const lastTouchedSql = `COALESCE(NULLIF(vg.updated_at, ''), NULLIF(vg.created_at, ''))`
+  const whereSql = `(vg.billing_status IN ('billing', 'billing_required', 'billing_failed')
+          OR (
+            vg.billing_status = 'unbilled'
+            AND vg.status IN ('pending', 'processing', 'checking_defect')
+            AND (
+              ${lastTouchedSql} IS NULL
+              OR (
+                TRIM(COALESCE(vg.task_id, '')) = ''
+                AND ${lastTouchedSql} >= ?
+              )
+              OR (
+                TRIM(COALESCE(vg.task_id, '')) <> ''
+                AND ${lastTouchedSql} >= ?
+              )
+            )
+          ))
         AND (vg.user_id = ? OR d.user_id = ? OR sd.user_id = ?)`
-  const params = [currentUser.id, currentUser.id, currentUser.id]
+  const params = [
+    cutoffs.withoutTaskUpdatedAfter,
+    cutoffs.withTaskUpdatedAfter,
+    currentUser.id,
+    currentUser.id,
+    currentUser.id,
+  ]
   const [countRows] = await mysqlPool.execute<CountRow[]>(
     `SELECT COUNT(*) AS total
        FROM video_generations vg
@@ -97,8 +123,10 @@ app.get('/pending-settlements', async (c) => {
             vg.billed_seconds,
             vg.billing_status,
             vg.status,
+            vg.task_id,
             vg.duration,
-            vg.created_at
+            vg.created_at,
+            vg.updated_at
        FROM video_generations vg
        LEFT JOIN storyboards sb ON sb.id = vg.storyboard_id
        LEFT JOIN episodes ep ON ep.id = sb.episode_id
@@ -115,6 +143,9 @@ app.get('/pending-settlements', async (c) => {
       .filter(row => shouldExposePendingSettlement({
         billingStatus: row.billing_status,
         generationStatus: row.status,
+        taskId: row.task_id,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
       }))
       .map(row => ({
         videoGenerationId: Number(row.id),

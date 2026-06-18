@@ -99,6 +99,7 @@ app.post('/vidu', async (c) => {
         },
         defectCheck: buildDefectCheckCallback(async (params) => {
           return await generateVideo({
+            userId: params.userId ?? undefined,
             storyboardId: params.storyboardId ?? undefined,
             dramaId: params.dramaId ?? undefined,
             prompt: params.prompt,

@@ -1,5 +1,6 @@
 export interface VideoRecordForRegen {
   id: number
+  userId?: number | null
   prompt: string | null
   model: string | null
   configId?: number | null
@@ -20,6 +21,7 @@ export interface VideoRecordForRegen {
 }
 
 export interface RegenEnqueueParams {
+  userId?: number
   prompt: string
   model: string | null
   configId?: number | null
@@ -71,6 +73,7 @@ export async function enqueueDefectRegeneration(input: RegenInput): Promise<numb
   const prompt = buildRegenPrompt(rec.prompt ?? '', input.missingActions)
   const previousAttempt = typeof rec.defectCheckAttempt === 'number' ? rec.defectCheckAttempt : 0
   return await input.enqueue({
+    ...(rec.userId == null ? {} : { userId: rec.userId }),
     prompt,
     model: rec.model,
     configId: rec.configId,

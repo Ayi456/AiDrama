@@ -20,6 +20,7 @@ import {
   resolveVideoPollOutcome,
 } from './chapterVideoPollingPolicy'
 import {
+  getPendingVideoHistoryGeneration,
   getVideoHistoryUrl,
   normalizeVideoHistory,
   shouldApplyVideoHistoryLoadResult,
@@ -53,9 +54,20 @@ export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
   const videoHistory = ref<Record<number, VideoGeneration[]>>({})
   const loadingVideoHistoryIds = ref<number[]>([])
   const videoHistoryLoadTokens = ref<Record<number, number>>({})
+  const pollingVideoGenerationIds = new Set<number>()
 
   function isPendingVideo(id: number) {
     return pendingVideoIds.value.includes(id)
+  }
+
+  function addPendingVideo(storyboardId: number) {
+    if (!isPendingVideo(storyboardId)) {
+      pendingVideoIds.value = [...pendingVideoIds.value, storyboardId]
+    }
+  }
+
+  function removePendingVideo(storyboardId: number) {
+    pendingVideoIds.value = pendingVideoIds.value.filter(item => item !== storyboardId)
   }
 
   function videoFailMessage(id: number) {
@@ -92,6 +104,42 @@ export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
     }
   }
 
+  function recordVideoHistoryBilling(storyboardId: number, rows: VideoGeneration[]) {
+    rows.forEach((row) => {
+      const generationId = Number(
+        row?.effective_generation_id ||
+        row?.effectiveGenerationId ||
+        row?.regeneration_id ||
+        row?.regenerationId ||
+        row?.id ||
+        0,
+      )
+      recordVideoBilling(storyboardId, row, generationId)
+    })
+  }
+
+  function startVideoGenerationPolling(generationId: number, storyboardId: number, previousVideoUrl = '') {
+    if (!generationId) {
+      void pollVideoGeneration(generationId, storyboardId, previousVideoUrl)
+      return
+    }
+    if (pollingVideoGenerationIds.has(generationId)) return
+    pollingVideoGenerationIds.add(generationId)
+    void pollVideoGeneration(generationId, storyboardId, previousVideoUrl)
+      .finally(() => {
+        pollingVideoGenerationIds.delete(generationId)
+      })
+  }
+
+  function restorePendingVideoFromHistory(storyboardId: number, rows: VideoGeneration[]) {
+    const pending = getPendingVideoHistoryGeneration(rows)
+    if (!pending) return
+
+    addPendingVideo(storyboardId)
+    const target = options.sbs.value.find(s => Number(s.id) === storyboardId)
+    startVideoGenerationPolling(pending.generationId, storyboardId, getVideoUrl(target) || '')
+  }
+
   function getVideoHistory(storyboardId: number) {
     return videoHistory.value[Number(storyboardId)] || []
   }
@@ -114,6 +162,8 @@ export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
     try {
       const rows = await videoAPI.list({ storyboard_id: id })
       if (!shouldApplyVideoHistoryLoadResult(videoHistoryLoadTokens.value, id, token)) return
+      recordVideoHistoryBilling(id, rows || [])
+      restorePendingVideoFromHistory(id, rows || [])
       videoHistory.value = {
         ...videoHistory.value,
         [id]: normalizeVideoHistory(rows || []),
@@ -153,14 +203,14 @@ export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
     const previousVideoUrl = getVideoUrl(storyboard) || ''
     try {
       delete failedVideoMessages.value[storyboardId]
-      if (!isPendingVideo(storyboardId)) pendingVideoIds.value.push(storyboardId)
+      addPendingVideo(storyboardId)
       const generation = await videoAPI.generate(params)
       recordVideoBilling(storyboardId, generation, Number(generation?.id || 0))
       toast.success('视频生成中')
       await options.refresh()
-      void pollVideoGeneration(Number(generation?.id || 0), storyboardId, previousVideoUrl)
+      startVideoGenerationPolling(Number(generation?.id || 0), storyboardId, previousVideoUrl)
     } catch (error: unknown) {
-      pendingVideoIds.value = pendingVideoIds.value.filter(item => item !== storyboardId)
+      removePendingVideo(storyboardId)
       toast.error(errorMessageFromUnknown(error))
     }
   }
@@ -170,7 +220,7 @@ export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
       options.watchAsyncResult(() => {
         const target = options.sbs.value.find(s => s.id === storyboardId)
         const done = hasNewStoryboardVideo(getVideoUrl(target), previousVideoUrl)
-        if (done) pendingVideoIds.value = pendingVideoIds.value.filter(item => item !== storyboardId)
+        if (done) removePendingVideo(storyboardId)
         return done
       }, 60, 4000)
       return
@@ -192,14 +242,14 @@ export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
           if (target && completedUrl && targetVideoUrl !== completedUrl) {
             await options.updateField(target, 'video_url', completedUrl)
           }
-          pendingVideoIds.value = pendingVideoIds.value.filter(item => item !== storyboardId)
+          removePendingVideo(storyboardId)
           delete failedVideoMessages.value[storyboardId]
           await loadVideoHistory(storyboardId)
           toast.success('视频生成完成')
           return
         }
         if (outcome.type === 'failed') {
-          pendingVideoIds.value = pendingVideoIds.value.filter(item => item !== storyboardId)
+          removePendingVideo(storyboardId)
           failedVideoMessages.value = {
             ...failedVideoMessages.value,
             [storyboardId]: outcome.message,
@@ -208,7 +258,7 @@ export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
           return
         }
         if (outcome.type === 'billing_required') {
-          pendingVideoIds.value = pendingVideoIds.value.filter(item => item !== storyboardId)
+          removePendingVideo(storyboardId)
           failedVideoMessages.value = {
             ...failedVideoMessages.value,
             [storyboardId]: outcome.message,
@@ -219,7 +269,7 @@ export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
       } catch {}
     }
 
-    pendingVideoIds.value = pendingVideoIds.value.filter(item => item !== storyboardId)
+    removePendingVideo(storyboardId)
     const exhaustedOutcome = resolveVideoPollExhaustedOutcome()
     delete failedVideoMessages.value[storyboardId]
     toast.info(exhaustedOutcome.message)
@@ -240,7 +290,7 @@ export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
     options.watchAsyncResult(() => pendingIds.every(id => {
       const target = options.sbs.value.find(s => s.id === id)
       const done = hasStoryboardVideo(target)
-      if (done) pendingVideoIds.value = pendingVideoIds.value.filter(item => item !== id)
+      if (done) removePendingVideo(id)
       return done
     }), 80, 4000)
   }

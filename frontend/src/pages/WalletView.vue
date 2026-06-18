@@ -35,7 +35,7 @@
         <div class="wallet-card-head">
           <div>
             <h2>支付宝充值</h2>
-            <p>可输入 1、1.0 或 1.00，支付成功后由异步通知入账。</p>
+            <p>支持整数或小数金额，支付完成后余额会自动更新。</p>
           </div>
           <Wallet :size="20" :stroke-width="1.8" />
         </div>
@@ -53,7 +53,7 @@
             />
           </div>
           <span v-if="rechargeError" class="field-error">{{ rechargeError }}</span>
-          <span v-else class="field-hint">金额范围 1 到 9999 元，提交时自动保留两位小数。</span>
+          <span v-else class="field-hint">充值金额为 1 到 9999 元，提交后会按两位小数确认。</span>
         </label>
 
         <div class="wallet-quick-amounts" aria-label="快捷金额">
@@ -86,7 +86,7 @@
     <section v-if="pendingSettlements.length" class="wallet-settlement-banner">
       <div>
         <h2>有 {{ pendingSettlementTotal }} 个视频等待结算</h2>
-        <p>余额不足或结算失败时，可充值后继续扣费并发布成品视频。</p>
+        <p>充值后系统会继续处理结算，并在成功后发布成品视频。</p>
       </div>
       <button class="btn" type="button" @click="scrollToPendingList">
         查看待结算
@@ -98,7 +98,7 @@
         <div class="wallet-section-head">
           <div>
             <h2>充值订单</h2>
-            <p>待支付订单可继续支付或取消，每个列表独立分页。</p>
+            <p>查看充值记录和未完成订单，待支付订单可继续支付或取消。</p>
           </div>
           <span class="wallet-section-count">{{ ordersPage.total }} 条</span>
         </div>
@@ -164,7 +164,7 @@
         <div class="wallet-section-head">
           <div>
             <h2>余额流水</h2>
-            <p>充值入账和视频扣费会按时间倒序记录。</p>
+            <p>每一笔充值和视频扣费都会保留记录，方便核对余额变化。</p>
           </div>
           <span class="wallet-section-count">{{ transactionsPage.total }} 条</span>
         </div>

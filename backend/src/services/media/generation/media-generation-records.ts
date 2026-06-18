@@ -14,6 +14,11 @@ export type VideoGenerationRequestContextRecord = {
   referenceMode?: string | null
 }
 
+export type VideoGenerationPollingContextRecord = {
+  storyboardId?: number | null
+  duration?: number | null
+}
+
 export async function loadMediaGenerationRecord<T>(
   id: number,
   fetchRows: (id: number) => Promise<readonly T[]>,
@@ -48,5 +53,12 @@ export function buildVideoGenerationRequestContext(input: {
     provider: input.provider,
     storyboardId: input.record.storyboardId,
     referenceMode: input.record.referenceMode,
+  }
+}
+
+export function buildVideoGenerationPollingContext(record: VideoGenerationPollingContextRecord) {
+  return {
+    storyboardId: record.storyboardId,
+    duration: record.duration,
   }
 }

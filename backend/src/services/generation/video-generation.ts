@@ -22,6 +22,7 @@ import {
 } from '../media/generation/media-generation-enqueue.js'
 import { assembleVideoGenerateRequest } from '../media/request/media-request-assembly.js'
 import {
+  buildVideoGenerationPollingContext,
   buildVideoGenerationRequestContext,
   loadMediaGenerationRecord,
 } from '../media/generation/media-generation-records.js'
@@ -172,7 +173,7 @@ async function processVideoGeneration(id: number, config: AIConfig) {
       return
     }
 
-    pollVideoTask(id, config, taskId, record.storyboardId)
+    pollVideoTask(id, config, taskId, buildVideoGenerationPollingContext(record))
   } catch (error: unknown) {
     await recordMediaJobFailure({
       taskName: 'VideoTask',
@@ -190,9 +191,15 @@ async function processVideoGeneration(id: number, config: AIConfig) {
   }
 }
 
-async function pollVideoTask(id: number, config: AIConfig, taskId: string, storyboardId?: number | null) {
+async function pollVideoTask(
+  id: number,
+  config: AIConfig,
+  taskId: string,
+  context: { storyboardId?: number | null; duration?: number | null },
+) {
   const adapter = getVideoAdapter(config.provider)
   const persistence = createVideoGenerationDbPersistence(id)
+  const storyboardId = context.storyboardId
 
   const pollResult = await runMediaPollingLoop<void>({
     maxAttempts: 300,
@@ -226,7 +233,7 @@ async function pollVideoTask(id: number, config: AIConfig, taskId: string, story
 
       if (pollDecision.type === 'completed-url') {
         logTaskSuccess('VideoTask', 'poll-complete', { id, taskId, videoUrl: pollDecision.videoUrl })
-        await completeGeneratedVideo(id, { type: 'url', videoUrl: pollDecision.videoUrl }, null, storyboardId)
+        await completeGeneratedVideo(id, { type: 'url', videoUrl: pollDecision.videoUrl }, context.duration, storyboardId)
         return { type: 'done', value: undefined }
       }
 
@@ -384,6 +391,7 @@ async function completeGeneratedVideo(
     },
     defectCheck: buildDefectCheckCallback(async (params) => {
       return await generateVideo({
+        userId: params.userId ?? undefined,
         storyboardId: params.storyboardId ?? undefined,
         dramaId: params.dramaId ?? undefined,
         prompt: params.prompt,

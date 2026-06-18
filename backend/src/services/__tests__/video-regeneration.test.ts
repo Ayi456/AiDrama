@@ -9,6 +9,7 @@ import {
 
 const baseRecord: VideoRecordForRegen = {
   id: 42,
+  userId: 3,
   prompt: '一名剑客出鞘并跃下',
   model: 'wanx-v1',
   configId: 7,
@@ -71,6 +72,7 @@ test('enqueueDefectRegeneration: forwards params and increments attempt + parent
   assert.equal(newId, 88)
   assert.equal(captured.defectCheckParentId, 42)
   assert.equal(captured.defectCheckAttempt, 1)
+  assert.equal(captured.userId, 3)
   assert.equal(captured.model, 'wanx-v1')
   assert.equal(captured.configId, 7)
   assert.equal(captured.storyboardId, 99)

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 
 import {
+  buildPendingSettlementInFlightCutoffs,
   buildWalletPageMeta,
   buildWalletPaginatedPayload,
   readWalletPagination,
@@ -58,14 +59,87 @@ runTest('buildWalletPaginatedPayload wraps items with pagination metadata', () =
   )
 })
 
-runTest('pending settlement list excludes in-flight unbilled video generations', () => {
-  assert.equal(shouldExposePendingSettlement({ billingStatus: 'unbilled', generationStatus: 'pending' }), false)
-  assert.equal(shouldExposePendingSettlement({ billingStatus: 'unbilled', generationStatus: 'processing' }), false)
-  assert.equal(shouldExposePendingSettlement({ billingStatus: 'unbilled', generationStatus: 'checking_defect' }), false)
-  assert.equal(shouldExposePendingSettlement({ billingStatus: 'billing', generationStatus: 'completed' }), true)
-  assert.equal(shouldExposePendingSettlement({ billingStatus: 'billing_required', generationStatus: 'billing_required' }), true)
-  assert.equal(shouldExposePendingSettlement({ billingStatus: 'billing_failed', generationStatus: 'failed' }), true)
-  assert.equal(shouldExposePendingSettlement({ billingStatus: 'unbilled', generationStatus: 'completed' }), false)
-  assert.equal(shouldExposePendingSettlement({ billingStatus: 'settled', generationStatus: 'completed' }), false)
-  assert.equal(shouldExposePendingSettlement({ billingStatus: 'unbilled', generationStatus: 'failed' }), false)
+runTest('pending settlement list includes in-flight unbilled video generations', () => {
+  const nowMs = Date.parse('2026-06-17T12:00:00.000Z')
+  const recentUpdatedAt = new Date(nowMs - 5 * 60 * 1000).toISOString()
+  const staleUpdatedAt = new Date(nowMs - 3 * 60 * 60 * 1000).toISOString()
+  assert.equal(shouldExposePendingSettlement({
+    billingStatus: 'unbilled',
+    generationStatus: 'pending',
+    taskId: null,
+    updatedAt: recentUpdatedAt,
+    nowMs,
+  }), true)
+  assert.equal(shouldExposePendingSettlement({
+    billingStatus: 'unbilled',
+    generationStatus: 'processing',
+    taskId: 'task-1',
+    updatedAt: recentUpdatedAt,
+    nowMs,
+  }), true)
+  assert.equal(shouldExposePendingSettlement({
+    billingStatus: 'unbilled',
+    generationStatus: 'checking_defect',
+    taskId: 'task-2',
+    updatedAt: recentUpdatedAt,
+    nowMs,
+  }), true)
+  assert.equal(shouldExposePendingSettlement({
+    billingStatus: 'unbilled',
+    generationStatus: 'processing',
+    taskId: 'task-3',
+    updatedAt: staleUpdatedAt,
+    nowMs,
+  }), false)
+  assert.equal(shouldExposePendingSettlement({
+    billingStatus: 'unbilled',
+    generationStatus: 'failed_defect',
+    taskId: 'task-4',
+    updatedAt: recentUpdatedAt,
+    nowMs,
+  }), false)
+  assert.equal(shouldExposePendingSettlement({
+    billingStatus: 'billing',
+    generationStatus: 'completed',
+    updatedAt: staleUpdatedAt,
+    nowMs,
+  }), true)
+  assert.equal(shouldExposePendingSettlement({
+    billingStatus: 'billing_required',
+    generationStatus: 'billing_required',
+    updatedAt: staleUpdatedAt,
+    nowMs,
+  }), true)
+  assert.equal(shouldExposePendingSettlement({
+    billingStatus: 'billing_failed',
+    generationStatus: 'failed',
+    updatedAt: staleUpdatedAt,
+    nowMs,
+  }), true)
+  assert.equal(shouldExposePendingSettlement({
+    billingStatus: 'unbilled',
+    generationStatus: 'completed',
+    updatedAt: recentUpdatedAt,
+    nowMs,
+  }), false)
+  assert.equal(shouldExposePendingSettlement({
+    billingStatus: 'settled',
+    generationStatus: 'completed',
+    updatedAt: recentUpdatedAt,
+    nowMs,
+  }), false)
+  assert.equal(shouldExposePendingSettlement({
+    billingStatus: 'unbilled',
+    generationStatus: 'failed',
+    updatedAt: recentUpdatedAt,
+    nowMs,
+  }), false)
+})
+
+runTest('pending settlement SQL cutoffs match in-flight staleness windows', () => {
+  const nowMs = Date.parse('2026-06-17T12:00:00.000Z')
+  assert.deepEqual(buildPendingSettlementInFlightCutoffs(nowMs), {
+    withoutTaskUpdatedAfter: '2026-06-17T11:30:00.000Z',
+    withTaskUpdatedAfter: '2026-06-17T10:00:00.000Z',
+  })
 })

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 
 import {
   buildImageGenerationRequestContext,
+  buildVideoGenerationPollingContext,
   buildVideoGenerationRequestContext,
   loadMediaGenerationRecord,
 } from '../media/generation/media-generation-records.js'
@@ -82,6 +83,19 @@ runTest('buildVideoGenerationRequestContext exposes video storyboard and referen
       provider: 'seedance',
       storyboardId: 21,
       referenceMode: 'first_last_frame',
+    },
+  )
+})
+
+runTest('buildVideoGenerationPollingContext preserves duration for completion billing fallback', () => {
+  assert.deepEqual(
+    buildVideoGenerationPollingContext({
+      storyboardId: 21,
+      duration: 8,
+    }),
+    {
+      storyboardId: 21,
+      duration: 8,
     },
   )
 })

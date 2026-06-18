@@ -148,6 +148,7 @@ export function buildDefectCheckCallback(enqueueGenerate: RegenEnqueueFn): Defec
         newId = await enqueueDefectRegeneration({
           originalRecord: {
             id: row.id,
+            userId: row.userId,
             prompt: row.prompt,
             model: row.model,
             configId: undefined,

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 
 import {
+  getPendingVideoHistoryGeneration,
   getVideoHistoryUrl,
   normalizeVideoHistory,
   shouldApplyVideoHistoryLoadResult,
@@ -57,4 +58,45 @@ runTest('video history ignores stale responses for the same storyboard', () => {
 
   assert.equal(shouldApplyVideoHistoryLoadResult(latestTokens, 654, 1), false)
   assert.equal(shouldApplyVideoHistoryLoadResult(latestTokens, 654, 2), true)
+})
+
+runTest('video history detects in-flight regeneration rows for state restore', () => {
+  assert.deepEqual(
+    getPendingVideoHistoryGeneration([
+      { id: 8, status: 'completed', video_url: 'old.mp4', created_at: '2026-06-17T08:00:00.000Z' },
+      {
+        id: 9,
+        status: 'failed_defect',
+        effective_status: 'processing',
+        regeneration_id: 10,
+        billing_status: 'unbilled',
+        created_at: '2026-06-17T08:01:00.000Z',
+      },
+    ]),
+    {
+      generationId: 10,
+      status: 'processing',
+      billingStatus: 'unbilled',
+    },
+  )
+})
+
+runTest('video history ignores settled and billing-required rows for pending generation restore', () => {
+  assert.equal(
+    getPendingVideoHistoryGeneration([
+      { id: 11, status: 'billing_required', billing_status: 'billing_required', created_at: '2026-06-17T08:02:00.000Z' },
+      { id: 12, status: 'completed', billing_status: 'settled', created_at: '2026-06-17T08:03:00.000Z' },
+    ]),
+    null,
+  )
+})
+
+runTest('video history does not restore older in-flight rows when a newer video is complete', () => {
+  assert.equal(
+    getPendingVideoHistoryGeneration([
+      { id: 13, status: 'processing', billing_status: 'unbilled', created_at: '2026-06-17T08:02:00.000Z' },
+      { id: 14, status: 'completed', billing_status: 'settled', video_url: 'new.mp4', created_at: '2026-06-17T08:03:00.000Z' },
+    ]),
+    null,
+  )
 })

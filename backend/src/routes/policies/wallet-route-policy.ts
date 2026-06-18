@@ -1,3 +1,9 @@
+import {
+  getVideoGenerationInFlightState,
+  STALE_VIDEO_GENERATION_NO_TASK_MS,
+  STALE_VIDEO_GENERATION_WITH_TASK_MS,
+} from '../../services/automation/video-generation-staleness-policy.js'
+
 export function readWalletListLimit(value: unknown) {
   const parsed = Number(value)
   if (!Number.isFinite(parsed) || parsed <= 0) return 20
@@ -65,10 +71,35 @@ export function buildWalletPaginatedPayload<T>(
 
 const BILLING_PENDING_STATUSES = new Set(['billing', 'billing_required', 'billing_failed'])
 
+export function buildPendingSettlementInFlightCutoffs(nowMs = Date.now()) {
+  return {
+    withoutTaskUpdatedAfter: new Date(nowMs - STALE_VIDEO_GENERATION_NO_TASK_MS).toISOString(),
+    withTaskUpdatedAfter: new Date(nowMs - STALE_VIDEO_GENERATION_WITH_TASK_MS).toISOString(),
+  }
+}
+
 export function shouldExposePendingSettlement(input: {
   billingStatus?: unknown
   generationStatus?: unknown
+  taskId?: unknown
+  updatedAt?: unknown
+  createdAt?: unknown
+  nowMs?: number
 }) {
   const billingStatus = String(input.billingStatus || '').toLowerCase()
-  return BILLING_PENDING_STATUSES.has(billingStatus)
+  const generationStatus = String(input.generationStatus || '').toLowerCase()
+  if (BILLING_PENDING_STATUSES.has(billingStatus)) return true
+  if (billingStatus !== 'unbilled') return false
+  return getVideoGenerationInFlightState({
+    status: generationStatus,
+    taskId: toNullableString(input.taskId),
+    updatedAt: toNullableString(input.updatedAt),
+    createdAt: toNullableString(input.createdAt),
+  }, input.nowMs).inFlight
+}
+
+function toNullableString(value: unknown) {
+  if (value == null) return null
+  const text = String(value)
+  return text || null
 }

@@ -3,12 +3,27 @@
     <div class="character-assets__head">
       <div>
         <h1 class="page-title">角色形象库</h1>
-        <p class="page-desc">管理项目中的角色形象，用于全局设置男女主或其他角色的图片。</p>
+        <p class="page-desc">沉淀可复用的角色参考图，让主角、配角和自定义角色在后续分集里保持稳定。</p>
       </div>
       <button class="btn btn-primary character-assets__primary" @click="openCreate()">
         <Plus :size="14" />
         新建形象
       </button>
+    </div>
+
+    <div class="character-assets__summary" aria-label="角色形象统计">
+      <div>
+        <span>总形象</span>
+        <strong>{{ assets.length }}</strong>
+      </div>
+      <div>
+        <span>默认形象</span>
+        <strong>{{ defaultAssetCount }}</strong>
+      </div>
+      <div>
+        <span>当前筛选</span>
+        <strong>{{ visibleAssetCount }}</strong>
+      </div>
     </div>
 
     <div class="character-assets__tabs">
@@ -240,6 +255,7 @@ const previewImage = ref({ open: false, src: '', title: '', meta: '' })
 const form = ref(defaultForm())
 
 const mainRolePresets = new Set(['male_lead', 'female_lead'])
+const defaultAssetCount = computed(() => assets.value.filter(asset => asset?.is_default || asset?.isDefault).length)
 
 const filteredAssets = computed(() => {
   const keyword = search.value.toLowerCase()
@@ -266,6 +282,7 @@ const filteredAssets = computed(() => {
 
 const visibleMainAssets = computed(() => filteredAssets.value.filter(asset => mainRolePresets.has(getRolePreset(asset))))
 const visibleOtherAssets = computed(() => filteredAssets.value.filter(asset => !mainRolePresets.has(getRolePreset(asset))))
+const visibleAssetCount = computed(() => filteredAssets.value.length)
 const showMainSection = computed(() => activeTab.value !== 'others' && visibleMainAssets.value.length > 0)
 const showOtherSection = computed(() => activeTab.value !== 'main' && visibleOtherAssets.value.length > 0)
 const previewSrc = computed(() => previewUrl.value || imageSource(editingAsset.value))
