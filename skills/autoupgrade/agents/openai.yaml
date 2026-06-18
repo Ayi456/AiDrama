@@ -1,7 +1,0 @@
-interface:
-  display_name: "Autoupgrade"
-  short_description: "显式触发的一轮自适应项目进化与守护流程，用于 L1-L5 改进决策"
-  default_prompt: "Use $autoupgrade to run one adaptive project evolution round."
-
-policy:
-  allow_implicit_invocation: false
