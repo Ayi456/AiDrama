@@ -75,13 +75,13 @@ test('defect & under cap → regenerate', async () => {
   assert.deepEqual(r.missingActions, ['拔剑'])
 })
 
-test('defect at last attempt → publish + defect_exhausted', async () => {
+test('defect at last attempt → failed + defect_exhausted', async () => {
   const r = await runDefectCheck({
     videoUrl: 'u', attemptNumber: 1, prompt: 'p', // attempt+1=2 == max
     visionConfig: baseConfig,
     analyze: fakeAnalyze({ verdict: 'defect', missingActions: ['拔剑'] }),
   })
-  assert.equal(r.action, 'publish')
+  assert.equal(r.action, 'failed')
   assert.equal(r.verdict, 'defect_exhausted')
 })
 

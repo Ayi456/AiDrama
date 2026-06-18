@@ -203,6 +203,18 @@ export function buildDefectCheckCallback(enqueueGenerate: RegenEnqueueFn): Defec
       })
     }
 
+    if (decision.action === 'failed') {
+      await db
+        .update(schema.videoGenerations)
+        .set({
+          status: 'failed_defect',
+          errorMsg: '检测判定穿帮，已达到最大重生成次数，未发布',
+          updatedAt: now(),
+        })
+        .where(eq(schema.videoGenerations.id, rowId))
+        .run()
+    }
+
     return { action: decision.action }
   }
 }

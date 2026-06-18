@@ -3,7 +3,7 @@ import type { VisionAnalyzeResult } from '../adapters/qwen-vision.js'
 export type DefectCheckVerdict =
   | 'skipped' | 'complete' | 'defect' | 'defect_exhausted' | 'unknown'
 
-export type DefectCheckAction = 'publish' | 'regenerate'
+export type DefectCheckAction = 'publish' | 'regenerate' | 'failed'
 
 export interface DefectVisionConfig {
   baseUrl: string
@@ -106,7 +106,7 @@ export async function runDefectCheck(input: DefectCheckInput): Promise<DefectChe
   // defect
   const willExhaust = input.attemptNumber + 1 >= cfg.maxAttempts
   return {
-    action: willExhaust ? 'publish' : 'regenerate',
+    action: willExhaust ? 'failed' : 'regenerate',
     verdict: willExhaust ? 'defect_exhausted' : 'defect',
     missingActions: result.missingActions,
     rawText: result.rawText,

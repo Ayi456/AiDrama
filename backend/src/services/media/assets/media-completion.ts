@@ -242,19 +242,6 @@ export async function completeGeneratedVideoJob(
   const measuredDuration = deps.readVideoDuration ? await deps.readVideoDuration(localPath) : 0
   const completionDuration = measuredDuration > 0 ? measuredDuration : input.duration
 
-  if (deps.defectCheck) {
-    const decision = await deps.defectCheck({
-      id: input.id,
-      publicUrl,
-      localPath,
-      duration: completionDuration,
-      storyboardId: input.storyboardId,
-    })
-    if (decision.action === 'regenerate' || decision.action === 'failed') {
-      return { action: decision.action, publicUrl, localPath }
-    }
-  }
-
   if (deps.settleVideoCompletion) {
     const settlement = await deps.settleVideoCompletion({
       id: input.id,
@@ -274,6 +261,19 @@ export async function completeGeneratedVideoJob(
         updatedAt: deps.now(),
       })
       return { action: 'billing_required', publicUrl, localPath }
+    }
+  }
+
+  if (deps.defectCheck) {
+    const decision = await deps.defectCheck({
+      id: input.id,
+      publicUrl,
+      localPath,
+      duration: completionDuration,
+      storyboardId: input.storyboardId,
+    })
+    if (decision.action === 'regenerate' || decision.action === 'failed') {
+      return { action: decision.action, publicUrl, localPath }
     }
   }
 

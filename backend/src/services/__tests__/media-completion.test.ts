@@ -367,6 +367,30 @@ runTest('completeGeneratedVideoJob: defectCheck=regenerate skips persist and pub
   assert.equal(result.action, 'regenerate')
 })
 
+runTest('completeGeneratedVideoJob: defectCheck=regenerate still settles generated video billing', async () => {
+  const calls: string[] = []
+  const result = await completeGeneratedVideoJob({
+    id: 1,
+    source: { type: 'url', videoUrl: 'https://x/v.mp4' },
+    duration: 5,
+    storyboardId: 9,
+  }, {
+    now: () => '2026-05-22T00:00:00Z',
+    downloadFile: async () => '/tmp/v.mp4',
+    uploadGeneratedAsset: async () => 'https://cdn/v.mp4',
+    persistVideoCompletion: async () => { calls.push('persist') },
+    publishStoryboardVideo: async () => { calls.push('publish') },
+    logSuccess: () => {},
+    settleVideoCompletion: async (input) => {
+      calls.push(`settle:${input.publicUrl}:${input.duration}`)
+      return { status: 'settled' }
+    },
+    defectCheck: async () => ({ action: 'regenerate' }),
+  })
+  assert.deepEqual(calls, ['settle:https://cdn/v.mp4:5'])
+  assert.equal(result.action, 'regenerate')
+})
+
 runTest('completeGeneratedVideoJob: defectCheck=failed skips persist and publishStoryboardVideo', async () => {
   const calls: string[] = []
   const result = await completeGeneratedVideoJob({
@@ -384,6 +408,30 @@ runTest('completeGeneratedVideoJob: defectCheck=failed skips persist and publish
     defectCheck: async () => ({ action: 'failed' }),
   })
   assert.deepEqual(calls, [])
+  assert.equal(result.action, 'failed')
+})
+
+runTest('completeGeneratedVideoJob: defectCheck=failed still settles generated video billing', async () => {
+  const calls: string[] = []
+  const result = await completeGeneratedVideoJob({
+    id: 1,
+    source: { type: 'url', videoUrl: 'https://x/v.mp4' },
+    duration: 5,
+    storyboardId: 9,
+  }, {
+    now: () => '2026-05-22T00:00:00Z',
+    downloadFile: async () => '/tmp/v.mp4',
+    uploadGeneratedAsset: async () => 'https://cdn/v.mp4',
+    persistVideoCompletion: async () => { calls.push('persist') },
+    publishStoryboardVideo: async () => { calls.push('publish') },
+    logSuccess: () => {},
+    defectCheck: async () => ({ action: 'failed' }),
+    settleVideoCompletion: async (input) => {
+      calls.push(`settle:${input.publicUrl}:${input.duration}`)
+      return { status: 'settled' }
+    },
+  })
+  assert.deepEqual(calls, ['settle:https://cdn/v.mp4:5'])
   assert.equal(result.action, 'failed')
 })
 
