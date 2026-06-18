@@ -51,4 +51,6 @@ prompt/
 # alipay
 alipay_*
 
+# Local autoupgrade scratch
+/autoupgrade
 
