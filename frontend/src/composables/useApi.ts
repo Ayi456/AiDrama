@@ -21,7 +21,6 @@ export type AuthUser = {
   lastLoginAt?: string | null
 }
 export type AuthSession = {
-  token: string
   user: AuthUser
 }
 export type AuthLoginPayload = {
@@ -274,18 +273,6 @@ function compactErrorText(text: string, fallback = '操作失败') {
   return cleaned.length > 120 ? `${cleaned.slice(0, 117)}...` : cleaned
 }
 
-function readAuthTokenFromStorage() {
-  if (typeof window === 'undefined') return ''
-  try {
-    const raw = window.localStorage.getItem('aidrama-auth')
-    if (!raw) return ''
-    const parsed = JSON.parse(raw) as { token?: unknown }
-    return typeof parsed.token === 'string' ? parsed.token : ''
-  } catch {
-    return ''
-  }
-}
-
 function friendlyProviderErrorMessage(rawMessage: string): string | null {
   const payload = parseJsonObjectFromText(rawMessage)
   const error = readRecord(payload?.error)
@@ -339,9 +326,7 @@ export function normalizeApiErrorMessage(message: unknown, fallback = '操作失
 
 async function req<T = ApiEntity>(method: ApiMethod, path: string, body?: ApiRequestBody): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  const token = readAuthTokenFromStorage()
-  if (token) headers.Authorization = `Bearer ${token}`
-  const opts: RequestInit = { method, headers }
+  const opts: RequestInit = { method, headers, credentials: 'include' }
   if (body) opts.body = JSON.stringify(body)
 
   const start = performance.now()
@@ -376,6 +361,7 @@ async function uploadReq<T = ApiEntity>(path: string, formData: FormData): Promi
   try {
     const resp = await fetch(`${BASE}${path}`, {
       method: 'POST',
+      credentials: 'include',
       body: formData,
     })
     const json = await resp.json() as ApiEnvelope<T>

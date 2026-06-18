@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 
 const routerSource = readFileSync(resolve('src/router.ts'), 'utf8')
 const apiSource = readFileSync(resolve('src/composables/useApi.ts'), 'utf8')
+const mainSource = readFileSync(resolve('src/main.ts'), 'utf8')
 
 function runTest(name, fn) {
   try {
@@ -32,4 +33,15 @@ runTest('authAPI exposes login, register, session and sms code calls', () => {
   assert.match(apiSource, /session:/)
   assert.match(apiSource, /sendRegisterCode:/)
   assert.match(apiSource, /logout:/)
+})
+
+runTest('API requests include HttpOnly cookie credentials', () => {
+  assert.match(apiSource, /credentials:\s*['"]include['"]/)
+  assert.doesNotMatch(apiSource, /Authorization\s*=/)
+  assert.doesNotMatch(apiSource, /readAuthTokenFromStorage/)
+})
+
+runTest('app startup validates stored auth before mounting', () => {
+  assert.match(mainSource, /validateStoredAuthSession/)
+  assert.match(mainSource, /await\s+validateStoredAuthSession\(\)/)
 })

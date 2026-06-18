@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 import { randomBytes } from 'node:crypto'
 
@@ -20,9 +21,19 @@ import {
   sendTencentSmsCode,
   shouldExposeDevSmsCode,
 } from '../../services/auth/tencent-sms.js'
+import {
+  buildSessionCookieOptions,
+  readSessionToken,
+  SESSION_COOKIE_NAME,
+  sessionExpiryFrom,
+} from '../../services/auth/session-policy.js'
+import {
+  cacheSessionUser,
+  deleteSessionToken,
+  findSessionUser,
+} from '../../services/auth/session-service.js'
 
 const app = new Hono()
-const SESSION_TTL_DAYS = 7
 const SMS_EXPIRE_MINUTES = 15
 
 type UserRow = RowDataPacket & {
@@ -51,24 +62,15 @@ function mapUser(row: UserRow): AuthUserRecord {
   }
 }
 
-function sessionExpiry() {
-  return new Date(Date.now() + SESSION_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString()
-}
-
 function smsExpiry() {
   return new Date(Date.now() + SMS_EXPIRE_MINUTES * 60 * 1000).toISOString()
-}
-
-function readBearerToken(headerValue: string | undefined) {
-  const match = String(headerValue || '').match(/^Bearer\s+(.+)$/i)
-  return match?.[1]?.trim() || ''
 }
 
 async function createSession(userId: number) {
   const token = randomBytes(32).toString('hex')
   await mysqlPool.execute(
     'INSERT INTO auth_sessions (token, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)',
-    [token, userId, sessionExpiry(), now()],
+    [token, userId, sessionExpiryFrom(), now()],
   )
   return token
 }
@@ -81,19 +83,22 @@ async function findUserByIdentifier(identifier: string) {
   return rows[0] ? mapUser(rows[0]) : null
 }
 
-async function findSessionUser(token: string) {
-  if (!token) return null
-  const [rows] = await mysqlPool.execute<UserRow[]>(
-    `SELECT u.*
-       FROM auth_sessions s
-       JOIN users u ON u.id = s.user_id
-      WHERE s.token = ?
-        AND s.expires_at > ?
-        AND u.status = "active"
-      LIMIT 1`,
-    [token, now()],
-  )
-  return rows[0] ? mapUser(rows[0]) : null
+function setSessionCookie(c: Parameters<typeof setCookie>[0], token: string) {
+  setCookie(c, SESSION_COOKIE_NAME, token, buildSessionCookieOptions())
+}
+
+function clearSessionCookie(c: Parameters<typeof deleteCookie>[0]) {
+  deleteCookie(c, SESSION_COOKIE_NAME, {
+    path: '/',
+    secure: buildSessionCookieOptions().secure,
+    sameSite: 'Lax',
+  })
+}
+
+function requestSessionToken(c: Parameters<typeof getCookie>[0]) {
+  return readSessionToken({
+    cookieToken: getCookie(c, SESSION_COOKIE_NAME),
+  })
 }
 
 async function verifyRegisterCode(phone: string, code: string) {
@@ -190,7 +195,10 @@ app.post('/register', async (c) => {
   const userId = Number(result.insertId)
   const token = await createSession(userId)
   const [rows] = await mysqlPool.execute<UserRow[]>('SELECT * FROM users WHERE id = ? LIMIT 1', [userId])
-  return created(c, { token, user: sanitizeAuthUser(mapUser(rows[0])) })
+  const user = sanitizeAuthUser(mapUser(rows[0]))
+  setSessionCookie(c, token)
+  await cacheSessionUser(token, user)
+  return created(c, { user })
 })
 
 app.post('/login', async (c) => {
@@ -205,18 +213,21 @@ app.post('/login', async (c) => {
   await mysqlPool.execute('UPDATE users SET last_login_at = ?, updated_at = ? WHERE id = ?', [now(), now(), user.id])
   const token = await createSession(user.id)
   const refreshed = await findUserByIdentifier(parsed.data.identifier)
-  return success(c, { token, user: sanitizeAuthUser(refreshed || user) })
+  const sessionUser = sanitizeAuthUser(refreshed || user)
+  setSessionCookie(c, token)
+  await cacheSessionUser(token, sessionUser)
+  return success(c, { user: sessionUser })
 })
 
 app.get('/session', async (c) => {
-  const user = await findSessionUser(readBearerToken(c.req.header('Authorization')))
+  const user = await findSessionUser(requestSessionToken(c))
   if (!user) return c.json({ code: 401, message: '未登录' }, 401)
-  return success(c, { user: sanitizeAuthUser(user) })
+  return success(c, { user })
 })
 
 app.post('/logout', async (c) => {
-  const token = readBearerToken(c.req.header('Authorization'))
-  if (token) await mysqlPool.execute('DELETE FROM auth_sessions WHERE token = ?', [token])
+  await deleteSessionToken(requestSessionToken(c))
+  clearSessionCookie(c)
   return success(c)
 })
 

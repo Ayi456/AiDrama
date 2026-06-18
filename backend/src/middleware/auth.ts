@@ -1,11 +1,11 @@
 import type { Context, Next } from 'hono'
-import type { RowDataPacket } from 'mysql2'
+import { getCookie } from 'hono/cookie'
 
-import { mysqlPool } from '../db/index.js'
-import { now } from '../utils/response.js'
-import { isPublicApiPath, readBearerToken } from './auth-policy.js'
+import { isPublicApiPath } from './auth-policy.js'
+import { findSessionUser } from '../services/auth/session-service.js'
+import { readSessionToken, SESSION_COOKIE_NAME } from '../services/auth/session-policy.js'
 
-export { isPublicApiPath, readBearerToken } from './auth-policy.js'
+export { isPublicApiPath } from './auth-policy.js'
 
 export type CurrentUser = {
   id: number
@@ -16,37 +16,6 @@ export type CurrentUser = {
 }
 
 type AuthContext = Context<{ Variables: { currentUser: CurrentUser } }>
-
-type SessionUserRow = RowDataPacket & {
-  id: number
-  username: string
-  email: string
-  phone: string
-  status: string
-}
-
-export async function findSessionUser(token: string): Promise<CurrentUser | null> {
-  if (!token) return null
-  const [rows] = await mysqlPool.execute<SessionUserRow[]>(
-    `SELECT u.id, u.username, u.email, u.phone, u.status
-       FROM auth_sessions s
-       JOIN users u ON u.id = s.user_id
-      WHERE s.token = ?
-        AND s.expires_at > ?
-        AND u.status = "active"
-      LIMIT 1`,
-    [token, now()],
-  )
-  const row = rows[0]
-  if (!row) return null
-  return {
-    id: Number(row.id),
-    username: row.username,
-    email: row.email,
-    phone: row.phone,
-    status: row.status,
-  }
-}
 
 export function getCurrentUser(c: Context): CurrentUser {
   const user = (c as AuthContext).get('currentUser')
@@ -61,7 +30,10 @@ export async function requireAuth(c: Context, next: Next) {
     return
   }
 
-  const user = await findSessionUser(readBearerToken(c.req.header('Authorization')))
+  const token = readSessionToken({
+    cookieToken: getCookie(c, SESSION_COOKIE_NAME),
+  })
+  const user = await findSessionUser(token)
   if (!user) {
     return c.json({ code: 401, data: null, message: '未登录' }, 401)
   }

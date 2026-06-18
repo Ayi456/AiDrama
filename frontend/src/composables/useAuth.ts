@@ -10,18 +10,15 @@ export type AuthStorageLike = {
 }
 
 export type StoredAuth = {
-  token: string
   user: AuthUser
 }
 
 type AuthState = {
-  token: string | null
   user: AuthUser | null
   hydrated: boolean
 }
 
 const state = reactive<AuthState>({
-  token: null,
   user: null,
   hydrated: false,
 })
@@ -59,8 +56,8 @@ export function readStoredAuth(storage: AuthStorageLike | null = browserStorage(
     const raw = storage.getItem(AUTH_STORAGE_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw) as Partial<StoredAuth>
-    if (typeof parsed.token !== 'string' || !parsed.token || !isAuthUser(parsed.user)) return null
-    return { token: parsed.token, user: parsed.user }
+    if (!isAuthUser(parsed.user)) return null
+    return { user: parsed.user }
   } catch {
     return null
   }
@@ -74,29 +71,47 @@ export function clearStoredAuth(storage: AuthStorageLike | null = browserStorage
   storage?.removeItem(AUTH_STORAGE_KEY)
 }
 
+export type AuthSessionValidationOptions = {
+  storage?: AuthStorageLike | null
+  loadSession?: () => Promise<{ user: AuthUser }>
+}
+
 export function hydrateAuthState(storage: AuthStorageLike | null = browserStorage()) {
   if (state.hydrated) return
   const stored = readStoredAuth(storage)
-  state.token = stored?.token ?? null
   state.user = stored?.user ?? null
   state.hydrated = true
 }
 
 function applySession(session: AuthSession, storage: AuthStorageLike | null = browserStorage()) {
-  state.token = session.token
   state.user = session.user
   state.hydrated = true
-  writeStoredAuth(storage, session)
+  writeStoredAuth(storage, { user: session.user })
 }
 
-export function getAuthToken() {
-  hydrateAuthState()
-  return state.token
+export async function validateStoredAuthSession(options: AuthSessionValidationOptions = {}) {
+  const storage = Object.hasOwn(options, 'storage') ? options.storage ?? null : browserStorage()
+  const stored = readStoredAuth(storage)
+  state.user = stored?.user ?? null
+  state.hydrated = true
+
+  try {
+    const loadSession = options.loadSession ?? authAPI.session
+    const session = await loadSession()
+    state.user = session.user
+    writeStoredAuth(storage, { user: session.user })
+    return session.user
+  } catch {
+    state.user = null
+    state.hydrated = true
+    clearStoredAuth(storage)
+    return null
+  }
 }
 
 export function useAuth() {
   hydrateAuthState()
-  const isAuthenticated = computed(() => !!state.token && !!state.user)
+  const isAuthenticated = computed(() => !!state.user)
 
   async function login(payload: AuthLoginPayload) {
     const session = await authAPI.login(payload)
@@ -111,15 +126,7 @@ export function useAuth() {
   }
 
   async function refreshSession() {
-    if (!state.token) return null
-    try {
-      const session = await authAPI.session()
-      state.user = session.user
-      return session.user
-    } catch {
-      clear()
-      return null
-    }
+    return validateStoredAuthSession()
   }
 
   async function logout() {
@@ -131,7 +138,6 @@ export function useAuth() {
   }
 
   function clear() {
-    state.token = null
     state.user = null
     state.hydrated = true
     clearStoredAuth()
