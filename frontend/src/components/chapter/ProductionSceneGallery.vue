@@ -5,6 +5,7 @@
         <span class="scene-gallery__kicker">Scene Canvas</span>
         <div class="scene-gallery__title-row">
           <span class="scene-gallery__title">场景图片画廊</span>
+          <span class="scene-gallery__count">{{ generatedSceneCount }}/{{ scenes.length || 0 }} 已出图</span>
         </div>
         <div class="scene-gallery__desc">每张卡片里的图片提示词都会直接参与下一次生成，用它来控制光线、天气、材质和整体氛围。</div>
       </div>
@@ -67,12 +68,19 @@
       </form>
     </div>
 
-    <div class="scene-gallery__grid">
-      <article v-for="scene in scenes" :key="scene.id" class="scene-gallery__card">
+    <div v-if="scenes.length" class="scene-gallery__workbench">
+      <div class="scene-gallery__grid">
+      <article
+        v-for="scene in scenes"
+        :key="scene.id"
+        :class="['scene-gallery__card', isSelectedScene(scene) && 'is-selected']"
+        @click="selectScene(scene)"
+      >
         <div class="scene-gallery__cover">
           <img
             v-if="hasSceneImage(scene)"
             :src="assetUrl(getSceneImage(scene))"
+            :alt="`${scene.location}场景图`"
             class="scene-gallery__image"
             @click.stop="openSceneImage(scene)"
           />
@@ -103,6 +111,13 @@
             <span :class="['scene-gallery__chip', hasSceneImage(scene) && 'is-ready', isPendingSceneImage(scene.id) && 'is-pending']">
               {{ hasSceneImage(scene) ? '已出图' : (isPendingSceneImage(scene.id) ? '生成中' : '待出图') }}
             </span>
+          </div>
+
+          <div class="scene-gallery__card-tags">
+            <span class="scene-gallery__mini-tag" :class="hasSceneReferenceImage(scene) && 'is-ready'">
+              {{ hasSceneReferenceImage(scene) ? '参考图 1' : '无参考图' }}
+            </span>
+            <span class="scene-gallery__mini-tag">{{ scene.time || '未设时间' }}</span>
           </div>
 
           <div class="scene-gallery__reference">
@@ -202,12 +217,19 @@
           </div>
         </div>
       </article>
+      </div>
+
+    </div>
+
+    <div v-else class="scene-gallery__blank">
+      <MapPlus :size="24" />
+      <span>暂无场景资产</span>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { MapPlus, Upload } from 'lucide-vue-next'
 import { assetUrl } from '@/utils/asset-url'
 
@@ -259,6 +281,25 @@ const emptyManualForm = () => ({
 const manualDialogOpen = ref(false)
 const manualForm = ref(emptyManualForm())
 const manualFileName = ref('')
+const selectedSceneKey = ref('')
+
+const generatedSceneCount = computed(() => props.scenes.filter(scene => hasSceneImage(scene)).length)
+const selectedScene = computed(() => {
+  if (!props.scenes.length) return null
+  return props.scenes.find(scene => sceneKey(scene) === selectedSceneKey.value) || props.scenes[0]
+})
+
+function sceneKey(scene) {
+  return String(scene?.id ?? scene?.location ?? '')
+}
+
+function selectScene(scene) {
+  selectedSceneKey.value = sceneKey(scene)
+}
+
+function isSelectedScene(scene) {
+  return selectedScene.value && sceneKey(selectedScene.value) === sceneKey(scene)
+}
 
 function openManualDialog() {
   manualDialogOpen.value = true

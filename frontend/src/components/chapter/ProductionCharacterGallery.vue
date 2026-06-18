@@ -5,7 +5,9 @@
         <span class="character-gallery__kicker">Character Board</span>
         <div class="character-gallery__title-row">
           <span class="character-gallery__title">角色形象画板</span>
+          <span class="character-gallery__count">{{ generatedCharacterCount }}/{{ characters.length || 0 }} 已出图</span>
         </div>
+        <div class="character-gallery__desc">先审阅人物基准，再校准形象绑定和描述词，后续镜头会沿用这里的角色资产。</div>
       </div>
 
       <div class="character-gallery__actions">
@@ -126,23 +128,30 @@
       </form>
     </div>
 
-    <div class="character-gallery__grid">
-      <article v-for="character in characters" :key="character.id" class="character-gallery__card">
-        <div class="character-gallery__cover">
-          <img
-            v-if="hasCharacterImage(character)"
-            :src="assetUrl(getCharacterImage(character))"
-            class="character-gallery__image"
-            @click.stop="openCharacterImage(character)"
-          />
-          <div v-else class="character-gallery__empty">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            <span class="character-gallery__empty-text">等待生成角色形象</span>
+    <div v-if="characters.length" class="character-gallery__workbench">
+      <div class="character-gallery__grid">
+        <article
+          v-for="character in characters"
+          :key="character.id"
+          :class="['character-gallery__card', isSelectedCharacter(character) && 'is-selected']"
+          @click="selectCharacter(character)"
+        >
+          <div class="character-gallery__cover">
+            <img
+              v-if="hasCharacterImage(character)"
+              :src="assetUrl(getCharacterImage(character))"
+              :alt="`${character.name}角色形象`"
+              class="character-gallery__image"
+              @click.stop="openCharacterImage(character)"
+            />
+            <div v-else class="character-gallery__empty">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <span class="character-gallery__empty-text">等待生成角色形象</span>
+            </div>
+            <span class="character-gallery__badge" :class="hasCharacterImage(character) ? 'is-ready' : (isPendingCharacterImage(character.id) ? 'is-pending' : '')">
+              {{ hasCharacterImage(character) ? '已生成' : (isPendingCharacterImage(character.id) ? '生成中' : '待生成') }}
+            </span>
           </div>
-          <span class="character-gallery__badge" :class="hasCharacterImage(character) ? 'is-ready' : (isPendingCharacterImage(character.id) ? 'is-pending' : '')">
-            {{ hasCharacterImage(character) ? '已生成' : (isPendingCharacterImage(character.id) ? '生成中' : '待生成') }}
-          </span>
-        </div>
 
         <div class="character-gallery__body">
           <div class="character-gallery__head">
@@ -153,6 +162,13 @@
             <span :class="['character-gallery__chip', hasCharacterImage(character) && 'is-ready', isPendingCharacterImage(character.id) && 'is-pending']">
               {{ hasCharacterImage(character) ? '已出图' : (isPendingCharacterImage(character.id) ? '生成中' : '待出图') }}
             </span>
+          </div>
+
+          <div class="character-gallery__card-tags">
+            <span class="character-gallery__mini-tag" :class="getBoundAsset(character) && 'is-ready'">
+              {{ getBoundAsset(character) ? '已绑定' : '未绑定' }}
+            </span>
+            <span class="character-gallery__mini-tag">{{ hasCharacterImage(character) ? '人物基准' : '等待生成' }}</span>
           </div>
 
           <label class="character-gallery__asset-bind">
@@ -228,12 +244,19 @@
           </div>
         </div>
       </article>
+      </div>
+
+    </div>
+
+    <div v-else class="character-gallery__blank">
+      <UserPlus :size="24" />
+      <span>暂无角色资产</span>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { ImagePlus, Upload, UserPlus } from 'lucide-vue-next'
 import { assetUrl } from '@/utils/asset-url'
 
@@ -297,6 +320,25 @@ const emptyManualForm = () => ({
 const manualDialogOpen = ref(false)
 const manualForm = ref(emptyManualForm())
 const manualFileName = ref('')
+const selectedCharacterKey = ref('')
+
+const generatedCharacterCount = computed(() => props.characters.filter(character => hasCharacterImage(character)).length)
+const selectedCharacter = computed(() => {
+  if (!props.characters.length) return null
+  return props.characters.find(character => characterKey(character) === selectedCharacterKey.value) || props.characters[0]
+})
+
+function characterKey(character) {
+  return String(character?.id ?? character?.name ?? '')
+}
+
+function selectCharacter(character) {
+  selectedCharacterKey.value = characterKey(character)
+}
+
+function isSelectedCharacter(character) {
+  return selectedCharacter.value && characterKey(selectedCharacter.value) === characterKey(character)
+}
 
 function openManualDialog() {
   manualDialogOpen.value = true
