@@ -15,6 +15,12 @@ export type VideoGenerationInFlightState = {
   reason: string | null
 }
 
+export type StaleVideoGenerationFailurePatch = {
+  status: 'failed'
+  errorMsg: string
+  updatedAt: string
+}
+
 export function getVideoGenerationInFlightState(
   row: VideoGenerationInFlightInput,
   nowMs = Date.now(),
@@ -41,6 +47,21 @@ export function getVideoGenerationInFlightState(
     reason: taskId
       ? `Video generation timed out after ${formatMinutes(staleAfterMs)} minutes while waiting for provider task ${taskId}`
       : `Video generation missing provider task id after ${formatMinutes(staleAfterMs)} minutes`,
+  }
+}
+
+export function buildStaleVideoGenerationFailurePatch(
+  row: VideoGenerationInFlightInput,
+  nowMs = Date.now(),
+  errorPrefix = 'Stale video generation expired',
+): StaleVideoGenerationFailurePatch | null {
+  const state = getVideoGenerationInFlightState(row, nowMs)
+  if (!state.stale) return null
+
+  return {
+    status: 'failed',
+    errorMsg: `${errorPrefix}: ${state.reason ?? 'stale in-flight video generation'}`,
+    updatedAt: new Date(nowMs).toISOString(),
   }
 }
 

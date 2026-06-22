@@ -20,6 +20,7 @@ import {
 import { getCurrentUser } from '../../middleware/auth.js'
 import { assertCanStartVideo, isInsufficientBalanceError } from '../../services/billing/wallet.js'
 import { retryVideoSettlement } from '../../services/billing/video-billing.js'
+import { buildStaleVideoGenerationFailurePatch } from '../../services/automation/video-generation-staleness-policy.js'
 import {
   filterOwnedVideoGenerations,
   findOwnedDrama,
@@ -82,8 +83,10 @@ app.get('/:id', async (c) => {
   const row = await findOwnedVideoGeneration(currentUser.id, id)
   if (!row) return success(c, null)
 
-  const effective = await loadLatestEffectiveVideoGeneration(row)
-  return success(c, presentEffectiveVideoGenerationAsset(row, effective))
+  const freshRow = await expireStaleVideoGeneration(row)
+  const effective = await loadLatestEffectiveVideoGeneration(freshRow)
+  const freshEffective = effective ? await expireStaleVideoGeneration(effective) : null
+  return success(c, presentEffectiveVideoGenerationAsset(freshRow, freshEffective))
 })
 
 // POST /videos/:id/billing/retry
@@ -135,7 +138,9 @@ app.get('/', async (c) => {
       .limit(limit)
       .all()
 
-  return success(c, presentVideoGenerationAssets(await filterOwnedVideoGenerations(currentUser.id, rows)))
+  const ownedRows = await filterOwnedVideoGenerations(currentUser.id, rows)
+  const freshRows = await expireStaleVideoGenerations(ownedRows)
+  return success(c, presentVideoGenerationAssets(freshRows))
 })
 
 // DELETE /videos/:id
@@ -193,6 +198,22 @@ export async function generateStoryboardVideo(input: GenerateStoryboardVideoInpu
 
   logTaskSuccess('VideoAPI', 'auto-generate', { storyboardId: input.storyboardId, generationId: id })
   return id
+}
+
+async function expireStaleVideoGeneration<T extends typeof schema.videoGenerations.$inferSelect>(row: T): Promise<T> {
+  const patch = buildStaleVideoGenerationFailurePatch(row)
+  if (!patch) return row
+
+  await db.update(schema.videoGenerations)
+    .set(patch)
+    .where(eq(schema.videoGenerations.id, row.id))
+    .run()
+
+  return { ...row, ...patch }
+}
+
+async function expireStaleVideoGenerations<T extends typeof schema.videoGenerations.$inferSelect>(rows: T[]): Promise<T[]> {
+  return await Promise.all(rows.map(row => expireStaleVideoGeneration(row)))
 }
 
 async function loadLatestEffectiveVideoGeneration(row: typeof schema.videoGenerations.$inferSelect) {

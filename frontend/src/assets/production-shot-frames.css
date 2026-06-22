@@ -3320,3 +3320,298 @@
     flex-wrap: wrap;
   }
 }
+
+/* Responsive studio workbench overrides for PC, tablet, and phone. */
+@media (min-width: 861px) and (max-width: 1360px) {
+  .shot-workbench,
+  .prod-content.video-workbench,
+  .video-workbench {
+    min-height: auto;
+    grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .prod-content.video-workbench {
+    flex: 0 0 auto;
+    overflow: visible;
+  }
+
+  .shot-panel,
+  .video-panel {
+    height: auto;
+    min-height: clamp(360px, calc(100dvh - 300px), 620px);
+  }
+
+  .shot-panel--results,
+  .video-panel--result {
+    grid-column: 1 / -1;
+    min-height: clamp(320px, calc(100dvh - 300px), 520px);
+  }
+
+  .shot-panel__scroll {
+    min-height: 0;
+  }
+
+  .video-workbench__result video,
+  .video-workbench__result img,
+  .video-workbench__result .prod-cover-empty {
+    min-height: 320px;
+  }
+
+  .video-history-list {
+    max-height: 320px;
+  }
+}
+
+@media (max-width: 860px) {
+  .shot-frames,
+  .prod-content.video-workbench,
+  .video-workbench {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .shot-workbench,
+  .prod-content.video-workbench,
+  .video-workbench {
+    min-height: auto;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    align-items: start;
+    overflow: visible;
+  }
+
+  .shot-panel,
+  .video-panel {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .shot-panel--results,
+  .video-panel--result {
+    grid-column: auto;
+  }
+
+  .shot-panel__scroll,
+  .shot-panel__scroll--studio,
+  .shot-panel__scroll--board,
+  .shot-panel__scroll--results {
+    overflow: visible;
+    max-height: none;
+    padding-right: 0;
+  }
+
+  .shot-panel__head,
+  .shot-panel__head--compact,
+  .shot-panel__head--board,
+  .shot-panel__head--results,
+  .shot-studio__group-head,
+  .shot-results__refs-head,
+  .shot-board__summary-head,
+  .video-workbench__multi-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .shot-panel__head-tags,
+  .shot-panel__head-tags--results {
+    justify-content: flex-start;
+  }
+
+  .shot-studio__footer,
+  .shot-studio__actions,
+  .video-workbench__capture-actions,
+  .video-workbench__billing-actions {
+    width: 100%;
+  }
+
+  .shot-studio__footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .shot-studio__actions,
+  .video-workbench__capture-actions {
+    justify-content: flex-start;
+  }
+
+  .shot-studio__actions .btn,
+  .video-workbench__capture-actions .btn,
+  .video-workbench__multi-head .btn {
+    flex: 1 1 140px;
+    min-width: 0;
+    justify-content: center;
+  }
+
+  .shot-ref-strip,
+  .shot-results__ref-strip,
+  .shot-results__grid,
+  .frame-gallery {
+    grid-template-columns: 1fr;
+  }
+
+  .shot-frames__param-pills,
+  .shot-frames__size-grid,
+  .video-workbench__modebar,
+  .video-workbench__refs,
+  .video-workbench__refs--compact,
+  .video-workbench__tail-grid,
+  .video-workbench__clip-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .video-workbench__source-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .shot-board__item,
+  .shot-panel--board .shot-board__item,
+  .video-panel--board .shot-board__item {
+    grid-template-columns: 64px minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+
+  .shot-board__thumb,
+  .shot-panel--board .shot-board__thumb,
+  .video-panel--board .shot-board__thumb {
+    width: 64px;
+    height: 64px;
+    min-width: 64px;
+    min-height: 64px;
+  }
+
+  .video-workbench__result {
+    min-height: 0;
+  }
+
+  .video-workbench__result video,
+  .video-workbench__result img,
+  .video-workbench__result .prod-cover-empty {
+    min-height: 280px;
+  }
+
+  .video-history-list {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .video-history-item {
+    grid-template-columns: 88px minmax(0, 1fr) auto;
+  }
+
+  .video-history-thumb {
+    width: 88px;
+  }
+}
+
+@media (max-width: 640px) {
+  .shot-frames__toolbar,
+  .shot-board__toolbar,
+  .video-workbench__multi-head,
+  .video-workbench__capture-head,
+  .video-workbench__tail-picker-head,
+  .shot-results__history-head {
+    align-items: stretch;
+  }
+
+  .shot-frames__toolbar-actions,
+  .shot-studio__actions,
+  .video-workbench__capture-actions,
+  .video-workbench__billing-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .shot-frames__toolbar-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .shot-frames__param-pills,
+  .shot-frames__size-grid,
+  .video-workbench__modebar,
+  .video-workbench__refs,
+  .video-workbench__refs--compact,
+  .video-workbench__tail-grid,
+  .video-workbench__clip-grid,
+  .shot-results__history-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .video-workbench__source-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .shot-board__item,
+  .shot-panel--board .shot-board__item,
+  .video-panel--board .shot-board__item,
+  .video-history-item,
+  .video-billing-card {
+    grid-template-columns: 1fr;
+  }
+
+  .video-history-item {
+    grid-template-columns: 1fr;
+  }
+
+  .shot-board__thumb,
+  .shot-panel--board .shot-board__thumb,
+  .video-panel--board .shot-board__thumb,
+  .video-history-thumb {
+    width: 100%;
+    height: auto;
+    min-width: 0;
+    min-height: 0;
+    aspect-ratio: 16 / 9;
+  }
+
+  .video-history-action,
+  .video-billing-card__actions {
+    width: 100%;
+    grid-column: auto;
+    justify-content: stretch;
+  }
+
+  .video-history-action,
+  .video-billing-card__actions .btn {
+    justify-content: center;
+  }
+
+  .video-workbench__result video,
+  .video-workbench__result img,
+  .video-workbench__result .prod-cover-empty {
+    min-height: 220px;
+  }
+
+  .prod-video--source {
+    min-height: 180px;
+  }
+
+  .shot-reference-picker {
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+    padding: 14px;
+  }
+
+  .shot-reference-picker__head,
+  .shot-reference-picker__tabs {
+    width: 100%;
+  }
+
+  .shot-reference-picker__tabs {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .shot-reference-picker__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .grid-tool {
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+}

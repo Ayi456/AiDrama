@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  buildStaleVideoGenerationFailurePatch,
   getVideoGenerationInFlightState,
   STALE_VIDEO_GENERATION_NO_TASK_MS,
   STALE_VIDEO_GENERATION_WITH_TASK_MS,
@@ -80,4 +81,31 @@ test('child regeneration rows block duplicate root generation while in flight', 
   }, now)
 
   assert.deepEqual(state, { inFlight: true, stale: false, reason: null })
+})
+
+test('buildStaleVideoGenerationFailurePatch marks old provider tasks failed', () => {
+  const patch = buildStaleVideoGenerationFailurePatch({
+    status: 'processing',
+    taskId: 'cgt-stale',
+    updatedAt: new Date(now - STALE_VIDEO_GENERATION_WITH_TASK_MS - 1).toISOString(),
+    createdAt: new Date(now - STALE_VIDEO_GENERATION_WITH_TASK_MS - 1).toISOString(),
+    defectCheckParentId: 123,
+  }, now)
+
+  assert.equal(patch?.status, 'failed')
+  assert.equal(patch?.updatedAt, '2026-06-01T12:00:00.000Z')
+  assert.match(patch?.errorMsg ?? '', /timed out/i)
+  assert.match(patch?.errorMsg ?? '', /cgt-stale/)
+})
+
+test('buildStaleVideoGenerationFailurePatch leaves fresh processing tasks untouched', () => {
+  const patch = buildStaleVideoGenerationFailurePatch({
+    status: 'processing',
+    taskId: 'cgt-fresh',
+    updatedAt: new Date(now - 5 * 60 * 1000).toISOString(),
+    createdAt: new Date(now - 5 * 60 * 1000).toISOString(),
+    defectCheckParentId: null,
+  }, now)
+
+  assert.equal(patch, null)
 })

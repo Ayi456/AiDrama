@@ -1007,7 +1007,110 @@
   }
 }
 
+@media (min-width: 861px) and (max-width: 1240px) {
+  .studio {
+    height: 100dvh;
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .studio-topbar {
+    flex-direction: row;
+    align-items: center;
+    border-radius: 22px;
+  }
+
+  .studio-topbar-main {
+    flex: 1;
+  }
+
+  .studio-topbar-side {
+    justify-content: flex-end;
+  }
+
+  .studio-body {
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .sidebar {
+    max-height: none;
+    min-height: 0;
+    border-radius: 22px;
+  }
+
+  .pipeline {
+    flex: 0 0 auto;
+    flex-direction: row;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 10px 12px;
+    scroll-snap-type: x proximity;
+  }
+
+  .pipe-section {
+    flex: 0 0 auto;
+    flex-direction: row;
+    gap: 8px;
+  }
+
+  .pipe-section-label,
+  .pipe-sub,
+  .pipe-item-sub:not(:last-child)::after {
+    display: none;
+  }
+
+  .pipe-item-sub {
+    width: auto;
+    min-width: 126px;
+    min-height: 38px;
+    grid-template-columns: auto minmax(0, auto);
+    border-radius: 16px;
+    scroll-snap-align: start;
+  }
+
+  .pipe-copy {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .pipe-label {
+    white-space: nowrap;
+  }
+
+  .sidebar-bottom {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) auto auto;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .sidebar-jumper {
+    justify-content: center;
+    overflow-x: auto;
+    padding: 0;
+  }
+
+  .refresh-btn {
+    width: auto;
+    padding: 8px 12px;
+  }
+
+  .main,
+  .content-panel,
+  .prod-content {
+    min-height: 0;
+  }
+}
+
 @media (max-width: 860px) {
+  body:has(.studio) {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
   .studio {
     flex: 0 0 auto;
     height: auto;
@@ -1159,6 +1262,13 @@
 
   .stage-subnav {
     padding: 8px 10px;
+    scrollbar-width: none;
+  }
+
+  .stage-subnav::-webkit-scrollbar,
+  .pipeline::-webkit-scrollbar,
+  .prod-tabs::-webkit-scrollbar {
+    display: none;
   }
 
   .step-toolbar {
@@ -1175,10 +1285,14 @@
   .prod-tabs {
     width: 100%;
     overflow-x: auto;
+    scroll-snap-type: x proximity;
   }
 
   .prod-tab {
     flex: 0 0 auto;
+    min-width: 104px;
+    justify-content: center;
+    scroll-snap-align: start;
   }
 
   .prod-content {
@@ -1237,6 +1351,10 @@
   .prod-section-actions {
     margin-left: 0;
   }
+
+  .export-main {
+    padding: 20px;
+  }
 }
 
 @media (max-width: 560px) {
@@ -1272,5 +1390,20 @@
 
   .bubble-btn.primary {
     margin-left: 0;
+  }
+
+  .stage-subnav-item,
+  .prod-tab {
+    min-width: max-content;
+  }
+
+  .export-main {
+    padding: 14px;
+  }
+
+  .export-list-actions,
+  .export-bar {
+    display: grid;
+    grid-template-columns: 1fr;
   }
 }
