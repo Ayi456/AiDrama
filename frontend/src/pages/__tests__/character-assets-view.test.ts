@@ -19,7 +19,7 @@ function runTest(name: string, fn: () => void) {
 
 runTest('character asset cards expose a dedicated image preview action', () => {
   assert.match(source, /@open-preview="openPreview"/)
-  assert.match(source, /emits:\s*\['edit', 'delete', 'open-preview', 'generate'\]/)
+  assert.match(source, /emits:\s*\['edit', 'delete', 'open-preview'\]/)
   assert.match(source, /title:\s*'放大预览'/)
   assert.match(source, /emit\('open-preview'/)
 })
@@ -42,17 +42,17 @@ runTest('character assets page exposes a richer library summary', () => {
   assert.match(source, /{{ visibleAssetCount }}/)
 })
 
-runTest('character assets editor supports reference images for image-to-image generation', () => {
-  assert.match(source, /class="character-assets__reference"/)
-  assert.match(source, /reference_image/)
-  assert.match(source, /handleReferenceFileChange/)
-  assert.match(source, /clearReferenceImage/)
-  assert.match(source, /图生图|鍥剧敓鍥?/)
+runTest('character assets editor does not expose image-to-image reference controls', () => {
+  assert.doesNotMatch(source, /class="character-assets__reference"/)
+  assert.doesNotMatch(source, /handleReferenceFileChange/)
+  assert.doesNotMatch(source, /clearReferenceImage/)
+  assert.doesNotMatch(source, /图生图|鍥剧敓鍥?/)
+  assert.doesNotMatch(styles, /\.character-assets__reference/)
 })
 
-runTest('character asset cards can trigger image-to-image generation from a reference image', () => {
-  assert.match(source, /@generate="generateAssetImage"/)
-  assert.match(source, /characterAssetAPI\.generateImage/)
-  assert.match(source, /isGeneratingAssetImage/)
-  assert.match(source, /referenceImageSource/)
+runTest('character asset cards do not trigger image-to-image generation', () => {
+  assert.doesNotMatch(source, /@generate="generateAssetImage"/)
+  assert.doesNotMatch(source, /characterAssetAPI\.generateImage/)
+  assert.doesNotMatch(source, /isGeneratingAssetImage/)
+  assert.doesNotMatch(source, /referenceImageSource/)
 })

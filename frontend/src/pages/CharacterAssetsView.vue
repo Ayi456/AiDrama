@@ -92,11 +92,9 @@
               :key="asset.id"
               :asset="asset"
               :view-mode="viewMode"
-              :generating="isGeneratingAssetImage(asset.id)"
               @edit="openEdit"
               @delete="deleteAsset"
               @open-preview="openPreview"
-              @generate="generateAssetImage"
             />
             <button class="character-assets__add-card" type="button" @click="openCreate('male_lead')">
               <Plus :size="20" />
@@ -116,11 +114,9 @@
               :key="asset.id"
               :asset="asset"
               :view-mode="viewMode"
-              :generating="isGeneratingAssetImage(asset.id)"
               @edit="openEdit"
               @delete="deleteAsset"
               @open-preview="openPreview"
-              @generate="generateAssetImage"
             />
             <button class="character-assets__add-card" type="button" @click="openCreate('custom')">
               <Plus :size="20" />
@@ -161,51 +157,6 @@
               上传角色形象
             </span>
           </label>
-
-          <div class="character-assets__reference">
-            <template v-if="referenceSrc">
-              <button
-                type="button"
-                class="character-assets__reference-thumb"
-                title="查看参考图，生成时将以图生图模式运行"
-                @click="openReferencePreview"
-              >
-                <img :src="assetUrl(referenceSrc)" alt="参考图" />
-                <span>图生图</span>
-              </button>
-              <div class="character-assets__reference-meta">
-                <span class="character-assets__reference-label">已上传参考图</span>
-                <div class="character-assets__reference-actions">
-                  <label class="character-assets__reference-btn" title="重新上传参考图">
-                    <input
-                      class="character-assets__reference-input"
-                      type="file"
-                      accept="image/*"
-                      @change="handleReferenceFileChange"
-                    />
-                    替换
-                  </label>
-                  <button
-                    type="button"
-                    class="character-assets__reference-btn is-ghost"
-                    @click="clearReferenceImage"
-                  >
-                    移除
-                  </button>
-                </div>
-              </div>
-            </template>
-            <label v-else class="character-assets__reference-empty" title="上传一张参考图，生成时将走图生图模式">
-              <input
-                class="character-assets__reference-input"
-                type="file"
-                accept="image/*"
-                @change="handleReferenceFileChange"
-              />
-              <ImagePlus :size="16" />
-              <span>上传参考图（开启图生图）</span>
-            </label>
-          </div>
 
           <div class="character-assets__form-grid">
             <label class="field">
@@ -281,8 +232,8 @@
 <script setup>
 import { toast } from 'vue-sonner'
 import { computed, defineComponent, h, onMounted, ref } from 'vue'
-import { ImagePlus, LayoutGrid, List, Pencil, Plus, Search, Sparkles, Trash2, Upload, UserRound, X, ZoomIn } from 'lucide-vue-next'
-import { characterAssetAPI, imageAPI, uploadAPI } from '@/composables/useApi'
+import { LayoutGrid, List, Pencil, Plus, Search, Trash2, Upload, UserRound, X, ZoomIn } from 'lucide-vue-next'
+import { characterAssetAPI, uploadAPI } from '@/composables/useApi'
 import { useConfirm } from '@/composables/useConfirm'
 import { assetUrl } from '@/utils/asset-url'
 
@@ -299,11 +250,7 @@ const viewMode = ref('grid')
 const showEditor = ref(false)
 const editingAsset = ref(null)
 const pendingFile = ref(null)
-const pendingReferenceFile = ref(null)
 const previewUrl = ref('')
-const referencePreviewUrl = ref('')
-const referenceCleared = ref(false)
-const generatingAssetIds = ref([])
 const previewImage = ref({ open: false, src: '', title: '', meta: '' })
 const form = ref(defaultForm())
 
@@ -339,11 +286,6 @@ const visibleAssetCount = computed(() => filteredAssets.value.length)
 const showMainSection = computed(() => activeTab.value !== 'others' && visibleMainAssets.value.length > 0)
 const showOtherSection = computed(() => activeTab.value !== 'main' && visibleOtherAssets.value.length > 0)
 const previewSrc = computed(() => previewUrl.value || imageSource(editingAsset.value))
-const referenceSrc = computed(() => {
-  if (referencePreviewUrl.value) return referencePreviewUrl.value
-  if (referenceCleared.value) return ''
-  return referenceImageSource(editingAsset.value)
-})
 const tabs = computed(() => {
   const mainCount = assets.value.filter(asset => mainRolePresets.has(getRolePreset(asset))).length
   const otherCount = Math.max(0, assets.value.length - mainCount)
@@ -358,9 +300,8 @@ const CharacterAssetCard = defineComponent({
   props: {
     asset: { type: Object, required: true },
     viewMode: { type: String, default: 'grid' },
-    generating: { type: Boolean, default: false },
   },
-  emits: ['edit', 'delete', 'open-preview', 'generate'],
+  emits: ['edit', 'delete', 'open-preview'],
   setup(props, { emit }) {
     const openPreview = (event) => {
       event.stopPropagation()
@@ -388,9 +329,6 @@ const CharacterAssetCard = defineComponent({
         h('div', { class: 'character-asset-card__title-row' }, [
           h('h3', props.asset.name || '未命名角色'),
           h('span', { class: ['character-asset-card__gender', getGender(props.asset)] }, genderLabel(getGender(props.asset))),
-          referenceImageSource(props.asset)
-            ? h('span', { class: 'character-asset-card__reference-pill' }, '图生图')
-            : null,
         ]),
         h('p', { class: 'character-asset-card__meta' }, cardMeta(props.asset)),
         h('div', { class: 'character-asset-card__tags' }, cardTags(props.asset).map(tag => h('span', tag))),
@@ -399,13 +337,6 @@ const CharacterAssetCard = defineComponent({
         props.asset.is_default || props.asset.isDefault
           ? h('span', { class: 'character-asset-card__default' }, '默认')
           : null,
-        h('button', {
-          type: 'button',
-          title: referenceImageSource(props.asset) ? '图生图生成角色形象' : '先上传参考图再生成',
-          disabled: !referenceImageSource(props.asset) || props.generating,
-          class: props.generating ? 'is-busy' : '',
-          onClick: () => emit('generate', props.asset),
-        }, [h(Sparkles, { size: 14 })]),
         h('button', { type: 'button', title: '编辑', onClick: () => emit('edit', props.asset) }, [h(Pencil, { size: 14 })]),
         h('button', { type: 'button', title: '删除', onClick: () => emit('delete', props.asset) }, [h(Trash2, { size: 14 })]),
       ]),
@@ -434,14 +365,6 @@ function getGender(asset) {
 
 function imageSource(asset) {
   return asset?.image_url || asset?.imageUrl || asset?.local_path || asset?.localPath || ''
-}
-
-function referenceImageSource(asset) {
-  return asset?.reference_image || asset?.referenceImage || ''
-}
-
-function isGeneratingAssetImage(id) {
-  return generatingAssetIds.value.includes(Number(id))
 }
 
 function assetTime(asset) {
@@ -498,17 +421,6 @@ function openPreview(asset) {
   }
 }
 
-function openReferencePreview() {
-  const src = referenceSrc.value
-  if (!src) return
-  previewImage.value = {
-    open: true,
-    src,
-    title: '参考图预览',
-    meta: '图生图参考图',
-  }
-}
-
 function closePreview() {
   previewImage.value = { open: false, src: '', title: '', meta: '' }
 }
@@ -527,10 +439,7 @@ async function loadAssets(options = {}) {
 function openCreate(rolePreset = 'custom') {
   editingAsset.value = null
   pendingFile.value = null
-  pendingReferenceFile.value = null
   previewUrl.value = ''
-  referencePreviewUrl.value = ''
-  referenceCleared.value = false
   form.value = defaultForm(rolePreset)
   showEditor.value = true
 }
@@ -538,10 +447,7 @@ function openCreate(rolePreset = 'custom') {
 function openEdit(asset) {
   editingAsset.value = asset
   pendingFile.value = null
-  pendingReferenceFile.value = null
   previewUrl.value = ''
-  referencePreviewUrl.value = ''
-  referenceCleared.value = false
   form.value = {
     name: asset?.name || '',
     gender: getGender(asset),
@@ -557,12 +463,8 @@ function closeEditor() {
   showEditor.value = false
   editingAsset.value = null
   pendingFile.value = null
-  pendingReferenceFile.value = null
   if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
-  if (referencePreviewUrl.value) URL.revokeObjectURL(referencePreviewUrl.value)
   previewUrl.value = ''
-  referencePreviewUrl.value = ''
-  referenceCleared.value = false
 }
 
 function handleFileChange(event) {
@@ -576,38 +478,17 @@ function handleFileChange(event) {
   if (input) input.value = ''
 }
 
-function handleReferenceFileChange(event) {
-  const input = event.target
-  const file = input?.files?.[0]
-  if (!file) return
-  pendingReferenceFile.value = file
-  referenceCleared.value = false
-  if (referencePreviewUrl.value) URL.revokeObjectURL(referencePreviewUrl.value)
-  referencePreviewUrl.value = URL.createObjectURL(file)
-  if (!form.value.name) form.value.name = String(file.name || '').replace(/\.[^.]+$/, '').trim()
-  if (input) input.value = ''
-}
-
-function clearReferenceImage() {
-  pendingReferenceFile.value = null
-  referenceCleared.value = true
-  if (referencePreviewUrl.value) URL.revokeObjectURL(referencePreviewUrl.value)
-  referencePreviewUrl.value = ''
-}
-
 async function saveAsset() {
   if (!form.value.name) return
-  if (!editingAsset.value && !pendingFile.value && !pendingReferenceFile.value) {
-    toast.warning('请先上传角色形象或参考图')
+  if (!editingAsset.value && !pendingFile.value) {
+    toast.warning('请先上传角色形象')
     return
   }
 
   assetBusy.value = true
   try {
     let uploaded = null
-    let uploadedReference = null
     if (pendingFile.value) uploaded = await uploadAPI.image(pendingFile.value)
-    if (pendingReferenceFile.value) uploadedReference = await uploadAPI.image(pendingReferenceFile.value)
 
     const payload = {
       name: form.value.name,
@@ -622,8 +503,6 @@ async function saveAsset() {
       payload.image_url = uploaded.url
       payload.local_path = uploaded.path
     }
-    if (uploadedReference) payload.reference_image = uploadedReference.url
-    else if (referenceCleared.value) payload.reference_image = null
 
     if (editingAsset.value?.id) await characterAssetAPI.update(editingAsset.value.id, payload)
     else await characterAssetAPI.create(payload)
@@ -635,56 +514,6 @@ async function saveAsset() {
     toast.error(error?.message || '角色形象保存失败')
   } finally {
     assetBusy.value = false
-  }
-}
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
-
-async function waitForImageGeneration(generationId, attempts = 90, delay = 2000) {
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const record = await imageAPI.get(generationId)
-    const status = record?.status || ''
-    if (status === 'completed') return true
-    if (status === 'failed') throw new Error(record?.error_msg || record?.errorMsg || '角色形象生成失败')
-    await sleep(delay)
-  }
-  throw new Error('角色形象生成超时，请稍后刷新查看')
-}
-
-async function waitForAssetImageUpdate(assetId, previousImage, attempts = 16, delay = 1000) {
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    await loadAssets({ silent: true })
-    const current = assets.value.find(item => Number(item.id) === Number(assetId))
-    const currentImage = imageSource(current)
-    if (currentImage && currentImage !== previousImage) return true
-    await sleep(delay)
-  }
-  return false
-}
-
-async function generateAssetImage(asset) {
-  const id = Number(asset?.id || 0)
-  if (!id) return
-  if (!referenceImageSource(asset)) {
-    toast.warning('请先上传参考图')
-    return
-  }
-  const previousImage = imageSource(asset)
-  try {
-    if (!isGeneratingAssetImage(id)) generatingAssetIds.value.push(id)
-    const result = await characterAssetAPI.generateImage(id)
-    toast.success('角色形象图生图生成中')
-    const generationId = Number(result?.image_generation_id || result?.imageGenerationId || 0)
-    if (generationId) await waitForImageGeneration(generationId)
-    await waitForAssetImageUpdate(id, previousImage)
-    await loadAssets({ silent: true })
-    toast.success('角色形象已更新')
-  } catch (error) {
-    toast.error(error?.message || '角色形象生成失败')
-  } finally {
-    generatingAssetIds.value = generatingAssetIds.value.filter(item => item !== id)
   }
 }
 
