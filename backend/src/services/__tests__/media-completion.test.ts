@@ -138,6 +138,7 @@ runTest('completeGeneratedImageJob persists generated image and publishes owner 
   const imagePatches: unknown[] = []
   const storyboardPatches: unknown[] = []
   const characterPatches: unknown[] = []
+  const characterAssetPatches: unknown[] = []
   const scenePatches: unknown[] = []
   const logs: unknown[] = []
 
@@ -163,6 +164,7 @@ runTest('completeGeneratedImageJob persists generated image and publishes owner 
       return {
         storyboardId: 3,
         characterId: 4,
+        characterAssetId: 6,
         sceneId: 5,
         frameType: 'first_frame',
       }
@@ -175,6 +177,9 @@ runTest('completeGeneratedImageJob persists generated image and publishes owner 
     },
     publishCharacterImage: async (characterId, patch) => {
       characterPatches.push({ characterId, patch })
+    },
+    publishCharacterAssetImage: async (characterAssetId, patch) => {
+      characterAssetPatches.push({ characterAssetId, patch })
     },
     publishSceneImage: async (sceneId, patch) => {
       scenePatches.push({ sceneId, patch })
@@ -221,13 +226,21 @@ runTest('completeGeneratedImageJob persists generated image and publishes owner 
       updatedAt: 't3',
     },
   }])
+  assert.deepEqual(characterAssetPatches, [{
+    characterAssetId: 6,
+    patch: {
+      imageUrl: 'https://cos.example.com/images/generated.png',
+      localPath: 'static/images/generated.png',
+      updatedAt: 't4',
+    },
+  }])
   assert.deepEqual(scenePatches, [{
     sceneId: 5,
     patch: {
       imageUrl: 'https://cos.example.com/images/generated.png',
       localPath: 'static/images/generated.png',
       status: 'completed',
-      updatedAt: 't4',
+      updatedAt: 't5',
     },
   }])
 })

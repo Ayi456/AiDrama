@@ -28,6 +28,9 @@ await runTest('image generation persistence forwards job patches and owner publi
     publishCharacterPatch: async (id, patch) => {
       calls.push({ channel: 'character', id, patch })
     },
+    publishCharacterAssetPatch: async (id, patch) => {
+      calls.push({ channel: 'characterAsset', id, patch })
+    },
     publishScenePatch: async (id, patch) => {
       calls.push({ channel: 'scene', id, patch })
     },
@@ -39,6 +42,7 @@ await runTest('image generation persistence forwards job patches and owner publi
   await persistence.persistImageCompletion({ imageUrl: 'cos://image.png', status: 'completed', updatedAt: 't4' })
   await persistence.publishStoryboardImage(21, { firstFrameImage: 'cos://image.png', updatedAt: 't5' })
   await persistence.publishCharacterImage(31, { imageUrl: 'cos://image.png', updatedAt: 't6' })
+  await persistence.publishCharacterAssetImage(51, { imageUrl: 'cos://image.png', updatedAt: 't7' })
   await persistence.publishSceneImage(41, { imageUrl: 'cos://image.png', status: 'completed', updatedAt: 't7' })
 
   assert.deepEqual(calls, [
@@ -48,6 +52,7 @@ await runTest('image generation persistence forwards job patches and owner publi
     { channel: 'image', id: 11, patch: { imageUrl: 'cos://image.png', status: 'completed', updatedAt: 't4' } },
     { channel: 'storyboard', id: 21, patch: { firstFrameImage: 'cos://image.png', updatedAt: 't5' } },
     { channel: 'character', id: 31, patch: { imageUrl: 'cos://image.png', updatedAt: 't6' } },
+    { channel: 'characterAsset', id: 51, patch: { imageUrl: 'cos://image.png', updatedAt: 't7' } },
     { channel: 'scene', id: 41, patch: { imageUrl: 'cos://image.png', status: 'completed', updatedAt: 't7' } },
   ])
 })
@@ -63,6 +68,7 @@ await runTest('video generation persistence forwards job patches and storyboard 
       calls.push({ channel: 'storyboard', id, patch })
     },
     publishCharacterPatch: async () => assert.fail('video persistence should not publish character images'),
+    publishCharacterAssetPatch: async () => assert.fail('video persistence should not publish character asset images'),
     publishScenePatch: async () => assert.fail('video persistence should not publish scene images'),
   })
 

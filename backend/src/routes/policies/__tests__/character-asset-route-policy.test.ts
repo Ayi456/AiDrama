@@ -100,3 +100,33 @@ runTest('buildCharacterAssetPublicPayload parses tags for API responses', () => 
     updated_at: '2026-05-09T00:01:00.000Z',
   })
 })
+
+runTest('character asset payloads support reference images for image-to-image generation', () => {
+  assert.equal(validateCharacterAssetCreateBody({
+    name: 'reference-only asset',
+    reference_image: '/static/uploads/reference.png',
+  }), null)
+
+  const values = buildCharacterAssetCreateValues({
+    name: 'reference-only asset',
+    reference_image: '/static/uploads/reference.png',
+  }, '2026-06-22T00:00:00.000Z')
+  assert.equal(values.imageUrl, '')
+  assert.equal(values.referenceImage, '/static/uploads/reference.png')
+
+  const patch = buildCharacterAssetUpdatePatch({
+    reference_image: null,
+  }, '2026-06-22T00:01:00.000Z')
+  assert.deepEqual(patch, {
+    updatedAt: '2026-06-22T00:01:00.000Z',
+    referenceImage: null,
+  })
+
+  const payload = buildCharacterAssetPublicPayload({
+    id: 8,
+    name: 'reference asset',
+    imageUrl: '',
+    referenceImage: '/static/uploads/reference.png',
+  })
+  assert.equal(payload.reference_image, '/static/uploads/reference.png')
+})

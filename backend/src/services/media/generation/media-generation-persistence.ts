@@ -8,6 +8,7 @@ type ImageGenerationDbPatch = Partial<typeof dbSchema.imageGenerations.$inferIns
 type VideoGenerationDbPatch = Partial<typeof dbSchema.videoGenerations.$inferInsert>
 type StoryboardDbPatch = Partial<typeof dbSchema.storyboards.$inferInsert>
 type CharacterDbPatch = Partial<typeof dbSchema.characters.$inferInsert>
+type CharacterAssetDbPatch = Partial<typeof dbSchema.characterAssets.$inferInsert>
 type SceneDbPatch = Partial<typeof dbSchema.scenes.$inferInsert>
 
 export type MediaGenerationPersistenceDeps = {
@@ -15,6 +16,7 @@ export type MediaGenerationPersistenceDeps = {
   persistVideoGenerationPatch: (id: number, patch: MediaGenerationPatch) => Promise<void>
   publishStoryboardPatch: (id: number, patch: MediaGenerationPatch) => Promise<void>
   publishCharacterPatch: (id: number, patch: MediaGenerationPatch) => Promise<void>
+  publishCharacterAssetPatch: (id: number, patch: MediaGenerationPatch) => Promise<void>
   publishScenePatch: (id: number, patch: MediaGenerationPatch) => Promise<void>
 }
 
@@ -28,6 +30,7 @@ export function createImageGenerationPersistence(id: number, deps: MediaGenerati
     persistImageCompletion: (patch: MediaGenerationPatch) => deps.persistImageGenerationPatch(id, patch),
     publishStoryboardImage: deps.publishStoryboardPatch,
     publishCharacterImage: deps.publishCharacterPatch,
+    publishCharacterAssetImage: deps.publishCharacterAssetPatch,
     publishSceneImage: deps.publishScenePatch,
   }
 }
@@ -57,6 +60,7 @@ export const mediaGenerationDbPersistenceDeps: MediaGenerationPersistenceDeps = 
   persistVideoGenerationPatch: updateVideoGenerationPatch,
   publishStoryboardPatch: updateStoryboardPatch,
   publishCharacterPatch: updateCharacterPatch,
+  publishCharacterAssetPatch: updateCharacterAssetPatch,
   publishScenePatch: updateScenePatch,
 }
 
@@ -89,6 +93,14 @@ async function updateCharacterPatch(id: number, patch: MediaGenerationPatch) {
   await db.update(schema.characters)
     .set(patch as CharacterDbPatch)
     .where(eq(schema.characters.id, id))
+    .run()
+}
+
+async function updateCharacterAssetPatch(id: number, patch: MediaGenerationPatch) {
+  const { db, schema } = await import('../../../db/index.js')
+  await db.update(schema.characterAssets)
+    .set(patch as CharacterAssetDbPatch)
+    .where(eq(schema.characterAssets.id, id))
     .run()
 }
 

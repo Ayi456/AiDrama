@@ -4,6 +4,10 @@ import { db, schema } from '../../db/index.js'
 import { success, created, badRequest, notFound, now } from '../../utils/response.js'
 import { getCurrentUser } from '../../middleware/auth.js'
 import { findOwnedCharacterAsset } from '../shared/ownership.js'
+import { generateImage } from '../../services/generation/image-generation.js'
+import { resolveCharacterImagePrompt } from '../../agents/visual-prompt-policy.js'
+import { errorMessageFromUnknown } from '../../utils/error.js'
+import { logTaskError, logTaskStart, logTaskSuccess } from '../../utils/task-logger.js'
 import {
   buildCharacterAssetCreateValues,
   buildCharacterAssetPublicPayload,
@@ -13,6 +17,48 @@ import {
 } from '../policies/character-asset-route-policy.js'
 
 const app = new Hono()
+
+type CharacterAssetRow = typeof schema.characterAssets.$inferSelect
+
+const ROLE_PRESET_LABELS: Record<string, string> = {
+  male_lead: 'male lead',
+  female_lead: 'female lead',
+  supporting: 'supporting character',
+  villain: 'villain',
+  custom: 'character',
+}
+
+function parseAssetTags(value: string | null | undefined) {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed.map(item => String(item || '').trim()).filter(Boolean) : []
+  } catch {
+    return value.split(/[,，\n]/).map(item => item.trim()).filter(Boolean)
+  }
+}
+
+function buildCharacterAssetImagePrompt(asset: CharacterAssetRow) {
+  const tags = parseAssetTags(asset.tags)
+  const rolePreset = asset.rolePreset || 'custom'
+  const genderText = asset.gender && asset.gender !== 'unknown' ? `gender: ${asset.gender}` : ''
+  const description = [
+    asset.description || '',
+    genderText,
+    tags.length ? `tags: ${tags.join(', ')}` : '',
+  ].filter(Boolean).join('，')
+
+  const basePrompt = resolveCharacterImagePrompt({
+    name: asset.name,
+    role: ROLE_PRESET_LABELS[rolePreset] || ROLE_PRESET_LABELS.custom,
+    description,
+    appearance: asset.appearance || asset.description || '',
+    personality: '',
+    style: '写实电影感',
+  })
+
+  return `${basePrompt}，参考上传的角色参考图进行图生图，保留人物身份特征、脸型气质、服装轮廓和整体风格，生成可复用的角色形象设定图`
+}
 
 app.get('/', async (c) => {
   const currentUser = getCurrentUser(c)
@@ -66,6 +112,31 @@ app.post('/:id/default', async (c) => {
   await setDefaultAsset(id, currentUser.id, row.rolePreset || 'custom', ts)
   const [updated] = await db.select().from(schema.characterAssets).where(eq(schema.characterAssets.id, id)).all()
   return success(c, buildCharacterAssetPublicPayload(updated))
+})
+
+app.post('/:id/generate-image', async (c) => {
+  const currentUser = getCurrentUser(c)
+  const id = Number(c.req.param('id'))
+  const asset = await findOwnedCharacterAsset(currentUser.id, id)
+  if (!asset) return notFound(c)
+
+  const referenceImage = typeof asset.referenceImage === 'string' ? asset.referenceImage.trim() : ''
+  if (!referenceImage) return badRequest(c, 'reference_image is required')
+
+  try {
+    logTaskStart('CharacterAssetImage', 'generate', { characterAssetId: id, mode: 'image-to-image' })
+    const genId = await generateImage({
+      characterAssetId: id,
+      prompt: buildCharacterAssetImagePrompt(asset),
+      referenceImages: [referenceImage],
+    })
+    logTaskSuccess('CharacterAssetImage', 'generate', { characterAssetId: id, generationId: genId })
+    return success(c, { image_generation_id: genId })
+  } catch (error: unknown) {
+    const message = errorMessageFromUnknown(error, 'Character asset image generation failed')
+    logTaskError('CharacterAssetImage', 'generate', { characterAssetId: id, error: message })
+    return badRequest(c, message)
+  }
 })
 
 app.delete('/:id', async (c) => {

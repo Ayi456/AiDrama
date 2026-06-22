@@ -1,9 +1,11 @@
 import {
   buildCharacterImagePatch,
+  buildCharacterAssetImagePatch,
   buildSceneImagePatch,
   buildStoryboardImagePatch,
   buildStoryboardVideoPatch,
   type CharacterImagePatch,
+  type CharacterAssetImagePatch,
   type SceneImagePatch,
   type StoryboardImagePatch,
   type StoryboardVideoPatch,
@@ -48,6 +50,7 @@ export type VideoCompletionInput = CompletedAssetInput & {
 export type ImageCompletionOwnerRecord = {
   storyboardId?: number | null
   characterId?: number | null
+  characterAssetId?: number | null
   sceneId?: number | null
   frameType?: string | null
 }
@@ -79,6 +82,7 @@ export type CompleteGeneratedImageJobDeps = MaterializeGeneratedImageDeps & {
   persistImageCompletion: (patch: ImageCompletionPatch) => Promise<void>
   publishStoryboardImage: (storyboardId: number, patch: StoryboardImagePatch) => Promise<void>
   publishCharacterImage: (characterId: number, patch: CharacterImagePatch) => Promise<void>
+  publishCharacterAssetImage: (characterAssetId: number, patch: CharacterAssetImagePatch) => Promise<void>
   publishSceneImage: (sceneId: number, patch: SceneImagePatch) => Promise<void>
   logSuccess: (taskName: string, event: string, payload: Record<string, unknown>) => void
 }
@@ -220,6 +224,12 @@ export async function completeGeneratedImageJob(
     await deps.publishCharacterImage(
       ownerRecord.characterId,
       buildCharacterImagePatch(publicUrl, localPath, deps.now()),
+    )
+  }
+  if (ownerRecord?.characterAssetId) {
+    await deps.publishCharacterAssetImage(
+      ownerRecord.characterAssetId,
+      buildCharacterAssetImagePatch(publicUrl, localPath, deps.now()),
     )
   }
   if (ownerRecord?.sceneId) {

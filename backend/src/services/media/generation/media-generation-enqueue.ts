@@ -7,6 +7,7 @@ export type ImageGenerationEnqueueParams = {
   dramaId?: number
   sceneId?: number
   characterId?: number
+  characterAssetId?: number
   prompt: string
   model?: string
   size?: string
@@ -46,6 +47,7 @@ export function buildImageGenerationEnqueueRecord(input: {
     dramaId: input.params.dramaId,
     sceneId: input.params.sceneId,
     characterId: input.params.characterId,
+    characterAssetId: input.params.characterAssetId,
     prompt: input.params.prompt,
     model,
     provider: input.config.provider,
@@ -98,6 +100,7 @@ export function buildImageGenerationEnqueueStartContext(input: {
     storyboardId: input.params.storyboardId,
     sceneId: input.params.sceneId,
     characterId: input.params.characterId,
+    characterAssetId: input.params.characterAssetId,
     frameType: input.params.frameType,
     model: input.params.model || input.config.model,
   }

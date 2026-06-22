@@ -431,6 +431,16 @@
   color: #d64d86;
 }
 
+.character-asset-card__reference-pill {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(36, 120, 91, 0.11);
+  color: #24785b;
+  font-size: 10px;
+  font-weight: 800;
+}
+
 .character-asset-card__meta {
   overflow: hidden;
   display: -webkit-box;
@@ -502,6 +512,20 @@
 
 .character-asset-card__actions button:hover {
   background: var(--bg-hover);
+  color: var(--accent);
+}
+
+.character-asset-card__actions button[disabled] {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.character-asset-card__actions button[disabled]:hover {
+  background: transparent;
+  color: var(--text-3);
+}
+
+.character-asset-card__actions button.is-busy {
   color: var(--accent);
 }
 
@@ -646,6 +670,109 @@
   gap: 8px;
   font-size: 13px;
   font-weight: 800;
+}
+
+.character-assets__reference {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 78px;
+  padding: 10px;
+  border: 1px solid rgba(63, 111, 217, 0.16);
+  border-radius: var(--radius);
+  background: rgba(63, 111, 217, 0.04);
+}
+
+.character-assets__reference-thumb {
+  position: relative;
+  flex: 0 0 auto;
+  width: 58px;
+  height: 58px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 8px;
+  padding: 0;
+  background: #fff;
+  cursor: zoom-in;
+}
+
+.character-assets__reference-thumb img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.character-assets__reference-thumb span {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: rgba(20, 36, 68, 0.78);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.character-assets__reference-meta {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.character-assets__reference-label {
+  color: rgba(36, 73, 158, 0.92);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.character-assets__reference-actions {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.character-assets__reference-btn,
+.character-assets__reference-empty {
+  position: relative;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid rgba(63, 111, 217, 0.22);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.76);
+  color: rgba(36, 73, 158, 0.9);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.character-assets__reference-btn {
+  padding: 0 10px;
+}
+
+.character-assets__reference-btn.is-ghost {
+  border-style: dashed;
+  background: transparent;
+  color: rgba(36, 73, 158, 0.68);
+}
+
+.character-assets__reference-empty {
+  flex: 1;
+  min-width: 0;
+  padding: 0 12px;
+}
+
+.character-assets__reference-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .character-assets__form-grid {

@@ -5,6 +5,8 @@ export type CharacterAssetBody = RouteBody & {
   gender?: string
   role_preset?: string
   image_url?: string
+  reference_image?: string | null
+  referenceImage?: string | null
   local_path?: string
   description?: string
   appearance?: string
@@ -19,6 +21,7 @@ export type CharacterAssetPublicSource = {
   gender?: string | null
   rolePreset?: string | null
   imageUrl?: string | null
+  referenceImage?: string | null
   localPath?: string | null
   description?: string | null
   appearance?: string | null
@@ -68,17 +71,31 @@ function parseTags(value: string | null | undefined) {
   }
 }
 
+function readOptionalString(value: unknown) {
+  return value == null ? null : String(value).trim()
+}
+
+function hasImageSource(body: CharacterAssetBody) {
+  return Boolean(
+    readOptionalString(body.image_url)
+    || readOptionalString(body.reference_image)
+    || readOptionalString(body.referenceImage),
+  )
+}
+
 export function validateCharacterAssetCreateBody(body: CharacterAssetBody) {
-  if (!body.name || !body.image_url) return 'name and image_url are required'
+  if (!body.name || !hasImageSource(body)) return 'name and image_url are required'
   return null
 }
 
 export function buildCharacterAssetCreateValues(body: CharacterAssetBody, timestamp: string) {
+  const referenceImage = readOptionalString(body.reference_image ?? body.referenceImage)
   return {
     name: String(body.name || '').trim(),
     gender: normalizeGender(body.gender),
     rolePreset: normalizeRolePreset(body.role_preset),
     imageUrl: String(body.image_url || '').trim(),
+    ...(referenceImage ? { referenceImage } : {}),
     localPath: body.local_path ? String(body.local_path).trim() : null,
     description: body.description ? String(body.description).trim() : null,
     appearance: body.appearance ? String(body.appearance).trim() : null,
@@ -96,6 +113,8 @@ export function buildCharacterAssetUpdatePatch(body: CharacterAssetBody, updated
   if (hasOwn(body, 'gender')) patch.gender = normalizeGender(body.gender)
   if (hasOwn(body, 'role_preset')) patch.rolePreset = normalizeRolePreset(body.role_preset)
   if (hasOwn(body, 'image_url')) patch.imageUrl = String(body.image_url || '').trim()
+  if (hasOwn(body, 'reference_image')) patch.referenceImage = readOptionalString(body.reference_image)
+  if (hasOwn(body, 'referenceImage')) patch.referenceImage = readOptionalString(body.referenceImage)
   if (hasOwn(body, 'local_path')) patch.localPath = body.local_path ? String(body.local_path).trim() : null
   if (hasOwn(body, 'description')) patch.description = body.description ? String(body.description).trim() : null
   if (hasOwn(body, 'appearance')) patch.appearance = body.appearance ? String(body.appearance).trim() : null
@@ -112,6 +131,7 @@ export function buildCharacterAssetPublicPayload(row: CharacterAssetPublicSource
     gender: row.gender || 'unknown',
     role_preset: row.rolePreset || 'custom',
     image_url: row.imageUrl || '',
+    ...(row.referenceImage ? { reference_image: row.referenceImage } : {}),
     local_path: row.localPath || '',
     description: row.description || '',
     appearance: row.appearance || '',

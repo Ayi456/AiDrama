@@ -52,6 +52,8 @@ export type CharacterAsset = ApiEntity & {
   gender?: string
   role_preset?: string
   image_url?: string
+  reference_image?: string | null
+  referenceImage?: string | null
   local_path?: string
   description?: string
   appearance?: string
@@ -493,6 +495,7 @@ export const characterAssetAPI = {
   list: () => api.get<CharacterAsset[]>('/character-assets'),
   create: (data: ApiRequestBody) => api.post<CharacterAsset>('/character-assets', data),
   update: (id: number, data: ApiRequestBody) => api.put<CharacterAsset>(`/character-assets/${id}`, data),
+  generateImage: (id: number) => api.post<ImageGenerationStart>(`/character-assets/${id}/generate-image`, {}),
   setDefault: (id: number) => api.post<CharacterAsset>(`/character-assets/${id}/default`),
   del: (id: number) => api.del(`/character-assets/${id}`),
 }

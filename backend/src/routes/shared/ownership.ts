@@ -59,6 +59,7 @@ export async function findOwnedImageGeneration(userId: number, imageGenerationId
   if (row.storyboardId && await findOwnedStoryboard(userId, row.storyboardId)) return row
   if (row.sceneId && await findOwnedScene(userId, row.sceneId)) return row
   if (row.characterId && await findOwnedCharacter(userId, row.characterId)) return row
+  if (row.characterAssetId && await findOwnedCharacterAsset(userId, row.characterAssetId)) return row
   return null
 }
 
@@ -79,6 +80,7 @@ export async function filterOwnedImageGenerations<T extends typeof schema.imageG
     else if (row.storyboardId && await findOwnedStoryboard(userId, row.storyboardId)) owned.push(row)
     else if (row.sceneId && await findOwnedScene(userId, row.sceneId)) owned.push(row)
     else if (row.characterId && await findOwnedCharacter(userId, row.characterId)) owned.push(row)
+    else if (row.characterAssetId && await findOwnedCharacterAsset(userId, row.characterAssetId)) owned.push(row)
   }
   return owned
 }

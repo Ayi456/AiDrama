@@ -6,6 +6,7 @@ export type ImageGenerationRequestContextRecord = {
   storyboardId?: number | null
   sceneId?: number | null
   characterId?: number | null
+  characterAssetId?: number | null
   frameType?: string | null
 }
 
@@ -39,6 +40,7 @@ export function buildImageGenerationRequestContext(input: {
     storyboardId: input.record.storyboardId,
     sceneId: input.record.sceneId,
     characterId: input.record.characterId,
+    characterAssetId: input.record.characterAssetId,
     frameType: input.record.frameType,
   }
 }

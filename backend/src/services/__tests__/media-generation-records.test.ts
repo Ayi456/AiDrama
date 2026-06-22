@@ -54,6 +54,7 @@ runTest('buildImageGenerationRequestContext exposes image owner and frame contex
         storyboardId: 11,
         sceneId: 12,
         characterId: 13,
+        characterAssetId: 14,
         frameType: 'first_frame',
       },
     }),
@@ -63,6 +64,7 @@ runTest('buildImageGenerationRequestContext exposes image owner and frame contex
       storyboardId: 11,
       sceneId: 12,
       characterId: 13,
+      characterAssetId: 14,
       frameType: 'first_frame',
     },
   )

@@ -17,6 +17,8 @@ export type CharacterImagePatch = {
   localPath: string
 }
 
+export type CharacterAssetImagePatch = CharacterImagePatch
+
 export type SceneImagePatch = CharacterImagePatch & {
   status: 'completed'
 }
@@ -59,6 +61,14 @@ export function buildCharacterImagePatch(
     localPath,
     updatedAt,
   }
+}
+
+export function buildCharacterAssetImagePatch(
+  publicUrl: string,
+  localPath: string,
+  updatedAt: string,
+): CharacterAssetImagePatch {
+  return buildCharacterImagePatch(publicUrl, localPath, updatedAt)
 }
 
 export function buildSceneImagePatch(

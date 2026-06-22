@@ -19,7 +19,7 @@ function runTest(name: string, fn: () => void) {
 
 runTest('character asset cards expose a dedicated image preview action', () => {
   assert.match(source, /@open-preview="openPreview"/)
-  assert.match(source, /emits:\s*\['edit', 'delete', 'open-preview'\]/)
+  assert.match(source, /emits:\s*\['edit', 'delete', 'open-preview', 'generate'\]/)
   assert.match(source, /title:\s*'放大预览'/)
   assert.match(source, /emit\('open-preview'/)
 })
@@ -40,4 +40,19 @@ runTest('character assets page exposes a richer library summary', () => {
   assert.match(source, /{{ assets\.length }}/)
   assert.match(source, /{{ defaultAssetCount }}/)
   assert.match(source, /{{ visibleAssetCount }}/)
+})
+
+runTest('character assets editor supports reference images for image-to-image generation', () => {
+  assert.match(source, /class="character-assets__reference"/)
+  assert.match(source, /reference_image/)
+  assert.match(source, /handleReferenceFileChange/)
+  assert.match(source, /clearReferenceImage/)
+  assert.match(source, /图生图|鍥剧敓鍥?/)
+})
+
+runTest('character asset cards can trigger image-to-image generation from a reference image', () => {
+  assert.match(source, /@generate="generateAssetImage"/)
+  assert.match(source, /characterAssetAPI\.generateImage/)
+  assert.match(source, /isGeneratingAssetImage/)
+  assert.match(source, /referenceImageSource/)
 })

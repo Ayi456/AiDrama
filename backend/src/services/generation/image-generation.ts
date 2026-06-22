@@ -308,6 +308,7 @@ async function completeGeneratedImage(id: number, provider: string, source: Gene
     persistImageCompletion: persistence.persistImageCompletion,
     publishStoryboardImage: persistence.publishStoryboardImage,
     publishCharacterImage: persistence.publishCharacterImage,
+    publishCharacterAssetImage: persistence.publishCharacterAssetImage,
     publishSceneImage: persistence.publishSceneImage,
     logSuccess: logTaskSuccess,
   })

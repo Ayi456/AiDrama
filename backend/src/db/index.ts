@@ -170,6 +170,7 @@ const tableStatements = [
     gender VARCHAR(32) DEFAULT 'unknown',
     role_preset VARCHAR(64) DEFAULT 'custom',
     image_url TEXT NOT NULL,
+    reference_image TEXT,
     local_path TEXT,
     description TEXT,
     appearance TEXT,
@@ -412,6 +413,7 @@ const tableStatements = [
     drama_id INT,
     scene_id INT,
     character_id INT,
+    character_asset_id INT,
     prop_id INT,
     image_type TEXT,
     frame_type TEXT,
@@ -638,7 +640,9 @@ async function initializeDatabase(pool: Pool, database: string) {
   await ensureColumn(pool, database, 'characters', 'character_asset_id', 'INT')
   await ensureColumn(pool, database, 'characters', 'image_prompt', 'TEXT')
   await ensureColumn(pool, database, 'character_assets', 'user_id', 'INT')
+  await ensureColumn(pool, database, 'character_assets', 'reference_image', 'TEXT')
   await ensureColumn(pool, database, 'assets', 'user_id', 'INT')
+  await ensureColumn(pool, database, 'image_generations', 'character_asset_id', 'INT')
   await ensureColumn(pool, database, 'image_generations', 'normalized_request', 'TEXT')
   await ensureColumn(pool, database, 'image_generations', 'provider_request', 'TEXT')
   await ensureColumn(pool, database, 'image_generations', 'provider_response', 'TEXT')
