@@ -128,6 +128,7 @@ await runTest('production bridge unwraps state and owns small page handlers', ()
     handleCharacterDescriptionUpdate: noop,
     handleCharacterAssetUpload: noop,
     handleCharacterAssetBind: noop,
+    handleCharacterReferenceClear: noop,
     handleGalleryViewerOpen: noop,
     batchSceneImages: noop,
     genSceneImg: noop,
@@ -170,6 +171,7 @@ await runTest('production bridge unwraps state and owns small page handlers', ()
   assert.equal(bridge.productionPanelState.value.scriptContent, 'script')
   assert.equal(bridge.productionPanelState.value.selectedSbId, 1)
   assert.deepEqual(bridge.productionPanelState.value.pendingCharImageIds, [2])
+  assert.equal(bridge.productionPanelHandlers.handleCharacterReferenceClear, noop)
 
   bridge.productionPanelHandlers.goScript()
   bridge.productionPanelHandlers.setProdTab('videos')

@@ -33,3 +33,17 @@ runTest('resolveCharacterAssetReferenceImages uses the bound active asset image 
     { id: 8, imageUrl: '/static/uploads/bound.png', localPath: 'static/uploads/bound.png', isActive: true, deletedAt: null },
   ), ['/static/uploads/bound.png'])
 })
+
+runTest('resolveCharacterAssetReferenceImages prefers the uploaded asset reference image', () => {
+  assert.deepEqual(resolveCharacterAssetReferenceImages(
+    { characterAssetId: 8 },
+    {
+      id: 8,
+      imageUrl: '/static/uploads/generated.png',
+      referenceImage: '/static/uploads/reference.png',
+      localPath: 'static/uploads/generated.png',
+      isActive: true,
+      deletedAt: null,
+    },
+  ), ['/static/uploads/reference.png'])
+})

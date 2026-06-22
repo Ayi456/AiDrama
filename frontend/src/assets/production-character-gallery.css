@@ -418,6 +418,129 @@
   font-weight: 700;
 }
 
+.character-gallery__reference {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 9px;
+  border: 1px dashed rgba(45, 138, 103, 0.2);
+  border-radius: var(--radius-lg);
+  background: rgba(236, 249, 245, 0.48);
+}
+
+.character-gallery__reference-thumb {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 1px solid rgba(45, 138, 103, 0.18);
+  border-radius: var(--radius);
+  padding: 0;
+  background: #fff;
+  color: #fff;
+  cursor: zoom-in;
+}
+
+.character-gallery__reference-thumb img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.character-gallery__reference-thumb span {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(31, 113, 84, 0.92);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.character-gallery__reference-meta {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.character-gallery__reference-label {
+  color: rgba(31, 113, 84, 0.92);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.character-gallery__reference-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.character-gallery__reference-btn {
+  position: relative;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 3px 9px;
+  border: 1px solid rgba(45, 138, 103, 0.2);
+  border-radius: 999px;
+  background: #fff;
+  color: rgba(31, 113, 84, 0.92);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.character-gallery__reference-btn.is-ghost {
+  border-style: dashed;
+  background: transparent;
+  color: rgba(31, 113, 84, 0.68);
+}
+
+.character-gallery__reference-btn.is-disabled,
+.character-gallery__reference-btn[disabled] {
+  opacity: 0.56;
+  cursor: not-allowed;
+}
+
+.character-gallery__reference-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.character-gallery__reference-empty {
+  position: relative;
+  min-height: 38px;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  overflow: hidden;
+  padding: 8px 10px;
+  border: 1px dashed rgba(45, 138, 103, 0.24);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.84);
+  color: rgba(31, 113, 84, 0.84);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.character-gallery__reference-empty.is-disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
 .character-gallery__foot {
   display: flex;
   align-items: center;

@@ -421,11 +421,49 @@ function assetNameFromFile(file) {
   return String(file?.name || '角色形象').replace(/\.[^.]+$/, '').trim() || '角色形象'
 }
 
+function characterAssetIdFromCharacter(character) {
+  return Number(
+    character?.character_asset_id ||
+    character?.characterAssetId ||
+    character?.character_asset?.id ||
+    character?.characterAsset?.id ||
+    0,
+  )
+}
+
 async function handleCharacterAssetUpload(payload) {
   if (!payload?.file) return
   characterAssetBusy.value = true
   try {
+    if (!payload.file.type?.startsWith('image/')) {
+      toast.error('请选择图片文件')
+      return
+    }
     const uploaded = await uploadAPI.image(payload.file)
+    if (payload.referenceOnly && payload.character?.id) {
+      const character = payload.character
+      const assetId = Number(payload.assetId || characterAssetIdFromCharacter(character) || 0)
+      if (assetId) {
+        await characterAssetAPI.update(assetId, { reference_image: uploaded.url })
+      } else {
+        const created = await characterAssetAPI.create({
+          name: `${character.name || assetNameFromFile(payload.file)}参考图`,
+          gender: payload.gender || 'unknown',
+          role_preset: payload.rolePreset || 'custom',
+          reference_image: uploaded.url,
+          description: character.description || character.appearance || '',
+          tags: ['reference'],
+          is_default: false,
+        })
+        const createdId = Number(created?.id || 0)
+        if (createdId) await characterAPI.bindAsset(character.id, createdId)
+      }
+      await loadCharacterAssets()
+      await refresh()
+      toast.success('角色参考图已上传，生成时将以图生图模式运行')
+      return
+    }
+
     await characterAssetAPI.create({
       name: assetNameFromFile(payload.file),
       gender: payload.gender || 'unknown',
@@ -439,6 +477,23 @@ async function handleCharacterAssetUpload(payload) {
     toast.success('角色形象已加入形象库')
   } catch (error) {
     toast.error(error?.message || '角色形象上传失败')
+  } finally {
+    characterAssetBusy.value = false
+  }
+}
+
+async function handleCharacterReferenceClear(payload) {
+  const character = payload?.character
+  const assetId = Number(payload?.assetId || characterAssetIdFromCharacter(character) || 0)
+  if (!assetId) return
+  characterAssetBusy.value = true
+  try {
+    await characterAssetAPI.update(assetId, { reference_image: null })
+    await loadCharacterAssets()
+    await refresh()
+    toast.success('角色参考图已移除')
+  } catch (error) {
+    toast.error(error?.message || '角色参考图移除失败')
   } finally {
     characterAssetBusy.value = false
   }
@@ -937,6 +992,7 @@ const {
   handleCharacterDescriptionUpdate,
   handleCharacterAssetUpload,
   handleCharacterAssetBind,
+  handleCharacterReferenceClear,
   handleGalleryViewerOpen,
   batchSceneImages,
   genSceneImg,

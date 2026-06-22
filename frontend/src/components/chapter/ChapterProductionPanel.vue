@@ -48,6 +48,7 @@
         @replace-image="handlers.replaceCharImage"
         @upload-character-asset="handlers.handleCharacterAssetUpload"
         @bind-character-asset="handlers.handleCharacterAssetBind"
+        @clear-character-reference="handlers.handleCharacterReferenceClear"
         @update-character-description="handlers.handleCharacterDescriptionUpdate"
         @open-image-viewer="handlers.handleGalleryViewerOpen"
       />

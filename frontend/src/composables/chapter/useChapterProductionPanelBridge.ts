@@ -106,6 +106,7 @@ type ProductionPanelBridgeOptions = {
   handleCharacterDescriptionUpdate: BridgeHandler
   handleCharacterAssetUpload: BridgeHandler
   handleCharacterAssetBind: BridgeHandler
+  handleCharacterReferenceClear: BridgeHandler
   handleGalleryViewerOpen: BridgeHandler
   batchSceneImages: BridgeHandler
   genSceneImg: BridgeHandler
@@ -253,6 +254,7 @@ export function useChapterProductionPanelBridge(options: ProductionPanelBridgeOp
     handleCharacterDescriptionUpdate: options.handleCharacterDescriptionUpdate,
     handleCharacterAssetUpload: options.handleCharacterAssetUpload,
     handleCharacterAssetBind: options.handleCharacterAssetBind,
+    handleCharacterReferenceClear: options.handleCharacterReferenceClear,
     handleGalleryViewerOpen: options.handleGalleryViewerOpen,
     batchSceneImages: options.batchSceneImages,
     genSceneImg: options.genSceneImg,

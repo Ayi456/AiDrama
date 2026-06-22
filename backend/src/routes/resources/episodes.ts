@@ -39,10 +39,12 @@ function presentCharacterWithAsset(character: CharacterRow, assetMap: Map<number
         id: asset.id,
         name: asset.name,
         image_url: asset.imageUrl,
+        reference_image: asset.referenceImage,
+        local_path: asset.localPath,
         role_preset: asset.rolePreset,
       }
       : null,
-    character_asset_image_url: asset?.imageUrl || null,
+    character_asset_image_url: asset?.referenceImage || asset?.imageUrl || null,
   }
 }
 

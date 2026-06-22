@@ -5,6 +5,7 @@ export type CharacterAssetBindingRecord = {
 export type CharacterAssetReferenceRecord = {
   id: number
   imageUrl?: string | null
+  referenceImage?: string | null
   localPath?: string | null
   isActive?: boolean | number | null
   deletedAt?: string | null
@@ -17,6 +18,6 @@ export function resolveCharacterAssetReferenceImages(
   if (!character.characterAssetId || !asset) return []
   if (asset.deletedAt) return []
   if (asset.isActive === false || asset.isActive === 0) return []
-  const image = asset.imageUrl || asset.localPath
+  const image = asset.referenceImage || asset.imageUrl || asset.localPath
   return image ? [image] : []
 }

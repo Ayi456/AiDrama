@@ -193,8 +193,8 @@
             @click="openAssetImage(getBoundAsset(character))"
           >
             <img
-              v-if="getAssetImage(getBoundAsset(character))"
-              :src="assetUrl(getAssetImage(getBoundAsset(character)))"
+              v-if="getAssetPreviewImage(getBoundAsset(character))"
+              :src="assetUrl(getAssetPreviewImage(getBoundAsset(character)))"
               alt=""
             />
             <span>
@@ -204,6 +204,58 @@
           </button>
           <div v-else class="character-gallery__bound-asset is-empty">
             未绑定形象，生成时不带形象库参考图
+          </div>
+
+          <div class="character-gallery__reference">
+            <template v-if="getAssetReferenceImage(getBoundAsset(character))">
+              <button
+                type="button"
+                class="character-gallery__reference-thumb"
+                title="查看参考图，生成时将以图生图模式运行"
+                @click="openAssetReferenceImage(getBoundAsset(character))"
+              >
+                <img :src="assetUrl(getAssetReferenceImage(getBoundAsset(character)))" alt="参考图" />
+                <span>图生图</span>
+              </button>
+              <div class="character-gallery__reference-meta">
+                <span class="character-gallery__reference-label">已上传参考图</span>
+                <div class="character-gallery__reference-actions">
+                  <label :class="['character-gallery__reference-btn', assetBusy && 'is-disabled']" title="重新上传参考图">
+                    <input
+                      class="character-gallery__reference-input"
+                      type="file"
+                      accept="image/*"
+                      :disabled="assetBusy"
+                      @change="handleReferenceFile(character, $event)"
+                    />
+                    替换
+                  </label>
+                  <button
+                    type="button"
+                    class="character-gallery__reference-btn is-ghost"
+                    :disabled="assetBusy"
+                    @click="clearReference(character)"
+                  >
+                    移除
+                  </button>
+                </div>
+              </div>
+            </template>
+            <label
+              v-else
+              :class="['character-gallery__reference-empty', assetBusy && 'is-disabled']"
+              title="上传一张参考图，生成时将走图生图模式"
+            >
+              <input
+                class="character-gallery__reference-input"
+                type="file"
+                accept="image/*"
+                :disabled="assetBusy"
+                @change="handleReferenceFile(character, $event)"
+              />
+              <ImagePlus :size="14" />
+              <span>上传参考图（开启图生图）</span>
+            </label>
           </div>
 
           <label class="character-gallery__prompt">
@@ -302,6 +354,7 @@ const emit = defineEmits([
   'replace-image',
   'upload-character-asset',
   'bind-character-asset',
+  'clear-character-reference',
   'update-character-description',
   'open-image-viewer',
 ])
@@ -454,6 +507,14 @@ function getAssetImage(asset) {
   return asset?.image_url || asset?.imageUrl || asset?.local_path || asset?.localPath || ''
 }
 
+function getAssetReferenceImage(asset) {
+  return asset?.reference_image || asset?.referenceImage || ''
+}
+
+function getAssetPreviewImage(asset) {
+  return getAssetImage(asset) || getAssetReferenceImage(asset)
+}
+
 function getBoundAssetId(character) {
   return Number(
     character?.character_asset_id ||
@@ -483,11 +544,20 @@ function openCharacterImage(character) {
 }
 
 function openAssetImage(asset) {
-  const src = getAssetImage(asset)
+  const src = getAssetPreviewImage(asset)
   if (!src) return
   emit('open-image-viewer', {
     src: assetUrl(src),
     title: `${asset?.name || '角色形象'} 形象图片`,
+  })
+}
+
+function openAssetReferenceImage(asset) {
+  const src = getAssetReferenceImage(asset)
+  if (!src) return
+  emit('open-image-viewer', {
+    src: assetUrl(src),
+    title: `${asset?.name || '角色形象'} 参考图`,
   })
 }
 
@@ -510,6 +580,29 @@ function handleAssetFile(event, rolePreset) {
     })
   }
   if (input) input.value = ''
+}
+
+function handleReferenceFile(character, event) {
+  const input = event.target
+  const file = input?.files?.[0]
+  if (file) {
+    emit('upload-character-asset', {
+      file,
+      character,
+      assetId: getBoundAssetId(character) || null,
+      rolePreset: getBoundAsset(character)?.role_preset || getBoundAsset(character)?.rolePreset || 'custom',
+      gender: getBoundAsset(character)?.gender || 'unknown',
+      referenceOnly: true,
+    })
+  }
+  if (input) input.value = ''
+}
+
+function clearReference(character) {
+  emit('clear-character-reference', {
+    character,
+    assetId: getBoundAssetId(character) || null,
+  })
 }
 
 function handleBindAsset(character, event) {
