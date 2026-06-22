@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const componentSource = fs.readFileSync(path.resolve(__dirname, '../AppConfirm.vue'), 'utf8')
 const appSource = fs.readFileSync(path.resolve(__dirname, '../../App.vue'), 'utf8')
+const studioStyles = fs.readFileSync(path.resolve(__dirname, '../../assets/studio.css'), 'utf8')
 
 function runTest(name: string, fn: () => void) {
   try {
@@ -34,4 +35,12 @@ runTest('AppConfirm renders as a centered confirmation dialog for destructive ac
 
 runTest('App.vue positions lightweight toast notifications at the top-right', () => {
   assert.match(appSource, /<Toaster position="top-right"/)
+})
+
+runTest('global toasts use polished product feedback styling', () => {
+  assert.match(studioStyles, /--toast-success/)
+  assert.match(studioStyles, /\[data-sonner-toast\]::after/)
+  assert.match(studioStyles, /@keyframes toastProgress/)
+  assert.match(studioStyles, /prefers-reduced-motion:\s*reduce/)
+  assert.match(studioStyles, /data-sonner-toast\]\s*\[data-close-button\]:focus-visible/)
 })
