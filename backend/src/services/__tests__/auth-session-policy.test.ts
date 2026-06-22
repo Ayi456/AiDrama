@@ -34,3 +34,41 @@ test('readSessionToken only accepts the HttpOnly cookie token', () => {
   assert.equal(readSessionToken({ cookieToken: '' }), '')
   assert.equal(readSessionToken({ cookieToken: undefined }), '')
 })
+
+test('production HTTP requests do not receive Secure session cookies', () => {
+  const previousNodeEnv = process.env.NODE_ENV
+  const previousSessionCookieSecure = process.env.SESSION_COOKIE_SECURE
+  delete process.env.SESSION_COOKIE_SECURE
+  process.env.NODE_ENV = 'production'
+
+  try {
+    assert.equal(buildSessionCookieOptions({ requestUrl: 'http://drama.zha-ji.cn/api/v1/auth/login' }).secure, false)
+  } finally {
+    if (previousNodeEnv === undefined) delete process.env.NODE_ENV
+    else process.env.NODE_ENV = previousNodeEnv
+    if (previousSessionCookieSecure === undefined) delete process.env.SESSION_COOKIE_SECURE
+    else process.env.SESSION_COOKIE_SECURE = previousSessionCookieSecure
+  }
+})
+
+test('forwarded HTTPS production requests keep Secure session cookies', () => {
+  const previousNodeEnv = process.env.NODE_ENV
+  const previousSessionCookieSecure = process.env.SESSION_COOKIE_SECURE
+  delete process.env.SESSION_COOKIE_SECURE
+  process.env.NODE_ENV = 'production'
+
+  try {
+    assert.equal(
+      buildSessionCookieOptions({
+        requestUrl: 'http://internal-runtime/api/v1/auth/login',
+        forwardedProto: 'https',
+      }).secure,
+      true,
+    )
+  } finally {
+    if (previousNodeEnv === undefined) delete process.env.NODE_ENV
+    else process.env.NODE_ENV = previousNodeEnv
+    if (previousSessionCookieSecure === undefined) delete process.env.SESSION_COOKIE_SECURE
+    else process.env.SESSION_COOKIE_SECURE = previousSessionCookieSecure
+  }
+})

@@ -1,4 +1,4 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 import { randomBytes } from 'node:crypto'
@@ -83,14 +83,21 @@ async function findUserByIdentifier(identifier: string) {
   return rows[0] ? mapUser(rows[0]) : null
 }
 
-function setSessionCookie(c: Parameters<typeof setCookie>[0], token: string) {
-  setCookie(c, SESSION_COOKIE_NAME, token, buildSessionCookieOptions())
+function sessionCookieOptions(c: Context) {
+  return buildSessionCookieOptions({
+    requestUrl: c.req.url,
+    forwardedProto: c.req.header('x-forwarded-proto'),
+  })
 }
 
-function clearSessionCookie(c: Parameters<typeof deleteCookie>[0]) {
+function setSessionCookie(c: Context, token: string) {
+  setCookie(c, SESSION_COOKIE_NAME, token, sessionCookieOptions(c))
+}
+
+function clearSessionCookie(c: Context) {
   deleteCookie(c, SESSION_COOKIE_NAME, {
     path: '/',
-    secure: buildSessionCookieOptions().secure,
+    secure: sessionCookieOptions(c).secure,
     sameSite: 'Lax',
   })
 }
