@@ -92,11 +92,14 @@ await runTest('runDirectAgentIfNeeded extracts MiMo characters and scenes withou
   let completionInput: DirectChatCompletionInput | null = null
   let savedCharacterNames: string[] = []
   let savedSceneLocations: string[] = []
+  let characterSaveReplaceExisting: unknown = null
+  let sceneSaveReplaceExisting: unknown = null
 
   const result = await runDirectAgentIfNeeded('extractor', {
     dramaId: 3,
     episodeId: 7,
     message: 'extract',
+    replaceExisting: true,
   }, {
     getTextConfig: async () => mimoConfig,
     completeText: async (input) => {
@@ -109,12 +112,14 @@ await runTest('runDirectAgentIfNeeded extracts MiMo characters and scenes withou
     loadEpisodeContent: async () => '# S1 | 外景 · 天台 | 夜',
     loadExistingCharacters: async () => [{ id: 1, name: '林夏' }],
     loadExistingScenes: async () => [],
-    saveCharacters: async (_episodeId, _dramaId, characters) => {
+    saveCharacters: async (_episodeId, _dramaId, characters, options) => {
       savedCharacterNames = characters.map(character => character.name)
+      characterSaveReplaceExisting = options?.replaceExisting
       return { message: 'Characters saved', created: 0, merged: characters.length }
     },
-    saveScenes: async (_episodeId, _dramaId, scenes) => {
+    saveScenes: async (_episodeId, _dramaId, scenes, options) => {
       savedSceneLocations = scenes.map(scene => scene.location)
+      sceneSaveReplaceExisting = options?.replaceExisting
       return { message: 'Scenes saved', created: scenes.length, reused: 0 }
     },
   })
@@ -122,10 +127,14 @@ await runTest('runDirectAgentIfNeeded extracts MiMo characters and scenes withou
   assert.equal(result?.agentMode, 'direct')
   assert.deepEqual(savedCharacterNames, ['林夏'])
   assert.deepEqual(savedSceneLocations, ['天台'])
+  assert.equal(characterSaveReplaceExisting, true)
+  assert.equal(sceneSaveReplaceExisting, true)
   assert.ok(completionInput)
   const input = completionInput as DirectChatCompletionInput
   assert.equal(input.body.tools, undefined)
   assert.equal(input.body.tool_choice, undefined)
+  assert.match(input.body.messages.map(message => message.content).join('\n'), /complete reusable baseline costume\/design/)
+  assert.match(input.body.messages.map(message => message.content).join('\n'), /Do not write single-scene expression/)
 })
 
 await runTest('runDirectAgentIfNeeded returns null for non-MiMo providers', async () => {

@@ -83,7 +83,13 @@ await runTest('script desk skip rewrite uses raw content and advances to extract
 
 await runTest('script desk dispatches rewrite, extraction, and breakdown agents', async () => {
   const episode = ref({ id: 13, content: 'raw', script_content: 'script' })
-  const calls: Array<{ type: string; prompt: string; dramaId: number; episodeId: number }> = []
+  const calls: Array<{
+    type: string
+    prompt: string
+    dramaId: number
+    episodeId: number
+    options?: Record<string, unknown>
+  }> = []
   const desk = useChapterScriptDesk({
     dramaId: 5,
     epId: computed(() => episode.value.id),
@@ -91,8 +97,8 @@ await runTest('script desk dispatches rewrite, extraction, and breakdown agents'
     scriptStep: ref(0),
     videoConfigs: ref([{ id: 8, name: 'Video Fast', provider: 'vidu' }]),
     lockedVideoConfigId: computed(() => 8),
-    runAgent: (type, prompt, dramaId, episodeId) => {
-      calls.push({ type, prompt, dramaId, episodeId })
+    runAgent: (type, prompt, dramaId, episodeId, _refresh, options) => {
+      calls.push({ type, prompt, dramaId, episodeId, options })
     },
     refresh: async () => undefined,
     updateChapter: async () => undefined,
@@ -105,6 +111,11 @@ await runTest('script desk dispatches rewrite, extraction, and breakdown agents'
   assert.deepEqual(calls.map(call => call.type), ['script_rewriter', 'extractor', 'storyboard_breaker'])
   assert.deepEqual(calls.map(call => call.dramaId), [5, 5, 5])
   assert.deepEqual(calls.map(call => call.episodeId), [13, 13, 13])
+  assert.deepEqual(calls[1]?.options, {
+    replace_existing: true,
+    use_default_prompt: true,
+  })
+  assert.match(calls[1]?.prompt || '', /替换当前集/)
   assert.match(calls[2]?.prompt || '', /Video Fast \(vidu\)/)
 })
 

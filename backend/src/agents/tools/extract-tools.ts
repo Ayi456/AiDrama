@@ -15,6 +15,10 @@ import { now } from '../../utils/response.js'
 import { logTaskProgress, logTaskSuccess } from '../../utils/task-logger.js'
 import { resolveSceneEnvironmentPrompt } from '../visual-prompt-policy.js'
 
+type ExtractToolOptions = {
+  replaceExisting?: boolean
+}
+
 // ─── 关联辅助 ────────────────────────────────────────────────
 async function linkCharToEpisode(episodeId: number, characterId: number) {
   const ts = now()
@@ -36,7 +40,19 @@ async function linkSceneToEpisode(episodeId: number, sceneId: number) {
   }
 }
 
-export function createExtractTools(episodeId: number, dramaId: number) {
+async function clearEpisodeCharacterLinks(episodeId: number) {
+  await db.delete(schema.episodeCharacters)
+    .where(eq(schema.episodeCharacters.episodeId, episodeId))
+    .run()
+}
+
+async function clearEpisodeSceneLinks(episodeId: number) {
+  await db.delete(schema.episodeScenes)
+    .where(eq(schema.episodeScenes.episodeId, episodeId))
+    .run()
+}
+
+export function createExtractTools(episodeId: number, dramaId: number, options: ExtractToolOptions = {}) {
 
   // 1. 读取剧本内容
   const readScriptForExtraction = createTool({
@@ -125,18 +141,22 @@ export function createExtractTools(episodeId: number, dramaId: number) {
         name: z.string().describe('Character name. Merge same-name characters first; if distinct individuals or conflicting appearances, use a qualifier plus name, such as 少年·张三 or 魔化·李四.'),
         role: z.string().optional().describe('Stable identity label when useful for deduplication.'),
         description: z.string().optional().describe('Only visual style labels such as identity, occupation, class, faction, or species. Max 3 labels or 20 Chinese characters. No experience, relationship, ability, or plot information.'),
-        appearance: z.string().optional().describe('Only objective drawable visual traits, ordered as 年龄段 → 性别特征 → 身高体型 → 肤色 → 五官特征 → 发型发色 → 服装（款式/材质/颜色）→ 配饰（含武器）→ 显著身体标记 → 神情 → 姿态. Do not invent unstated traits.'),
-        personality: z.string().optional().describe('Only temperament labels visible through expression, eyes, movement, or posture. No abstract judgment, moral judgment, causal premise, or plot premise.'),
+        appearance: z.string().optional().describe('Only objective drawable visual traits for the character asset 通用基准设定. 做完整定装，按 年龄段 → 性别特征 → 身高体型 → 肤色 → 脸型 → 五官特征 → 发型发色 → 上身服装 → 下身服装 → 配饰（含武器）→ 显著身体标记 → 稳定神态/体态 输出；原文缺少定装信息时，可按题材、时代、身份、年龄和场景保守补全视觉形象。不要写单场景表情、临时疲态、临时动作姿态、临时服装凌乱、受伤/哭泣状态或剧情阶段变化；这些状态交给具体镜头 image_prompt/video_prompt。'),
+        personality: z.string().optional().describe('Only stable reusable temperament labels for the character baseline. No plot-stage changes, single-scene emotions, abstract judgment, moral judgment, causal premise, or plot premise.'),
       })),
     }),
     execute: async ({ characters }) => {
       const ts = now()
       const results = { created: 0, merged: 0 }
+      const replaceExisting = options.replaceExisting === true
       logTaskProgress('ExtractTool', 'save-characters-begin', {
         episodeId,
         dramaId,
+        replaceExisting,
         names: characters.map(char => char.name).join(','),
       })
+
+      if (replaceExisting) await clearEpisodeCharacterLinks(episodeId)
 
       for (const char of characters) {
         const existing = (await db.select().from(schema.characters)
@@ -147,13 +167,13 @@ export function createExtractTools(episodeId: number, dramaId: number) {
         if (existing) {
           // 已存在：合并信息，保留 ID
           await db.update(schema.characters).set({
-            role: char.role || existing.role,
-            description: char.description || existing.description,
-            appearance: char.appearance || existing.appearance,
-            personality: char.personality || existing.personality,
+            role: replaceExisting ? char.role || '' : char.role || existing.role,
+            description: replaceExisting ? char.description || '' : char.description || existing.description,
+            appearance: replaceExisting ? char.appearance || '' : char.appearance || existing.appearance,
+            personality: replaceExisting ? char.personality || '' : char.personality || existing.personality,
             updatedAt: ts,
           }).where(eq(schema.characters.id, existing.id)).run()
-          linkCharToEpisode(episodeId, existing.id)
+          await linkCharToEpisode(episodeId, existing.id)
           results.merged++
         } else {
           // 新增角色
@@ -168,16 +188,18 @@ export function createExtractTools(episodeId: number, dramaId: number) {
             updatedAt: ts,
           }).run())
           const charId = Number(res.lastInsertRowid)
-          linkCharToEpisode(episodeId, charId)
+          await linkCharToEpisode(episodeId, charId)
           results.created++
         }
       }
 
       const payload = {
-        message: `角色保存完成：新增 ${results.created}，合并更新 ${results.merged}`,
+        message: replaceExisting
+          ? `角色重新提取完成：新增 ${results.created}，更新 ${results.merged}`
+          : `角色保存完成：新增 ${results.created}，合并更新 ${results.merged}`,
         ...results,
       }
-      logTaskSuccess('ExtractTool', 'save-characters-complete', { episodeId, ...results })
+      logTaskSuccess('ExtractTool', 'save-characters-complete', { episodeId, replaceExisting, ...results })
       return payload
     },
   })
@@ -196,11 +218,15 @@ export function createExtractTools(episodeId: number, dramaId: number) {
     execute: async ({ scenes }) => {
       const ts = now()
       const results = { created: 0, reused: 0 }
+      const replaceExisting = options.replaceExisting === true
       logTaskProgress('ExtractTool', 'save-scenes-begin', {
         episodeId,
         dramaId,
+        replaceExisting,
         scenes: scenes.map(scene => `${scene.location}@${scene.time || ''}`).join(','),
       })
+
+      if (replaceExisting) await clearEpisodeSceneLinks(episodeId)
 
       for (const scene of scenes) {
         // 按地点+时间段精确匹配
@@ -211,7 +237,13 @@ export function createExtractTools(episodeId: number, dramaId: number) {
 
         if (existing) {
           // 已存在完全匹配的场景：直接关联
-          linkSceneToEpisode(episodeId, existing.id)
+          if (replaceExisting) {
+            await db.update(schema.scenes).set({
+              prompt: resolveSceneEnvironmentPrompt(scene.prompt, scene.location),
+              updatedAt: ts,
+            }).where(eq(schema.scenes.id, existing.id)).run()
+          }
+          await linkSceneToEpisode(episodeId, existing.id)
           results.reused++
         } else {
           const res = (await db.insert(schema.scenes).values({
@@ -223,16 +255,18 @@ export function createExtractTools(episodeId: number, dramaId: number) {
             updatedAt: ts,
           }).run())
           const sceneId = Number(res.lastInsertRowid)
-          linkSceneToEpisode(episodeId, sceneId)
+          await linkSceneToEpisode(episodeId, sceneId)
           results.created++
         }
       }
 
       const payload = {
-        message: `场景保存完成：新增 ${results.created}，复用已有 ${results.reused}`,
+        message: replaceExisting
+          ? `场景重新提取完成：新增 ${results.created}，更新 ${results.reused}`
+          : `场景保存完成：新增 ${results.created}，复用已有 ${results.reused}`,
         ...results,
       }
-      logTaskSuccess('ExtractTool', 'save-scenes-complete', { episodeId, ...results })
+      logTaskSuccess('ExtractTool', 'save-scenes-complete', { episodeId, replaceExisting, ...results })
       return payload
     },
   })

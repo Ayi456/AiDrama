@@ -91,7 +91,9 @@ export async function createAgent(
 
   const dbConfig = await getAgentConfig(type)
   const model = await getModel(dbConfig)
-  const configuredBaseInstructions = dbConfig?.systemPrompt?.trim() || preset.instructions
+  const configuredBaseInstructions = options.useDefaultInstructions
+    ? preset.instructions
+    : dbConfig?.systemPrompt?.trim() || preset.instructions
   const baseInstructions = mergeMandatoryAgentInstructions(type, configuredBaseInstructions)
   const skillInstructions = loadAgentSkills(type)
   const instructions = mergeAgentInstructions(baseInstructions, skillInstructions)

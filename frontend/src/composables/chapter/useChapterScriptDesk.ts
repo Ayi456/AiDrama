@@ -28,6 +28,7 @@ type RunAgent = (
   dramaId: number,
   episodeId: number,
   refresh?: () => void | Promise<void>,
+  options?: Record<string, unknown>,
 ) => void
 
 type ChapterScriptDeskOptions = {
@@ -150,10 +151,14 @@ export function useChapterScriptDesk(options: ChapterScriptDeskOptions) {
     void saveScr()
     options.runAgent(
       'extractor',
-      '请从剧本中提取所有角色和场景信息，提取时自动与项目已有数据进行去重合并。',
+      '请按当前剧本重新提取角色和场景信息，并用本次提取结果替换当前集已有的角色/场景关联与描述字段。',
       options.dramaId,
       options.epId.value,
       options.refresh,
+      {
+        replace_existing: true,
+        use_default_prompt: true,
+      },
     )
   }
 

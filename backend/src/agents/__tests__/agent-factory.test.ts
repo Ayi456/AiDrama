@@ -89,6 +89,43 @@ runTest('resolveAgentTools dispatches storyboard options to the storyboard facto
   ])
 })
 
+runTest('resolveAgentTools dispatches extractor options to the extractor factory', () => {
+  const calls: Array<{ name: string; args: unknown[] }> = []
+  const extractorOptions: CreateAgentOptions['extractor'] = {
+    replaceExisting: true,
+  }
+
+  const tools = resolveAgentTools(
+    'extractor',
+    12,
+    34,
+    { extractor: extractorOptions },
+    {
+      script_rewriter: (...args: unknown[]) => {
+        calls.push({ name: 'script_rewriter', args })
+        return { readEpisodeScript: true }
+      },
+      extractor: (...args: unknown[]) => {
+        calls.push({ name: 'extractor', args })
+        return { readExistingCharacters: true }
+      },
+      storyboard_breaker: (...args: unknown[]) => {
+        calls.push({ name: 'storyboard_breaker', args })
+        return { saveStoryboards: true }
+      },
+      grid_prompt_generator: (...args: unknown[]) => {
+        calls.push({ name: 'grid_prompt_generator', args })
+        return { generateGridPrompt: true }
+      },
+    },
+  )
+
+  assert.deepEqual(tools, { readExistingCharacters: true })
+  assert.deepEqual(calls, [
+    { name: 'extractor', args: [12, 34, extractorOptions] },
+  ])
+})
+
 runTest('resolveAgentTools returns null for unsupported agent types', () => {
   const tools = resolveAgentTools(
     'unknown_agent',

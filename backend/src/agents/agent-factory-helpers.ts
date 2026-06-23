@@ -2,6 +2,10 @@ import type { SupportedAgentType } from './presets.js'
 import type { StoryboardChunk } from './storyboard-chunks.js'
 
 export type CreateAgentOptions = {
+  useDefaultInstructions?: boolean
+  extractor?: {
+    replaceExisting?: boolean
+  }
   storyboard?: {
     scriptChunk?: StoryboardChunk
     appendMode?: boolean
@@ -25,7 +29,11 @@ const mandatoryAgentInstructions: Partial<Record<SupportedAgentType, string>> = 
 
 type AgentToolFactorySet<TScriptTools, TExtractTools, TStoryboardTools, TGridPromptTools> = {
   script_rewriter: (episodeId: number) => TScriptTools
-  extractor: (episodeId: number, dramaId: number) => TExtractTools
+  extractor: (
+    episodeId: number,
+    dramaId: number,
+    extractorOptions?: CreateAgentOptions['extractor'],
+  ) => TExtractTools
   storyboard_breaker: (
     episodeId: number,
     dramaId: number,
@@ -66,7 +74,7 @@ export function resolveAgentTools<TScriptTools, TExtractTools, TStoryboardTools,
     case 'script_rewriter':
       return factories.script_rewriter(episodeId)
     case 'extractor':
-      return factories.extractor(episodeId, dramaId)
+      return factories.extractor(episodeId, dramaId, options.extractor)
     case 'storyboard_breaker':
       return factories.storyboard_breaker(episodeId, dramaId, options.storyboard)
     case 'grid_prompt_generator':

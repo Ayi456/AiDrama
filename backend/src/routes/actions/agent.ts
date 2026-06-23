@@ -85,15 +85,20 @@ export async function runExtractorAgent(
   dramaId: number,
   episodeId: number,
   message: string = DEFAULT_EXTRACTOR_MESSAGE,
+  options: { replaceExisting?: boolean; useDefaultPrompt?: boolean } = {},
 ) {
   const directResult = await runDirectAgentIfNeeded('extractor', {
     dramaId,
     episodeId,
     message,
+    replaceExisting: options.replaceExisting,
   })
   if (directResult) return directResult
 
-  const agent = await createAgent('extractor', episodeId, dramaId)
+  const agent = await createAgent('extractor', episodeId, dramaId, {
+    useDefaultInstructions: options.useDefaultPrompt,
+    extractor: { replaceExisting: options.replaceExisting },
+  })
   if (!agent) throw new Error('Agent not found')
 
   const result = await agent.generate(
@@ -441,6 +446,8 @@ app.post('/:type/chat', async (c) => {
 
   const body = await c.req.json()
   const { message, drama_id, episode_id } = body
+  const replaceExisting = body.replace_existing === true || body.replaceExisting === true
+  const useDefaultPrompt = body.use_default_prompt === true || body.useDefaultPrompt === true
 
   logTaskStart('Agent', agentType, {
     dramaId: drama_id,
@@ -490,6 +497,7 @@ app.post('/:type/chat', async (c) => {
         dramaId,
         episodeId,
         message: String(message || ''),
+        replaceExisting,
       })
       : null
     if (directResult) {
@@ -508,7 +516,10 @@ app.post('/:type/chat', async (c) => {
       return success(c, directResult)
     }
 
-    const agent = await createAgent(agentType, episodeId, dramaId)
+    const agent = await createAgent(agentType, episodeId, dramaId, {
+      useDefaultInstructions: agentType === 'extractor' ? useDefaultPrompt : false,
+      extractor: agentType === 'extractor' ? { replaceExisting } : undefined,
+    })
     if (!agent) {
       logTaskError('Agent', agentType, { reason: 'agent not found' })
       return badRequest(c, 'Agent not found')

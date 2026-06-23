@@ -44,6 +44,10 @@ type DirectSaveScenesResult = {
   reused: number
 }
 
+type DirectExtractionSaveOptions = {
+  replaceExisting?: boolean
+}
+
 export type DirectChatCompletionInput = {
   url: string
   config: AIConfig
@@ -68,6 +72,7 @@ type DirectAgentRequest = {
   dramaId: number
   episodeId: number
   message: string
+  replaceExisting?: boolean
 }
 
 type DirectAgentDeps = {
@@ -77,8 +82,18 @@ type DirectAgentDeps = {
   saveEpisodeScript?: (episodeId: number, content: string) => Promise<{ message: string; word_count: number }>
   loadExistingCharacters?: (episodeId: number, dramaId: number) => Promise<unknown[]>
   loadExistingScenes?: (episodeId: number, dramaId: number) => Promise<unknown[]>
-  saveCharacters?: (episodeId: number, dramaId: number, characters: Required<DirectCharacter>[]) => Promise<DirectSaveCharactersResult>
-  saveScenes?: (episodeId: number, dramaId: number, scenes: Required<DirectScene>[]) => Promise<DirectSaveScenesResult>
+  saveCharacters?: (
+    episodeId: number,
+    dramaId: number,
+    characters: Required<DirectCharacter>[],
+    options?: DirectExtractionSaveOptions,
+  ) => Promise<DirectSaveCharactersResult>
+  saveScenes?: (
+    episodeId: number,
+    dramaId: number,
+    scenes: Required<DirectScene>[],
+    options?: DirectExtractionSaveOptions,
+  ) => Promise<DirectSaveScenesResult>
 }
 
 async function loadDb() {
@@ -358,14 +373,31 @@ async function linkSceneToEpisode(episodeId: number, sceneId: number) {
   }
 }
 
+async function clearEpisodeCharacterLinks(episodeId: number) {
+  const { db, schema } = await loadDb()
+  await db.delete(schema.episodeCharacters)
+    .where(eq(schema.episodeCharacters.episodeId, episodeId))
+    .run()
+}
+
+async function clearEpisodeSceneLinks(episodeId: number) {
+  const { db, schema } = await loadDb()
+  await db.delete(schema.episodeScenes)
+    .where(eq(schema.episodeScenes.episodeId, episodeId))
+    .run()
+}
+
 async function defaultSaveCharacters(
   episodeId: number,
   dramaId: number,
   characters: Required<DirectCharacter>[],
+  options: DirectExtractionSaveOptions = {},
 ): Promise<DirectSaveCharactersResult> {
   const { db, schema } = await loadDb()
   const ts = now()
   const results = { created: 0, merged: 0 }
+
+  if (options.replaceExisting) await clearEpisodeCharacterLinks(episodeId)
 
   for (const character of characters) {
     const existing = (await db.select().from(schema.characters)
@@ -375,10 +407,10 @@ async function defaultSaveCharacters(
 
     if (existing) {
       await db.update(schema.characters).set({
-        role: character.role || existing.role,
-        description: character.description || existing.description,
-        appearance: character.appearance || existing.appearance,
-        personality: character.personality || existing.personality,
+        role: options.replaceExisting ? character.role : character.role || existing.role,
+        description: options.replaceExisting ? character.description : character.description || existing.description,
+        appearance: options.replaceExisting ? character.appearance : character.appearance || existing.appearance,
+        personality: options.replaceExisting ? character.personality : character.personality || existing.personality,
         updatedAt: ts,
       }).where(eq(schema.characters.id, existing.id)).run()
       await linkCharToEpisode(episodeId, existing.id)
@@ -400,7 +432,9 @@ async function defaultSaveCharacters(
   }
 
   return {
-    message: `Characters saved: created ${results.created}, merged ${results.merged}`,
+    message: options.replaceExisting
+      ? `Characters re-extracted: created ${results.created}, updated ${results.merged}`
+      : `Characters saved: created ${results.created}, merged ${results.merged}`,
     ...results,
   }
 }
@@ -409,10 +443,13 @@ async function defaultSaveScenes(
   episodeId: number,
   dramaId: number,
   scenes: Required<DirectScene>[],
+  options: DirectExtractionSaveOptions = {},
 ): Promise<DirectSaveScenesResult> {
   const { db, schema } = await loadDb()
   const ts = now()
   const results = { created: 0, reused: 0 }
+
+  if (options.replaceExisting) await clearEpisodeSceneLinks(episodeId)
 
   for (const scene of scenes) {
     const existing = (await db.select().from(schema.scenes)
@@ -421,6 +458,12 @@ async function defaultSaveScenes(
       .find(row => row.location === scene.location && row.time === scene.time)
 
     if (existing) {
+      if (options.replaceExisting) {
+        await db.update(schema.scenes).set({
+          prompt: resolveSceneEnvironmentPrompt(scene.prompt, scene.location),
+          updatedAt: ts,
+        }).where(eq(schema.scenes.id, existing.id)).run()
+      }
       await linkSceneToEpisode(episodeId, existing.id)
       results.reused++
     } else {
@@ -438,7 +481,9 @@ async function defaultSaveScenes(
   }
 
   return {
-    message: `Scenes saved: created ${results.created}, reused ${results.reused}`,
+    message: options.replaceExisting
+      ? `Scenes re-extracted: created ${results.created}, updated ${results.reused}`
+      : `Scenes saved: created ${results.created}, reused ${results.reused}`,
     ...results,
   }
 }
@@ -501,13 +546,17 @@ function buildExtractorMessages(
         'Rules:',
         '- Only extract characters and scenes that appear in the current episode.',
         '- Prefer existing character names and existing location/time pairs when they match.',
-        '- Same-name characters must be merged first. If they are different individuals or have conflicting appearances, distinguish them with a qualifier plus name, such as 少年·张三 or 魔化·李四, and keep the long-term stable look as the main design. Long-term stable means the look appears in at least 3 scenes or spans at least 2 locations/time scenes.',
-        '- appearance must contain only objective visual traits that can be drawn directly, in this fixed order: 年龄段 → 性别特征 → 身高体型 → 肤色 → 五官特征 → 发型发色 → 服装（款式/材质/颜色）→ 配饰（含武器）→ 显著身体标记（疤痕、纹身、异色瞳、义肢等）→ 神情 → 姿态.',
-        '- appearance must prioritize the most recognizable visual anchors. Do not invent or fill in unstated traits.',
+        '- Same-name characters must be merged first. Nicknames, pronouns, and identity titles should resolve to the same character. If they are different individuals or have long-term conflicting appearances, distinguish them with a qualifier plus name, such as 少年·张三 or 魔化·李四.',
+        '- Split compound character mentions, for example 父母 must become 父亲 and 母亲.',
+        '- Use age bands consistently: 0-6 幼年, 7-12 儿童, 13-19 少年/青少年, 20-35 青年, 36-59 中年, 60+ 老年. 40岁 is 中年, not 老年.',
+        '- appearance must be a complete reusable baseline costume/design, in this fixed order: 年龄段 → 性别特征 → 身高体型 → 肤色 → 脸型 → 五官特征 → 发型发色 → 上身服装（款式/材质/颜色）→ 下身服装（款式/材质/颜色）→ 配饰（含武器）→ 显著身体标记（疤痕、纹身、异色瞳、义肢等）→ 稳定神态 → 稳定体态.',
+        '- Prefer explicit text details. When the screenplay lacks face shape, hairstyle, upper/lower outfit, or accessories, conservatively complete visual styling from genre, era, identity, age, gender, and setting so character images can be generated consistently.',
+        '- Conservative completion may only add visual styling. Never invent names, plot experience, relationship changes, ability sources, or event details.',
+        '- appearance must only contain stable exterior traits and long-term reusable styling. Do not write single-scene expression, temporary fatigue, temporary action posture, temporarily messy clothing, wounds, crying, fear/anger performance, or plot-stage changes such as 后期柔软, 黑化后, 崩溃时.',
+        '- If a state is explicitly long-term and stable, rewrite it as a stable visual feature. Do not turn one-time sleeplessness, crying, injury, or anger into a character baseline.',
         '- description must contain only visual style labels such as identity, occupation, class, faction, or species. Keep it within 3 labels or 20 Chinese characters. Do not include experience, relationship, ability, or plot information. Class/faction labels must have clear visual conventions; non-visual relationship states such as 叛逃者 or 暗恋者 are forbidden.',
-        '- personality must contain only temperament labels that can be shown through expression, eyes, movement, or posture. No abstract personality judgment, moral judgment, causal premise, or plot premise. For example, do not write 亡国的忧郁; simplify it to 忧郁.',
+        '- personality must contain only stable reusable temperament labels. No plot-stage changes or single-scene emotions, for example do not write 后期柔软, 当前崩溃, 临时易怒.',
         '- Non-human or half-human characters must put biological traits in appearance and mark the race/species in description.',
-        '- Prefer long-term stable traits. Ignore one-off clothing, temporary wounds, festival outfits, and stage-only state changes unless they become a core identifying feature such as a signature scar.',
         '- Strictly block non-visual information, including but not limited to: 系统、穿越、重生、等级、境界、任务、能力来源、具体事件、关系变化、心理活动.',
         '- The output target is character visual design, not a biography. Every character field must be directly convertible into image content.',
         '- scene.prompt is a reusable environment asset prompt for an empty scene/background image, not a plot summary.',
@@ -579,8 +628,9 @@ async function runDirectExtractor(
     deps,
   )
   const payload = parseDirectExtractorResponse(responseText)
-  const characterResult = await saveCharacters(request.episodeId, request.dramaId, payload.characters)
-  const sceneResult = await saveScenes(request.episodeId, request.dramaId, payload.scenes)
+  const saveOptions = { replaceExisting: request.replaceExisting === true }
+  const characterResult = await saveCharacters(request.episodeId, request.dramaId, payload.characters, saveOptions)
+  const sceneResult = await saveScenes(request.episodeId, request.dramaId, payload.scenes, saveOptions)
 
   logTaskSuccess('AgentDirect', 'extract', {
     episodeId: request.episodeId,

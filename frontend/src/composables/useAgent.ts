@@ -31,7 +31,14 @@ export function useAgent() {
     }
   }
 
-  async function run(type: string, msg: string, dramaId: number, episodeId: number, onDone?: () => void) {
+  async function run(
+    type: string,
+    msg: string,
+    dramaId: number,
+    episodeId: number,
+    onDone?: () => void,
+    options: Record<string, unknown> = {},
+  ) {
     if (running.value) { toast.warning('操作执行中'); return }
     running.value = true
     runningType.value = type
@@ -44,6 +51,7 @@ export function useAgent() {
           message: msg,
           drama_id: dramaId,
           episode_id: episodeId,
+          ...options,
         })
       }
       toast.success('完成')

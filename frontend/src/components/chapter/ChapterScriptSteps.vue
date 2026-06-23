@@ -110,7 +110,7 @@
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       </div>
       <div class="empty-title">从剧本提取角色与场景</div>
-      <div class="empty-desc">AI 自动分析剧本，提取角色信息和场景列表，与项目已有数据智能去重合并</div>
+      <div class="empty-desc">AI 自动分析当前剧本，生成本集角色信息和场景列表；再次提取会用新结果替换当前集旧结果。</div>
       <button class="btn btn-primary" @click="emit('extract')">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
         开始提取
@@ -124,7 +124,7 @@
       <aside class="card extract-summary">
         <div class="extract-summary-kicker">Extraction Board</div>
         <div class="extract-summary-title">角色与场景结果</div>
-        <div class="extract-summary-desc">从剧本里提取出的角色和场景已经入库。这里仅做结果预览，确认无误后直接进入后续制作。</div>
+        <div class="extract-summary-desc">从当前剧本提取出的角色和场景已经入库。重新提取会刷新当前集关联和描述字段，确认无误后进入后续制作。</div>
         <div class="extract-summary-stats">
           <div class="extract-summary-stat">
             <span>角色</span>
