@@ -7,6 +7,7 @@ import type {
   VideoProviderAdapter,
 } from './types.js'
 import { joinProviderUrl } from './url.js'
+import { readOutputRecord, readStringField } from './adapter-utils.js'
 
 type AliVideoRequestBody = {
   model: string
@@ -21,20 +22,6 @@ type AliVideoRequestBody = {
     watermark: boolean
     seed: number
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
-function stringField(value: unknown, field: string): string | undefined {
-  if (!isRecord(value)) return undefined
-  const raw = value[field]
-  return typeof raw === 'string' && raw ? raw : undefined
-}
-
-function outputRecord(result: unknown) {
-  return isRecord(result) && isRecord(result.output) ? result.output : {}
 }
 
 export class AliVideoAdapter implements VideoProviderAdapter {
@@ -72,12 +59,12 @@ export class AliVideoAdapter implements VideoProviderAdapter {
   }
 
   parseGenerateResponse(result: unknown): VideoGenResponse {
-    const output = outputRecord(result)
-    const status = stringField(output, 'task_status')
-    const taskId = stringField(output, 'task_id')
+    const output = readOutputRecord(result)
+    const status = readStringField(output, 'task_status')
+    const taskId = readStringField(output, 'task_id')
     if (status === 'PENDING' && taskId) return { isAsync: true, taskId }
 
-    const videoUrl = stringField(output, 'video_url')
+    const videoUrl = readStringField(output, 'video_url')
     if (videoUrl) return { isAsync: false, videoUrl }
 
     throw new Error(`Unexpected Ali video response: ${JSON.stringify(result).slice(0, 200)}`)
@@ -97,14 +84,14 @@ export class AliVideoAdapter implements VideoProviderAdapter {
   }
 
   parsePollResponse(result: unknown): VideoPollResponse {
-    const output = outputRecord(result)
-    const status = stringField(output, 'task_status')
+    const output = readOutputRecord(result)
+    const status = readStringField(output, 'task_status')
 
     if (status === 'SUCCEEDED') {
-      return { status: 'completed', videoUrl: stringField(output, 'video_url') }
+      return { status: 'completed', videoUrl: readStringField(output, 'video_url') }
     }
     if (status === 'FAILED') {
-      return { status: 'failed', error: stringField(result, 'message') || 'Video generation failed' }
+      return { status: 'failed', error: readStringField(result, 'message') || 'Video generation failed' }
     }
     if (status === 'PENDING' || status === 'RUNNING') {
       return { status: 'processing' }
@@ -113,7 +100,7 @@ export class AliVideoAdapter implements VideoProviderAdapter {
   }
 
   extractVideoUrl(result: unknown): string | null {
-    return stringField(outputRecord(result), 'video_url') || null
+    return readStringField(readOutputRecord(result), 'video_url') || null
   }
 
   private normalizeResolution(aspectRatio?: string): string {

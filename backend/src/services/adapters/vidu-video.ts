@@ -7,6 +7,7 @@ import type {
   VideoProviderAdapter,
 } from './types.js'
 import { joinProviderUrl } from './url.js'
+import { parseJsonStringArray, readStringField } from './adapter-utils.js'
 
 type ViduGenerateRequestBody = {
   model: string
@@ -20,28 +21,6 @@ type ViduCallbackState = {
   status: 'completed' | 'failed'
   videoUrl?: string
   error?: string
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
-function stringField(value: unknown, field: string): string | undefined {
-  if (!isRecord(value)) return undefined
-  const raw = value[field]
-  return typeof raw === 'string' && raw ? raw : undefined
-}
-
-function parseStringArray(value: string | null | undefined): string[] {
-  if (!value) return []
-  try {
-    const parsed = JSON.parse(value)
-    return Array.isArray(parsed)
-      ? parsed.map(item => String(item || '').trim()).filter(Boolean)
-      : []
-  } catch {
-    return []
-  }
 }
 
 export class ViduVideoAdapter implements VideoProviderAdapter {
@@ -61,7 +40,7 @@ export class ViduVideoAdapter implements VideoProviderAdapter {
       if (record.firstFrameUrl) body.images.push(record.firstFrameUrl)
       if (record.lastFrameUrl) body.images.push(record.lastFrameUrl)
     } else if (record.referenceMode === 'multiple') {
-      body.images.push(...parseStringArray(record.referenceImageUrls))
+      body.images.push(...parseJsonStringArray(record.referenceImageUrls))
     }
 
     if (record.duration) body.duration = record.duration
@@ -86,10 +65,10 @@ export class ViduVideoAdapter implements VideoProviderAdapter {
   }
 
   parseGenerateResponse(result: unknown): VideoGenResponse {
-    const taskId = stringField(result, 'task_id')
+    const taskId = readStringField(result, 'task_id')
     if (taskId) return { isAsync: true, taskId }
 
-    const videoUrl = stringField(result, 'video_url')
+    const videoUrl = readStringField(result, 'video_url')
     if (videoUrl) return { isAsync: false, videoUrl }
 
     throw new Error('No task_id in Vidu response')
@@ -109,16 +88,16 @@ export class ViduVideoAdapter implements VideoProviderAdapter {
   }
 
   extractVideoUrl(result: unknown): string | null {
-    return stringField(result, 'video_url') || null
+    return readStringField(result, 'video_url') || null
   }
 
   static parseCallbackState(body: unknown): ViduCallbackState {
-    const state = stringField(body, 'state')
+    const state = readStringField(body, 'state')
     if (state === 'success') {
-      return { status: 'completed', videoUrl: stringField(body, 'video_url') }
+      return { status: 'completed', videoUrl: readStringField(body, 'video_url') }
     }
     if (state === 'failed') {
-      return { status: 'failed', error: stringField(body, 'error') || 'Vidu generation failed' }
+      return { status: 'failed', error: readStringField(body, 'error') || 'Vidu generation failed' }
     }
     return { status: 'failed', error: `Unknown state: ${state}` }
   }

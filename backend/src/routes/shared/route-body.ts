@@ -30,6 +30,22 @@ export function readBodyNumber(body: RouteBody, key: string): number | undefined
   return undefined
 }
 
+export function readBodyText(body: RouteBody, ...keys: string[]) {
+  for (const key of keys) {
+    const value = readBodyString(body, key)
+    if (value !== undefined) return value.trim()
+  }
+  return ''
+}
+
+export function readBodyId(body: RouteBody, ...keys: string[]) {
+  for (const key of keys) {
+    const value = readBodyNumber(body, key)
+    if (value !== undefined) return value
+  }
+  return 0
+}
+
 export function readBodyObjectArray(body: RouteBody, key: string): RouteBody[] {
   const value = body[key]
   if (!Array.isArray(value)) return []

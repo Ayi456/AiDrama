@@ -7,7 +7,7 @@ import { resolveCharacterAssetReferenceImages } from '../../services/assets/char
 import { logTaskError, logTaskStart, logTaskSuccess } from '../../utils/task-logger.js'
 import { resolveCharacterImagePrompt } from '../../agents/visual-prompt-policy.js'
 import { errorMessageFromUnknown } from '../../utils/error.js'
-import { hasOwn, readJsonBody } from '../shared/route-body.js'
+import { readJsonBody } from '../shared/route-body.js'
 import { toSnakeCase } from '../../utils/transform.js'
 import { getCurrentUser } from '../../middleware/auth.js'
 import {
@@ -16,41 +16,14 @@ import {
   findOwnedDrama,
   findOwnedEpisode,
 } from '../shared/ownership.js'
+import {
+  buildCharacterCreateValues,
+  buildCharacterUpdatePatch,
+  readCharacterBindAssetId,
+  readCharacterCreateInput,
+} from '../policies/character-route-policy.js'
 
 const app = new Hono()
-
-type CharacterUpdatePatch = {
-  updatedAt: string
-  name?: string
-  role?: string | null
-  description?: string | null
-  appearance?: string | null
-  personality?: string | null
-  imagePrompt?: string | null
-  imageUrl?: string | null
-  localPath?: string | null
-  characterAssetId?: number | null
-}
-
-function readBodyText(body: Record<string, unknown>, ...keys: string[]) {
-  for (const key of keys) {
-    const value = body[key]
-    if (typeof value === 'string') return value.trim()
-  }
-  return ''
-}
-
-function readBodyId(body: Record<string, unknown>, ...keys: string[]) {
-  for (const key of keys) {
-    const value = body[key]
-    if (typeof value === 'number' && Number.isFinite(value)) return value
-    if (typeof value === 'string' && value.trim()) {
-      const parsed = Number(value)
-      if (Number.isFinite(parsed)) return parsed
-    }
-  }
-  return 0
-}
 
 async function linkCharacterToEpisode(episodeId: number, characterId: number) {
   const existing = await db.select().from(schema.episodeCharacters)
@@ -64,10 +37,8 @@ async function linkCharacterToEpisode(episodeId: number, characterId: number) {
 app.post('/', async (c) => {
   const currentUser = getCurrentUser(c)
   const body = await readJsonBody(c)
-  const dramaId = readBodyId(body, 'drama_id', 'dramaId')
-  const episodeId = readBodyId(body, 'episode_id', 'episodeId')
-  const characterAssetId = readBodyId(body, 'character_asset_id', 'characterAssetId')
-  const name = readBodyText(body, 'name')
+  const input = readCharacterCreateInput(body)
+  const { dramaId, episodeId, characterAssetId, name } = input
 
   if (!dramaId) return badRequest(c, 'drama_id is required')
   if (!name) return badRequest(c, '角色名不能为空')
@@ -87,20 +58,7 @@ app.post('/', async (c) => {
   }
 
   const ts = now()
-  const res = await db.insert(schema.characters).values({
-    dramaId,
-    name,
-    role: readBodyText(body, 'role'),
-    description: readBodyText(body, 'description'),
-    appearance: readBodyText(body, 'appearance'),
-    personality: readBodyText(body, 'personality'),
-    imagePrompt: readBodyText(body, 'image_prompt', 'imagePrompt') || null,
-    imageUrl: readBodyText(body, 'image_url', 'imageUrl') || null,
-    localPath: readBodyText(body, 'local_path', 'localPath') || null,
-    characterAssetId: characterAssetId || null,
-    createdAt: ts,
-    updatedAt: ts,
-  }).run()
+  const res = await db.insert(schema.characters).values(buildCharacterCreateValues(body, input, ts)).run()
 
   const characterId = Number(res.lastInsertRowid)
   if (episodeId) await linkCharacterToEpisode(episodeId, characterId)
@@ -116,21 +74,7 @@ app.put('/:id', async (c) => {
   const character = await findOwnedCharacter(currentUser.id, id)
   if (!character) return badRequest(c, 'Character not found')
   const body = await readJsonBody(c)
-  const updates: CharacterUpdatePatch = { updatedAt: now() }
-
-  if (hasOwn(body, 'name')) updates.name = body.name as string
-  if (hasOwn(body, 'role')) updates.role = body.role as string | null
-  if (hasOwn(body, 'description')) updates.description = body.description as string | null
-  if (hasOwn(body, 'appearance')) updates.appearance = body.appearance as string | null
-  if (hasOwn(body, 'personality')) updates.personality = body.personality as string | null
-  if (hasOwn(body, 'image_prompt')) updates.imagePrompt = body.image_prompt as string | null
-  else if (hasOwn(body, 'imagePrompt')) updates.imagePrompt = body.imagePrompt as string | null
-  if (hasOwn(body, 'image_url')) updates.imageUrl = body.image_url as string | null
-  if (hasOwn(body, 'imageUrl')) updates.imageUrl = body.imageUrl as string | null
-  if (hasOwn(body, 'local_path')) updates.localPath = body.local_path as string | null
-  if (hasOwn(body, 'localPath')) updates.localPath = body.localPath as string | null
-  if (hasOwn(body, 'character_asset_id')) updates.characterAssetId = Number(body.character_asset_id || body.characterAssetId || 0) || null
-  else if (hasOwn(body, 'characterAssetId')) updates.characterAssetId = Number(body.characterAssetId || 0) || null
+  const updates = buildCharacterUpdatePatch(body, now())
 
   await db.update(schema.characters).set(updates).where(eq(schema.characters.id, id)).run()
   return success(c)
@@ -143,7 +87,7 @@ app.post('/:id/bind-asset', async (c) => {
   const character = await findOwnedCharacter(currentUser.id, id)
   if (!character) return badRequest(c, 'Character not found')
   const body = await readJsonBody(c)
-  const assetId = Number(body.character_asset_id || body.characterAssetId || 0)
+  const assetId = readCharacterBindAssetId(body)
   if (!assetId) return badRequest(c, '请选择角色形象')
 
   const asset = await findOwnedCharacterAsset(currentUser.id, assetId)

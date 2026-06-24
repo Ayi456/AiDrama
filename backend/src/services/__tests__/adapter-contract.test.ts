@@ -33,6 +33,23 @@ runTest('cleaned provider adapter files use ASCII source text', () => {
   }
 })
 
+runTest('cleaned provider adapter files reuse shared payload readers', () => {
+  const files = [
+    'src/services/adapters/vidu-video.ts',
+    'src/services/adapters/ali-image.ts',
+    'src/services/adapters/ali-video.ts',
+  ]
+
+  for (const file of files) {
+    const source = fs.readFileSync(path.resolve(file), 'utf8')
+    assert.equal(
+      /function\s+(isRecord|stringField|outputRecord)\b/.test(source),
+      false,
+      `${file} still defines local payload reader helpers`,
+    )
+  }
+})
+
 runTest('volcengine, openai, minimax, and gemini adapter files are cleaned up', () => {
   const files = [
     'src/services/adapters/volcengine-image.ts',

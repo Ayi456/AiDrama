@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 
-import { buildAssetUrlBackfillSteps } from '../asset-url-backfill.js'
+import {
+  buildAssetUrlBackfillCheckQuery,
+  buildAssetUrlBackfillSteps,
+} from '../asset-url-backfill.js'
 
 function runTest(name: string, fn: () => void) {
   try {
@@ -35,4 +38,14 @@ runTest('asset URL backfill only uses completed rows with minio_url', () => {
   assert.match(sql, /status = 'completed'/)
   assert.match(sql, /minio_url IS NOT NULL/)
   assert.match(sql, /minio_url <> ''/)
+})
+
+runTest('asset URL backfill check query reports the same targets as the update steps', () => {
+  const stepNames = buildAssetUrlBackfillSteps('2026-04-29T00:00:00.000Z').map(step => step.name)
+  const query = buildAssetUrlBackfillCheckQuery()
+
+  for (const name of stepNames) {
+    assert.match(query, new RegExp(`SELECT '${name.replace('.', '\\.')}' AS name, COUNT\\(\\*\\) AS remaining`))
+  }
+  assert.equal(query.match(/UNION ALL/g)?.length, stepNames.length - 1)
 })

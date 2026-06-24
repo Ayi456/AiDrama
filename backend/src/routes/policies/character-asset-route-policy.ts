@@ -1,4 +1,5 @@
-type RouteBody = Record<string, unknown>
+import type { RouteBody } from '../shared/route-body.js'
+import { hasOwn } from '../shared/route-body.js'
 
 export type CharacterAssetBody = RouteBody & {
   name?: string
@@ -34,10 +35,6 @@ export type CharacterAssetPublicSource = {
 
 const VALID_GENDERS = new Set(['male', 'female', 'unknown'])
 const VALID_ROLE_PRESETS = new Set(['male_lead', 'female_lead', 'supporting', 'villain', 'custom'])
-
-function hasOwn(body: RouteBody, key: string) {
-  return Object.prototype.hasOwnProperty.call(body, key)
-}
 
 function normalizeGender(value: unknown) {
   const gender = String(value || '').trim()

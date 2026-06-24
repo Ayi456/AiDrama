@@ -1,4 +1,5 @@
-type RouteBody = Record<string, unknown>
+import type { RouteBody } from '../shared/route-body.js'
+import { hasOwn } from '../shared/route-body.js'
 
 export type StoryboardCreateBody = RouteBody & {
   episode_id: number
@@ -121,10 +122,6 @@ const STORYBOARD_UPDATE_FIELDS = [
   ['transition_type', 'transitionType'],
   ['transition_duration_ms', 'transitionDurationMs'],
 ] as const satisfies readonly (readonly [StoryboardUpdateKey, StoryboardPatchField])[]
-
-function hasOwn(body: RouteBody, key: string) {
-  return Object.prototype.hasOwnProperty.call(body, key)
-}
 
 export function appendDialogueToVideoPrompt(
   videoPrompt?: string | null,

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import type { Context } from 'hono'
 
-import { hasOwn, readJsonBody } from '../route-body.js'
+import { hasOwn, readBodyId, readBodyText, readJsonBody } from '../route-body.js'
 
 async function runTest(name: string, fn: () => Promise<void> | void) {
   try {
@@ -45,4 +45,16 @@ await runTest('hasOwn only reports own properties', () => {
 
   assert.equal(hasOwn(body, 'own'), true)
   assert.equal(hasOwn(body, 'inherited'), false)
+})
+
+await runTest('readBodyText reads the first string alias and trims it', () => {
+  assert.equal(readBodyText({ title: '  scene  ' }, 'name', 'title'), 'scene')
+  assert.equal(readBodyText({ name: 7, title: 'fallback' }, 'name', 'title'), 'fallback')
+  assert.equal(readBodyText({ name: null }, 'name'), '')
+})
+
+await runTest('readBodyId reads finite numeric aliases', () => {
+  assert.equal(readBodyId({ drama_id: ' 42 ' }, 'drama_id', 'dramaId'), 42)
+  assert.equal(readBodyId({ drama_id: Number.NaN, dramaId: 9 }, 'drama_id', 'dramaId'), 9)
+  assert.equal(readBodyId({ drama_id: 'nope' }, 'drama_id'), 0)
 })

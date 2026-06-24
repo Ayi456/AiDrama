@@ -7,6 +7,12 @@ import type {
   ProviderRequest,
 } from './types.js'
 import { joinProviderUrl } from './url.js'
+import {
+  isRecord,
+  parseJsonStringArray,
+  readOutputRecord,
+  readStringField,
+} from './adapter-utils.js'
 
 type AliImageRequestBody = {
   model: string
@@ -26,28 +32,14 @@ type AliImageRequestBody = {
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
-function stringField(value: unknown, field: string): string | undefined {
-  if (!isRecord(value)) return undefined
-  const raw = value[field]
-  return typeof raw === 'string' && raw ? raw : undefined
-}
-
-function outputRecord(result: unknown) {
-  return isRecord(result) && isRecord(result.output) ? result.output : {}
-}
-
 function aliImageUrl(result: unknown): string | undefined {
-  const output = outputRecord(result)
+  const output = readOutputRecord(result)
   const choices = Array.isArray(output.choices) ? output.choices : []
   const firstChoice = choices[0]
   if (!isRecord(firstChoice) || !isRecord(firstChoice.message)) return undefined
   const content = Array.isArray(firstChoice.message.content) ? firstChoice.message.content : []
   const firstContent = content[0]
-  return stringField(firstContent, 'image')
+  return readStringField(firstContent, 'image')
 }
 
 function uniqueStrings(values: string[]): string[] {
@@ -60,13 +52,7 @@ function parseReferenceImages(record: ImageGenerationRecord): string[] {
     .map(item => String(item.url))
   if (normalizedInputs.length) return uniqueStrings(normalizedInputs)
 
-  if (!record.referenceImages) return []
-  try {
-    const parsed = JSON.parse(record.referenceImages)
-    return Array.isArray(parsed) ? uniqueStrings(parsed.map(item => String(item || ''))) : []
-  } catch {
-    return []
-  }
+  return uniqueStrings(parseJsonStringArray(record.referenceImages))
 }
 
 export class AliImageAdapter implements ImageProviderAdapter {
@@ -113,9 +99,9 @@ export class AliImageAdapter implements ImageProviderAdapter {
   }
 
   parseGenerateResponse(result: unknown): ImageGenResponse {
-    const output = outputRecord(result)
-    const status = stringField(output, 'task_status')
-    const taskId = stringField(output, 'task_id')
+    const output = readOutputRecord(result)
+    const status = readStringField(output, 'task_status')
+    const taskId = readStringField(output, 'task_id')
     if (status === 'PENDING' && taskId) return { isAsync: true, taskId }
 
     const imageUrl = aliImageUrl(result)
@@ -138,14 +124,14 @@ export class AliImageAdapter implements ImageProviderAdapter {
   }
 
   parsePollResponse(result: unknown): ImagePollResponse {
-    const output = outputRecord(result)
-    const status = stringField(output, 'task_status')
+    const output = readOutputRecord(result)
+    const status = readStringField(output, 'task_status')
 
     if (status === 'SUCCEEDED') {
       return { status: 'completed', imageUrl: aliImageUrl(result) }
     }
     if (status === 'FAILED') {
-      return { status: 'failed', error: stringField(result, 'message') || 'Generation failed' }
+      return { status: 'failed', error: readStringField(result, 'message') || 'Generation failed' }
     }
     if (status === 'PENDING' || status === 'RUNNING') {
       return { status: 'processing' }

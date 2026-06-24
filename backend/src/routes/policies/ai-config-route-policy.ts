@@ -1,4 +1,5 @@
-type RouteBody = Record<string, unknown>
+import type { RouteBody } from '../shared/route-body.js'
+import { hasOwn } from '../shared/route-body.js'
 
 export const VALID_AI_SERVICE_TYPES = new Set(['text', 'image', 'video', 'vision'])
 
@@ -75,10 +76,6 @@ export type AiConfigPublicSource = {
   isActive?: boolean | null
   createdAt?: string | null
   updatedAt?: string | null
-}
-
-function hasOwn(body: RouteBody, key: string) {
-  return Object.prototype.hasOwnProperty.call(body, key)
 }
 
 export function validateAiConfigCreateBody(body: AiConfigCreateBody) {
