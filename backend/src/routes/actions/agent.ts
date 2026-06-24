@@ -66,6 +66,10 @@ function readStoryboardEnvSettings(): Record<string, unknown> {
     : {}
 }
 
+function readStoryboardChunkChars(body: Record<string, unknown>) {
+  return Number(body.storyboard_chunk_chars || 0) || undefined
+}
+
 async function loadStoryboardAdaptivePolicy(chunkChars?: number): Promise<StoryboardAdaptivePolicy> {
   let settings: Record<string, unknown> = {}
   try {
@@ -366,7 +370,7 @@ app.post('/storyboard_breaker/plan', async (c) => {
   try {
     const { chunks, maxChars } = await getStoryboardChunks(
       Number(episode_id),
-      Number(body.storyboard_chunk_chars || 0) || undefined,
+      readStoryboardChunkChars(body),
     )
     logTaskProgress('Agent', 'storyboard-chunks-prepared', {
       episodeId: Number(episode_id),
@@ -401,7 +405,7 @@ app.post('/storyboard_breaker/chunk', async (c) => {
   try {
     const { chunks } = await getStoryboardChunks(
       Number(episode_id),
-      Number(body.storyboard_chunk_chars || 0) || undefined,
+      readStoryboardChunkChars(body),
     )
     const chunk = chunks.find((item) => item.index === index)
     if (!chunk) {
@@ -474,7 +478,7 @@ app.post('/:type/chat', async (c) => {
         dramaId,
         episodeId,
         String(message || DEFAULT_STORYBOARD_BREAKER_MESSAGE),
-        Number(body.storyboard_chunk_chars || 0) || undefined,
+        readStoryboardChunkChars(body),
       )
 
       const elapsed = ((performance.now() - startTime) / 1000).toFixed(1)

@@ -1,4 +1,5 @@
 import type { VideoGenerationEnqueueParams } from '../../services/media/generation/media-generation-enqueue.js'
+import { errorMessageFromUnknown as formatErrorMessage } from '../../utils/error.js'
 import { presentVideoGenerationAsset } from '../../utils/public-asset.js'
 
 type RouteBody = Record<string, unknown>
@@ -88,9 +89,7 @@ export function buildVideoRouteLogContext(body: VideoGenerateBody) {
 }
 
 export function errorMessageFromUnknown(error: unknown) {
-  if (error instanceof Error) return error.message || 'Unknown video generation error'
-  if (typeof error === 'string') return error || 'Unknown video generation error'
-  return 'Unknown video generation error'
+  return formatErrorMessage(error, 'Unknown video generation error')
 }
 
 function numberValue(value: unknown) {

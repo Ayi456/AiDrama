@@ -1,5 +1,6 @@
 import type { RouteBody } from '../shared/route-body.js'
 import { hasOwn } from '../shared/route-body.js'
+export { errorMessageFromUnknown } from '../../utils/error.js'
 
 export const VALID_AI_SERVICE_TYPES = new Set(['text', 'image', 'video', 'vision'])
 
@@ -184,10 +185,4 @@ export function buildAiConfigProbePayload(input: AiConfigProbePayloadInput) {
       : 'Endpoint did not return an expected probe status; check Base URL and proxy settings',
     response_preview: input.responseText.slice(0, 240),
   }
-}
-
-export function errorMessageFromUnknown(error: unknown) {
-  if (error instanceof Error) return error.message || 'Request failed'
-  if (typeof error === 'string') return error || 'Request failed'
-  return 'Request failed'
 }

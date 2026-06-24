@@ -4,20 +4,12 @@ import { db, schema } from '../../db/index.js'
 import { start, cancel, resume, abort, advance, resumeRunningEpisodes } from '../../services/automation/episode-orchestrator.js'
 import { getAutomationProgress } from '../../services/automation/progress-state.js'
 import { normalizeAutomationStage } from '../../services/automation/stage-policy.js'
-import * as automationRoutePolicy from '../policies/automation-route-policy.js'
+import { normalizePatchAction, resolveProgress, type DerivedProgress } from '../policies/automation-route-policy.js'
 import { getCurrentUser } from '../../middleware/auth.js'
 import { findOwnedEpisode } from '../shared/ownership.js'
 
-export type DerivedProgress = automationRoutePolicy.DerivedProgress
-export type ProgressInput = automationRoutePolicy.ProgressInput
-
-export function computeDerivedProgress(input: ProgressInput): DerivedProgress {
-  return automationRoutePolicy.computeDerivedProgress(input)
-}
-
-export function normalizePatchAction(action: string): 'cancel' | 'resume' | 'abort' | null {
-  return automationRoutePolicy.normalizePatchAction(action)
-}
+export { computeDerivedProgress, normalizePatchAction } from '../policies/automation-route-policy.js'
+export type { DerivedProgress, ProgressInput } from '../policies/automation-route-policy.js'
 const app = new Hono()
 
 // 推进所有 running 集前进一步（无外部 webhook 的 extract 阶段靠它打点）。
@@ -43,7 +35,7 @@ app.patch('/episodes/:id/automation', async (c) => {
   if (!Number.isFinite(episodeId)) return c.json({ code: 1, data: null, message: 'invalid episode id' }, 400)
   if (!await findOwnedEpisode(currentUser.id, episodeId)) return c.json({ code: 404, data: null, message: 'episode not found' }, 404)
   const body = await c.req.json()
-  const action = automationRoutePolicy.normalizePatchAction(body?.action ?? '')
+  const action = normalizePatchAction(body?.action ?? '')
   if (!action) return c.json({ code: 1, data: null, message: 'unknown action' }, 400)
   if (action === 'cancel') await cancel(episodeId)
   else if (action === 'resume') await resume(episodeId)
@@ -69,7 +61,7 @@ app.get('/episodes/:id/automation', async (c) => {
   let progress: DerivedProgress
   if (stage === 'extract') {
     const sbs = await db.select().from(schema.storyboards).where(eq(schema.storyboards.episodeId, episodeId))
-    progress = automationRoutePolicy.resolveProgress({ stage, counts: { storyboards: sbs.length } }, liveProgress)
+    progress = resolveProgress({ stage, counts: { storyboards: sbs.length } }, liveProgress)
   } else if (stage === 'character_image') {
     const ec = await db.select().from(schema.episodeCharacters).where(eq(schema.episodeCharacters.episodeId, episodeId))
     const charIds = ec.map(r => r.characterId)
@@ -81,7 +73,7 @@ app.get('/episodes/:id/automation', async (c) => {
       total = filtered.length
       done = filtered.filter(c => !!c.imageUrl).length
     }
-    progress = automationRoutePolicy.resolveProgress({ stage, counts: { characters: total, charactersWithImage: done } }, liveProgress)
+    progress = resolveProgress({ stage, counts: { characters: total, charactersWithImage: done } }, liveProgress)
   } else if (stage === 'scene_image') {
     const es = await db.select().from(schema.episodeScenes).where(eq(schema.episodeScenes.episodeId, episodeId))
     const sceneIds = es.map(r => r.sceneId)
@@ -93,18 +85,18 @@ app.get('/episodes/:id/automation', async (c) => {
       total = filtered.length
       done = filtered.filter(s => !!s.imageUrl).length
     }
-    progress = automationRoutePolicy.resolveProgress({ stage, counts: { scenes: total, scenesWithImage: done } }, liveProgress)
+    progress = resolveProgress({ stage, counts: { scenes: total, scenesWithImage: done } }, liveProgress)
   } else if (stage === 'video') {
     const sbs = await db.select().from(schema.storyboards).where(eq(schema.storyboards.episodeId, episodeId))
-    progress = automationRoutePolicy.resolveProgress({ stage, counts: {
+    progress = resolveProgress({ stage, counts: {
       storyboards: sbs.length,
       videos: sbs.filter(sb => !!sb.videoUrl).length,
     } }, liveProgress)
   } else if (stage === 'merge') {
     const mr = await db.select().from(schema.videoMerges).where(and(eq(schema.videoMerges.episodeId, episodeId), eq(schema.videoMerges.status, 'completed')))
-    progress = automationRoutePolicy.resolveProgress({ stage, counts: { merged: mr.length > 0 } }, liveProgress)
+    progress = resolveProgress({ stage, counts: { merged: mr.length > 0 } }, liveProgress)
   } else {
-    progress = automationRoutePolicy.resolveProgress({ stage: 'done', counts: {} }, liveProgress)
+    progress = resolveProgress({ stage: 'done', counts: {} }, liveProgress)
   }
 
   return c.json({ code: 0, data: {
