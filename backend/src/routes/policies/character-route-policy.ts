@@ -81,14 +81,14 @@ export function buildCharacterUpdatePatch(body: RouteBody, updatedAt: string): C
   if (hasOwn(body, 'local_path')) updates.localPath = body.local_path as string | null
   if (hasOwn(body, 'localPath')) updates.localPath = body.localPath as string | null
   if (hasOwn(body, 'character_asset_id')) {
-    updates.characterAssetId = Number(body.character_asset_id || body.characterAssetId || 0) || null
+    updates.characterAssetId = readBodyId(body, 'character_asset_id', 'characterAssetId') || null
   } else if (hasOwn(body, 'characterAssetId')) {
-    updates.characterAssetId = Number(body.characterAssetId || 0) || null
+    updates.characterAssetId = readBodyId(body, 'characterAssetId') || null
   }
 
   return updates
 }
 
 export function readCharacterBindAssetId(body: RouteBody) {
-  return Number(body.character_asset_id || body.characterAssetId || 0)
+  return readBodyId(body, 'character_asset_id', 'characterAssetId')
 }

@@ -88,3 +88,13 @@ runTest('buildCharacterUpdatePatch can clear the bound asset', () => {
     characterAssetId: null,
   })
 })
+
+runTest('buildCharacterUpdatePatch lets explicit snake_case asset clearing win over camelCase', () => {
+  assert.deepEqual(buildCharacterUpdatePatch({
+    character_asset_id: 0,
+    characterAssetId: 7,
+  }, '2026-06-24T00:03:00.000Z'), {
+    updatedAt: '2026-06-24T00:03:00.000Z',
+    characterAssetId: null,
+  })
+})

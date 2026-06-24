@@ -6,6 +6,8 @@ import {
   buildAiConfigPublicPayload,
   buildAiConfigUpdatePatch,
   errorMessageFromUnknown,
+  firstAiConfigModel,
+  parseAiConfigModel,
   validateAiConfigCreateBody,
   validateAiConfigProbeBody,
 } from '../ai-config-route-policy.js'
@@ -157,4 +159,17 @@ runTest('validateAiConfigProbeBody accepts vision service_type', () => {
     }),
     null,
   )
+})
+
+runTest('parseAiConfigModel safely parses stored model arrays', () => {
+  assert.deepEqual(parseAiConfigModel('["m1","m2"]'), ['m1', 'm2'])
+  assert.deepEqual(parseAiConfigModel('{"model":"m1"}'), [])
+  assert.deepEqual(parseAiConfigModel('not json'), [])
+  assert.deepEqual(parseAiConfigModel(null), [])
+})
+
+runTest('firstAiConfigModel returns the first stored string model', () => {
+  assert.equal(firstAiConfigModel('["m1","m2"]'), 'm1')
+  assert.equal(firstAiConfigModel('[7,"m2"]'), undefined)
+  assert.equal(firstAiConfigModel('not json'), undefined)
 })

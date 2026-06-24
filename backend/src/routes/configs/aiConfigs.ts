@@ -11,6 +11,8 @@ import {
   buildAiConfigPublicPayload,
   buildAiConfigUpdatePatch,
   errorMessageFromUnknown,
+  firstAiConfigModel,
+  parseAiConfigModel,
   validateAiConfigCreateBody,
   validateAiConfigProbeBody,
   VALID_AI_SERVICE_TYPES,
@@ -26,16 +28,6 @@ type ProbeRequest = {
   url: string
   headers: Record<string, string>
   body?: unknown
-}
-
-function firstStoredModel(raw: string | null | undefined) {
-  if (!raw) return undefined
-  try {
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) && typeof parsed[0] === 'string' ? parsed[0] : undefined
-  } catch {
-    return undefined
-  }
 }
 
 function bearerHeaders(apiKey?: string, withJson = false) {
@@ -198,7 +190,7 @@ app.post('/test', async (c) => {
     provider = body.provider || row.provider || ''
     baseUrl = body.base_url || row.baseUrl
     apiKey = body.api_key || row.apiKey
-    model = model || firstStoredModel(row.model)
+    model = model || firstAiConfigModel(row.model)
   }
 
   const probe = buildProbe(
@@ -298,7 +290,7 @@ aiProviders.get('/', async (c) => {
   const rows = (await db.select().from(schema.aiServiceProviders).all())
   const parsed = rows.map(r => ({
     ...toSnakeCase(r),
-    preset_models: r.presetModels ? JSON.parse(r.presetModels) : [],
+    preset_models: parseAiConfigModel(r.presetModels),
   }))
   return success(c, parsed)
 })

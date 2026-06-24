@@ -93,7 +93,7 @@ export function validateAiConfigProbeBody(body: AiConfigProbeBody) {
   return null
 }
 
-function parseAiConfigModel(raw: string | null | undefined) {
+export function parseAiConfigModel(raw: string | null | undefined) {
   if (!raw) return []
   try {
     const parsed = JSON.parse(raw)
@@ -101,6 +101,11 @@ function parseAiConfigModel(raw: string | null | undefined) {
   } catch {
     return []
   }
+}
+
+export function firstAiConfigModel(raw: string | null | undefined) {
+  const models = parseAiConfigModel(raw)
+  return typeof models[0] === 'string' ? models[0] : undefined
 }
 
 function parseAiConfigSettings(raw: string | null | undefined) {
