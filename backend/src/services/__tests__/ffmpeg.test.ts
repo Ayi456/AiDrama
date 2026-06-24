@@ -12,7 +12,7 @@ import { ensureTailFrameInputFile, type TailFrameInputDownload } from '../automa
 import { ensureMergeInputFiles, type MergeInputFile, requireExistingMergeInputFiles } from '../merge/merge-inputs.js'
 import { selectMergeClipStoryboards } from '../merge/merge-clips.js'
 import { ffmpegMergeOutputOptions, ffmpegMergeStrategies, ffmpegXfadeIntermediateOutputOptions, resolveFfmpegMergeTimeoutMs, resolveXfadeGroupSize } from '../merge/merge-ffmpeg-strategy.js'
-import { isStaleProcessingMerge, resolveMergeClipCount, resolveStaleMergeTimeoutMs } from '../merge/merge-status.js'
+import { isStaleProcessingMerge, resolveMergeClipCount, resolveMergeStoryboardIds, resolveStaleMergeTimeoutMs } from '../merge/merge-status.js'
 import {
   buildNormalizeMergeClipArgs,
   resolveMergeClipNormalizationMode,
@@ -307,6 +307,19 @@ await runTest('processing merge timeout scales with selected clip count', () => 
   assert.equal(resolveStaleMergeTimeoutMs(undefined, { scenes }), 155 * 60 * 1000)
   assert.equal(isStaleProcessingMerge({ status: 'processing', createdAt, scenes }, thirtyOneMinutesLater), false)
   assert.equal(isStaleProcessingMerge({ status: 'processing', createdAt, scenes }, tooLate), true)
+})
+
+await runTest('resolveMergeStoryboardIds reads valid storyboard ids from stored merge scenes', () => {
+  const scenes = JSON.stringify([
+    { storyboardId: 3 },
+    { storyboardId: '5' },
+    { storyboardId: 'bad' },
+    null,
+  ])
+
+  assert.deepEqual(resolveMergeStoryboardIds(scenes), [3, 5])
+  assert.deepEqual(resolveMergeStoryboardIds('not json'), [])
+  assert.deepEqual(resolveMergeStoryboardIds(null), [])
 })
 
 await runTest('normalized merge clip cache paths are deterministic per source and dimensions', () => {

@@ -9,12 +9,22 @@ type MergeRecordLike = {
 }
 
 export function resolveMergeClipCount(scenes?: string | null) {
-  if (!scenes) return 0
+  return parseMergeScenes(scenes).length
+}
+
+export function resolveMergeStoryboardIds(scenes?: string | null) {
+  return parseMergeScenes(scenes)
+    .map(item => Number(item?.storyboardId))
+    .filter(Number.isFinite)
+}
+
+function parseMergeScenes(scenes?: string | null): Array<{ storyboardId?: unknown } | null> {
+  if (!scenes) return []
   try {
     const parsed = JSON.parse(scenes)
-    return Array.isArray(parsed) ? parsed.length : 0
+    return Array.isArray(parsed) ? parsed : []
   } catch {
-    return 0
+    return []
   }
 }
 

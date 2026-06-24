@@ -9,6 +9,7 @@ import {
   staticAssetToLocalPath,
   staticAssetToCosObjectKey,
 } from '../../utils/cos.js'
+import { isHttpUrl } from '../../utils/url.js'
 import { resolveTailFrameInputPath } from './tail-frame-path-policy.js'
 
 export type TailFrameInputSource = {
@@ -27,10 +28,6 @@ export type TailFrameInputDeps = {
   download?: (input: TailFrameInputDownload) => Promise<boolean>
 }
 
-function isRemoteUrl(value: string) {
-  return /^https?:\/\//i.test(value)
-}
-
 function nonEmpty(value: string | null | undefined) {
   const normalized = String(value || '').trim()
   return normalized || null
@@ -39,7 +36,7 @@ function nonEmpty(value: string | null | undefined) {
 function firstRemoteUrl(...values: Array<string | null | undefined>) {
   for (const value of values) {
     const normalized = nonEmpty(value)
-    if (normalized && isRemoteUrl(normalized)) return normalized
+    if (normalized && isHttpUrl(normalized)) return normalized
   }
   return null
 }
@@ -53,7 +50,7 @@ function resolveDownloadUrl(source: TailFrameInputSource) {
   if (!localAsset || !config) return null
 
   const objectKey = staticAssetToCosObjectKey(localAsset)
-  if (!objectKey || isRemoteUrl(objectKey)) return null
+  if (!objectKey || isHttpUrl(objectKey)) return null
   return buildCosObjectUrl(objectKey, config)
 }
 
@@ -80,15 +77,15 @@ function resolveLocalInputPath(source: TailFrameInputSource, dataRoot: string, s
     if (!raw) continue
 
     const resolved = staticAssetToLocalPath(raw, dataRoot, storageRoot)
-    if (resolved && !isRemoteUrl(resolved)) return resolved
+    if (resolved && !isHttpUrl(resolved)) return resolved
   }
 
   return remoteTailFrameCachePath(source, storageRoot)
 }
 
 export async function downloadTailFrameInputFile(input: TailFrameInputDownload) {
-  if (!input.localPath || isRemoteUrl(input.localPath)) return false
-  if (!input.sourceUrl || !isRemoteUrl(input.sourceUrl)) return false
+  if (!input.localPath || isHttpUrl(input.localPath)) return false
+  if (!input.sourceUrl || !isHttpUrl(input.sourceUrl)) return false
 
   fs.mkdirSync(path.dirname(input.localPath), { recursive: true })
 

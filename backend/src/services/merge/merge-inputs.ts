@@ -7,6 +7,7 @@ import {
   getCosConfig,
   staticAssetToCosObjectKey,
 } from '../../utils/cos.js'
+import { isHttpUrl } from '../../utils/url.js'
 
 export type MergeInputFile = {
   sourceUrl: string
@@ -21,25 +22,21 @@ type MergeInputDeps = {
 
 const DEFAULT_MERGE_INPUT_DOWNLOAD_CONCURRENCY = 4
 
-function isRemoteUrl(value: string) {
-  return /^https?:\/\//i.test(value)
-}
-
 function resolveDownloadUrl(sourceUrl: string) {
   const raw = String(sourceUrl || '').trim()
   if (!raw) return null
-  if (isRemoteUrl(raw)) return raw
+  if (isHttpUrl(raw)) return raw
 
   const config = getCosConfig()
   if (!config) return null
 
   const objectKey = staticAssetToCosObjectKey(raw)
-  if (!objectKey || isRemoteUrl(objectKey)) return null
+  if (!objectKey || isHttpUrl(objectKey)) return null
   return buildCosObjectUrl(objectKey, config)
 }
 
 export async function downloadMergeInputFile(input: MergeInputFile) {
-  if (!input.localPath || isRemoteUrl(input.localPath)) return false
+  if (!input.localPath || isHttpUrl(input.localPath)) return false
 
   const downloadUrl = resolveDownloadUrl(input.sourceUrl)
   if (!downloadUrl) return false
@@ -73,7 +70,7 @@ export function requireExistingMergeInputFiles(
   inputs: MergeInputFile[],
   exists: (filePath: string) => boolean = fs.existsSync,
 ) {
-  const missing = inputs.filter(input => !input.localPath || isRemoteUrl(input.localPath) || !exists(input.localPath))
+  const missing = inputs.filter(input => !input.localPath || isHttpUrl(input.localPath) || !exists(input.localPath))
   if (missing.length) {
     throw new Error(`Missing merge input videos: ${missing.map(input => `${input.sourceUrl} -> ${input.localPath}`).join('; ')}`)
   }
@@ -118,7 +115,7 @@ export async function ensureMergeInputFiles(inputs: MergeInputFile[], deps: Merg
   const exists = deps.exists || fs.existsSync
   const download = deps.download || downloadMergeInputFile
   const concurrency = resolveDownloadConcurrency(deps.concurrency)
-  const missing = inputs.filter(input => input.localPath && !isRemoteUrl(input.localPath) && !exists(input.localPath))
+  const missing = inputs.filter(input => input.localPath && !isHttpUrl(input.localPath) && !exists(input.localPath))
 
   await runWithConcurrency(missing, concurrency, async (input) => {
     try {

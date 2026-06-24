@@ -19,6 +19,7 @@ import {
 } from './merge-job-state.js'
 import { runFfmpegConcat, runFfmpegMergeStrategies, type RunFfmpegConcatInput } from './merge-ffmpeg-execution.js'
 import { normalizeMergeInputFiles, resolveMergeClipNormalizationMode } from './merge-normalization.js'
+import { resolveMergeStoryboardIds } from './merge-status.js'
 import {
   isAnyTransitionEnabled,
   resolveSeamTransitions,
@@ -95,19 +96,6 @@ async function resolveMergeTransitions(
     transitionForSnapshot: transitionsEnabled ? globalTransition : null,
     seamTransitionsForMerge: transitionsEnabled ? seamTransitions : null,
     transitionsEnabled,
-  }
-}
-
-function parseMergeStoryboardIds(scenes: string | null | undefined) {
-  if (!scenes) return []
-  try {
-    const parsed = JSON.parse(scenes)
-    if (!Array.isArray(parsed)) return []
-    return parsed
-      .map(item => Number(item?.storyboardId))
-      .filter(Number.isFinite)
-  } catch {
-    return []
   }
 }
 
@@ -226,7 +214,7 @@ export async function ensureMergeJobRunning(mergeId: number): Promise<boolean> {
 
   const mergeState = createMergeJobDbPersistence()
   const storyboards = await mergeState.loadEpisodeStoryboards(episodeId)
-  const storyboardIds = parseMergeStoryboardIds(merge.scenes)
+  const storyboardIds = resolveMergeStoryboardIds(merge.scenes)
   const mergeStoryboards = selectMergeClipStoryboards(
     storyboards,
     storyboardIds.length ? storyboardIds : undefined,
