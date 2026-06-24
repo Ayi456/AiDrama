@@ -7,6 +7,14 @@ import { logTaskError, logTaskPayload, logTaskStart, logTaskSuccess } from '../.
 import { presentImageGenerationAsset, presentImageGenerationAssets } from '../../utils/public-asset.js'
 import { errorMessageFromUnknown } from '../../utils/error.js'
 import { readJsonBody } from '../shared/route-body.js'
+import {
+  buildImageGenerationInput,
+  buildImageRouteLogContext,
+  readImageOwnershipIds,
+  readImageRequestedConfigId,
+  validateImageGenerateBody,
+  type ImageGenerateBody,
+} from '../policies/image-route-policy.js'
 import { getCurrentUser } from '../../middleware/auth.js'
 import {
   filterOwnedImageGenerations,
@@ -22,47 +30,28 @@ const app = new Hono()
 // POST /images — Generate image
 app.post('/', async (c) => {
   const currentUser = getCurrentUser(c)
-  const body = await readJsonBody(c)
-  const prompt = typeof body.prompt === 'string' ? body.prompt : ''
-  if (!prompt) return badRequest(c, 'prompt is required')
-  if (body.drama_id && !await findOwnedDrama(currentUser.id, Number(body.drama_id))) return badRequest(c, 'Drama not found')
-  if (body.storyboard_id && !await findOwnedStoryboard(currentUser.id, Number(body.storyboard_id))) return badRequest(c, 'Storyboard not found')
-  if (body.scene_id && !await findOwnedScene(currentUser.id, Number(body.scene_id))) return badRequest(c, 'Scene not found')
-  if (body.character_id && !await findOwnedCharacter(currentUser.id, Number(body.character_id))) return badRequest(c, 'Character not found')
-  if (!body.drama_id && !body.storyboard_id && !body.scene_id && !body.character_id) {
-    return badRequest(c, 'drama_id, storyboard_id, scene_id, or character_id is required')
-  }
+  const body = await readJsonBody(c) as ImageGenerateBody
+  const validationError = validateImageGenerateBody(body)
+  if (validationError) return badRequest(c, validationError)
+  const ownershipIds = readImageOwnershipIds(body)
+  if (ownershipIds.dramaId !== undefined && !await findOwnedDrama(currentUser.id, ownershipIds.dramaId)) return badRequest(c, 'Drama not found')
+  if (ownershipIds.storyboardId !== undefined && !await findOwnedStoryboard(currentUser.id, ownershipIds.storyboardId)) return badRequest(c, 'Storyboard not found')
+  if (ownershipIds.sceneId !== undefined && !await findOwnedScene(currentUser.id, ownershipIds.sceneId)) return badRequest(c, 'Scene not found')
+  if (ownershipIds.characterId !== undefined && !await findOwnedCharacter(currentUser.id, ownershipIds.characterId)) return badRequest(c, 'Character not found')
 
   try {
-    let configId: number | undefined = typeof body.config_id === 'number' ? body.config_id : undefined
-    if (body.storyboard_id) {
-      const [sb] = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.id, Number(body.storyboard_id))).all())
+    let configId = readImageRequestedConfigId(body)
+    if (ownershipIds.storyboardId !== undefined) {
+      const [sb] = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.id, ownershipIds.storyboardId)).all())
       if (sb) {
         const [ep] = (await db.select().from(schema.episodes).where(eq(schema.episodes.id, sb.episodeId)).all())
         if (ep?.imageConfigId != null) configId = ep.imageConfigId
       }
     }
 
-    logTaskStart('ImageAPI', 'generate', {
-      storyboardId: body.storyboard_id,
-      sceneId: body.scene_id,
-      characterId: body.character_id,
-      dramaId: body.drama_id,
-      frameType: body.frame_type,
-    })
+    logTaskStart('ImageAPI', 'generate', buildImageRouteLogContext(body))
     logTaskPayload('ImageAPI', 'request body', body)
-    const id = await generateImage({
-      storyboardId: typeof body.storyboard_id === 'number' ? body.storyboard_id : undefined,
-      dramaId: typeof body.drama_id === 'number' ? body.drama_id : undefined,
-      sceneId: typeof body.scene_id === 'number' ? body.scene_id : undefined,
-      characterId: typeof body.character_id === 'number' ? body.character_id : undefined,
-      prompt,
-      model: typeof body.model === 'string' ? body.model : undefined,
-      size: typeof body.size === 'string' ? body.size : undefined,
-      referenceImages: Array.isArray(body.reference_images) ? body.reference_images as string[] : undefined,
-      frameType: typeof body.frame_type === 'string' ? body.frame_type : undefined,
-      configId,
-    })
+    const id = await generateImage(buildImageGenerationInput(body, configId))
 
     const [record] = (await db.select().from(schema.imageGenerations)
       .where(eq(schema.imageGenerations.id, id)).all())
