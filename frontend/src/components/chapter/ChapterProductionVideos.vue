@@ -91,6 +91,7 @@
                 多模态
               </button>
             </div>
+            <div class="shot-studio__helper">{{ referenceModeGuidance }}</div>
 
             <template v-if="referenceMode !== 'multimodal'">
               <div v-if="referenceMode === 'capture'" class="video-workbench__capture-source">
@@ -220,7 +221,7 @@
                     <span class="video-workbench__remove" @click.stop="clearCapturedFrame">×</span>
                   </button>
                 </div>
-                <div class="shot-studio__helper">截取的画面会作为 1 张参考图，与下方图片、视频、音频一起参与多模态生成。</div>
+                <div class="shot-studio__helper">截取的画面会作为 1 张普通参考图参与多模态生成，不等同于强首帧；需要上下镜头衔接时切回截帧/首尾帧。</div>
               </div>
 
               <div class="video-workbench__multi-block">
@@ -556,7 +557,7 @@ import { useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
 import { Camera, Check, CircleAlert, Film, History, Image as ImageIcon, Loader2, Music, ReceiptText, RefreshCw, Trash2, Wallet } from 'lucide-vue-next'
 import { uploadAPI } from '@/composables/useApi'
-import { buildAllMultimodalReferenceOptions, buildMultimodalReferenceOptions } from '@/composables/chapter/chapterShotMediaPolicy'
+import { buildAllMultimodalReferenceOptions, buildMultimodalReferenceOptions, getReferenceModeGuidance } from '@/composables/chapter/chapterShotMediaPolicy'
 import {
   getCaptureSourceVideoUrl,
   getCaptureTailFrameOptions,
@@ -834,8 +835,21 @@ const sceneReferenceOptions = computed(() => (
   allMultimodalReferenceOptions.value.filter(item => item.source === 'scene')
 ))
 
+const multimodalImageReferences = computed(() => (
+  uniqueByUrl([
+    capturedFrameUrl.value
+      ? {
+          label: capturedFrameSourceLabel.value || '上一镜头结尾帧',
+          url: capturedFrameUrl.value,
+          source: 'capture',
+        }
+      : null,
+    ...selectedReferenceImages.value,
+  ].filter(Boolean)).slice(0, 9)
+))
+
 const multimodalImageUrls = computed(() => (
-  uniqueStrings([capturedFrameUrl.value, ...selectedReferenceImages.value.map(item => item.url)]).slice(0, 9)
+  multimodalImageReferences.value.map(item => item.url)
 ))
 
 watch(
@@ -870,6 +884,8 @@ const referenceCountLabel = computed(() => {
   if (activeLastFrame.value) count += 1
   return `${count} 张`
 })
+
+const referenceModeGuidance = computed(() => getReferenceModeGuidance(referenceMode.value))
 
 function getReferenceSummary(storyboard) {
   if (!storyboard) return '仅文本生成'
@@ -1050,6 +1066,9 @@ async function generateSelectedVideo() {
     reference_image_urls: multimodalImageUrls.value,
     reference_video_urls: multimodalVideoUrls.value,
     reference_audio_urls: multimodalAudioUrls.value,
+    reference_image_bindings: multimodalImageReferences.value,
+    reference_video_bindings: selectedReferenceVideos.value,
+    reference_audio_bindings: selectedReferenceAudios.value,
   })
 }
 

@@ -3,17 +3,21 @@
 ## 模板结构
 
 ```
-A [gender] [age] character, [name], [body type], [facial features].
-[Hair description]. [Clothing details].
-[Pose and expression]. [Background: simple/gradient].
-Style: [art style], high quality, detailed, character concept art.
+用于后续多模态视频生成的人物外观参考图。[角色名]，[性别年龄]，[稳定体型与脸部特征]。
+[发型发色]。[长期固定服装与配饰]。[稳定气质，不写单场景情绪或动作]。
+三张并排的全身人物三视图：正面、侧面、背面，纯白背景或浅灰背景，符合人体工学。
+保持人物外貌、发型、服装和体型一致。
+Style: [art style], cinematic quality, high quality, consistent art style.
+不要出现角色名、视图名称、文字、标签、标题、编号、Logo 或水印；不要出现其他人物、剧情道具或场景。
 ```
 
 ## 示例
 
 ```
-A young woman in her early 20s, Li Mei, slender build, delicate oval face with bright almond eyes.
-Long black hair flowing over shoulders with subtle waves. Wearing a vintage blue qipao with floral embroidery.
-Standing confidently with a slight smile, one hand on hip. Background: soft gradient.
-Style: cinematic anime, high quality, detailed, character concept art.
+用于后续多模态视频生成的人物外观参考图。林晚，二十八岁左右的现代都市职场女性，清瘦体型，五官自然真实，眼神克制疲惫。
+黑色中长发，通勤衬衫，深色长裤，简洁电脑包，整体干净但略显疲惫。
+三张并排的全身人物三视图：正面、侧面、背面，纯白背景或浅灰背景，符合人体工学。
+保持人物外貌、发型、服装和体型一致。
+Style: realistic short-drama cinematic quality, high quality, consistent art style.
+不要出现角色名、视图名称、文字、标签、标题、编号、Logo 或水印；不要出现其他人物、剧情道具或场景。
 ```

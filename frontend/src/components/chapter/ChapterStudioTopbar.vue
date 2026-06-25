@@ -12,7 +12,7 @@
         <span class="studio-episode-chip">Chapter {{ chapterNumber }}</span>
         <div class="studio-meta-row">
           <span class="studio-meta-pill">{{ currentSubStageLabel }}</span>
-          <span class="studio-meta-pill is-progress">{{ pipelineProgress }}/7</span>
+          <span class="studio-meta-pill is-progress">{{ pipelineProgress }}/{{ pipelineTotal }}</span>
           <span class="studio-meta-inline">{{ characterCount }} 角色 · {{ shotCount }} 镜头</span>
         </div>
       </div>
@@ -52,6 +52,10 @@ const props = defineProps({
   pipelineProgress: {
     type: Number,
     default: 0,
+  },
+  pipelineTotal: {
+    type: Number,
+    default: 9,
   },
   characterCount: {
     type: Number,

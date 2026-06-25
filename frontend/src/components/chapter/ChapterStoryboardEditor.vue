@@ -3,7 +3,7 @@
     <div class="step-toolbar">
       <div class="toolbar-left">
         <div class="step-indicator">
-          <span class="step-num">04</span>
+          <span class="step-num">06</span>
           <span class="step-name">分镜列表</span>
         </div>
       </div>
@@ -253,7 +253,7 @@
             </label>
             <label class="field">
               <span class="field-label">视频提示词</span>
-              <textarea :value="selectedSb.video_prompt || selectedSb.videoPrompt || ''" class="textarea" rows="5" @blur="updateSelected('video_prompt', $event.target.value)" placeholder="按 3 秒分段的视频提示词..." />
+              <textarea :value="selectedSb.video_prompt || selectedSb.videoPrompt || ''" class="textarea" rows="5" @blur="updateSelected('video_prompt', $event.target.value)" placeholder="按镜头1、镜头2描述动作节奏，并写清结束画面和禁止项..." />
             </label>
             <div class="field-grid field-grid-2">
               <label class="field">

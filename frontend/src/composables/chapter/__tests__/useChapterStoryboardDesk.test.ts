@@ -78,7 +78,7 @@ await runTest('storyboard desk handles scene labels and list actions', async () 
 
   desk.handleStoryboardOpen(sbs.value[1])
   assert.equal(selectedSb.value?.id, 2)
-  assert.deepEqual(opened, ['script:storyboard'])
+  assert.deepEqual(opened, ['prod:storyboard'])
 
   await desk.addShot()
   assert.deepEqual(created, [{

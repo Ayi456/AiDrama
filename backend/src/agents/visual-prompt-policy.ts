@@ -261,7 +261,6 @@ export function buildCharacterPortraitGenerationPrompt(source: CharacterPromptSo
   const style = explicitStyle || getStyleText(source.style, true)
   const descriptionVisual = extractVisualCharacterDescription(source.description)
   const descriptionPart = descriptionVisual && descriptionVisual !== appearance ? descriptionVisual : ''
-  const displayName = source.name?.trim()
 
   return compactPromptParts([
     source.name,
@@ -272,9 +271,10 @@ export function buildCharacterPortraitGenerationPrompt(source: CharacterPromptSo
     role || descriptionIdentity ? `身份：${role || descriptionIdentity}` : null,
     style || null,
     '高清质感',
-    '三张并排的全身角色设定图，纯白背景，符合人体工学',
-    displayName ? `右上角清晰显示角色名：${displayName}` : null,
-    '不要其他文字、标签、标题、编号、水印，保持人物风格衣着的统一',
+    '用于后续多模态视频生成的人物外观参考图',
+    '三张并排的全身人物三视图：正面、侧面、背面，纯白背景或浅灰背景，符合人体工学',
+    '保持人物外貌、发型、服装和体型一致',
+    '不要出现角色名、视图名称、文字、标签、标题、编号、Logo 或水印；不要给每张图添加视图名称；不要出现其他人物、剧情道具或场景',
   ])
 }
 
@@ -287,15 +287,14 @@ export function resolveCharacterImagePrompt(source: CharacterImagePromptSource):
   if (override) return override
   const built = buildCharacterPortraitGenerationPrompt(source)
   if (built) return built
-  const displayName = source.name?.trim()
   return compactPromptParts([
     source.name,
-    '人物立绘',
+    '用于后续多模态视频生成的人物外观参考图',
     '高清质感',
-    '三视图',
-    '纯白背景',
-    displayName ? `右上角清晰显示角色名：${displayName}` : null,
-    '不要其他文字、标签、标题、编号、水印，保持人物风格衣着的统一',
+    '三张并排的全身人物三视图：正面、侧面、背面',
+    '纯白背景或浅灰背景',
+    '保持人物外貌、发型、服装和体型一致',
+    '不要出现角色名、视图名称、文字、标签、标题、编号、Logo 或水印；不要出现其他人物、剧情道具或场景',
   ])
 }
 
@@ -316,6 +315,8 @@ export function buildSceneImagePrompt(source: ScenePromptSource) {
     source.time,
     environmentPrompt,
     style ? `项目风格： ${style}` : null,
+    '空场景资产图，用于后续多模态视频生成的场景参考',
+    '空间结构和方向保持稳定，明确入口、出口、墙面、主要家具或陈设的位置关系',
     '只描述环境、建筑、陈设、光线、色调、空间氛围和镜头质感，不描写具体人物、剧情动作、对白或事件',
     '电影感场景',
     '氛围光影',
@@ -323,6 +324,7 @@ export function buildSceneImagePrompt(source: ScenePromptSource) {
     '统一画风',
     '无文字',
     '无水印',
+    '空场景，不出现人物，不出现剧情动作，不出现临时剧情道具，不出现文字、字幕、Logo、水印或 UI',
   ])
 }
 

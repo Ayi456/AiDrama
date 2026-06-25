@@ -133,7 +133,7 @@ export function useChapterStoryboardDesk(options: ChapterStoryboardDeskOptions) 
 
   function handleStoryboardOpen(storyboard: ChapterStoryboard) {
     options.selectedSb.value = storyboard
-    options.goSubStep('script:storyboard')
+    options.goSubStep('prod:storyboard')
   }
 
   function handleShotFieldUpdate(payload: { sb?: ChapterStoryboard; field?: string; value?: unknown } | null | undefined) {

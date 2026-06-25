@@ -7,6 +7,10 @@ type ProductionPanelBridgeOptions = {
   panel: Ref<string>
   scriptContent: ValueRef<string>
   sbs: ValueRef<unknown[]>
+  rn: ValueRef<boolean>
+  rt: ValueRef<string>
+  breakdownProgress: ValueRef<unknown>
+  totalDuration: ValueRef<number>
   prodTab: Ref<string>
   prodTabDefs: ValueRef<unknown[]>
   visualChars: ValueRef<unknown[]>
@@ -71,6 +75,9 @@ type ProductionPanelBridgeOptions = {
   gridFrameTypeOptions: unknown
   lockedVideoConfigLabel: ValueRef<string>
   shotVidCount: ValueRef<number>
+  shotTypes: unknown
+  shotAngles: unknown
+  shotMovements: unknown
   lockedVideoProvider: ValueRef<string>
   lockedVideoModelName: ValueRef<string>
   activeVideoSb: ValueRef<unknown>
@@ -99,6 +106,15 @@ type ProductionPanelBridgeOptions = {
   videoHistoryUrl: BridgeHandler
   getVideoGenerateActionLabel: BridgeHandler
   buildDefaultVideoPrompt: BridgeHandler
+  getStoryboardCharacterIds: BridgeHandler
+  getStoryboardCharacterNames: BridgeHandler
+  getStoryboardStateClass: BridgeHandler
+  getStoryboardStateText: BridgeHandler
+  getSceneName: BridgeHandler
+  addShot: BridgeHandler
+  doBreakdown: BridgeHandler
+  deleteShot: BridgeHandler
+  toggleStoryboardCharacter: BridgeHandler
   batchCharImages: BridgeHandler
   genCharImg: BridgeHandler
   handleManualCharacterAdd: BridgeHandler
@@ -150,6 +166,10 @@ export function useChapterProductionPanelBridge(options: ProductionPanelBridgeOp
   const productionPanelState = computed(() => ({
     scriptContent: options.scriptContent.value,
     sbs: options.sbs.value,
+    rn: options.rn.value,
+    rt: options.rt.value,
+    breakdownProgress: options.breakdownProgress.value,
+    totalDuration: options.totalDuration.value,
     prodTab: options.prodTab.value,
     prodTabDefs: options.prodTabDefs.value,
     visualChars: options.visualChars.value,
@@ -222,6 +242,10 @@ export function useChapterProductionPanelBridge(options: ProductionPanelBridgeOp
     gridCellTitle: options.gridCellTitle,
     lockedVideoConfigLabel: options.lockedVideoConfigLabel.value,
     shotVidCount: options.shotVidCount.value,
+    selectedSb: options.selectedSb.value,
+    shotTypes: options.shotTypes,
+    shotAngles: options.shotAngles,
+    shotMovements: options.shotMovements,
     lockedVideoProvider: options.lockedVideoProvider.value,
     lockedVideoModelName: options.lockedVideoModelName.value,
     activeVideoSb: options.activeVideoSb.value,
@@ -242,6 +266,11 @@ export function useChapterProductionPanelBridge(options: ProductionPanelBridgeOp
     videoHistoryUrl: options.videoHistoryUrl,
     getVideoGenerateActionLabel: options.getVideoGenerateActionLabel,
     buildDefaultVideoPrompt: options.buildDefaultVideoPrompt,
+    getStoryboardCharacterIds: options.getStoryboardCharacterIds,
+    getStoryboardCharacterNames: options.getStoryboardCharacterNames,
+    getStoryboardStateClass: options.getStoryboardStateClass,
+    getStoryboardStateText: options.getStoryboardStateText,
+    getSceneName: options.getSceneName,
   }))
 
   const productionPanelHandlers = {
@@ -256,6 +285,10 @@ export function useChapterProductionPanelBridge(options: ProductionPanelBridgeOp
     handleCharacterAssetBind: options.handleCharacterAssetBind,
     handleCharacterReferenceClear: options.handleCharacterReferenceClear,
     handleGalleryViewerOpen: options.handleGalleryViewerOpen,
+    addShot: options.addShot,
+    doBreakdown: options.doBreakdown,
+    deleteShot: options.deleteShot,
+    toggleStoryboardCharacter: options.toggleStoryboardCharacter,
     batchSceneImages: options.batchSceneImages,
     genSceneImg: options.genSceneImg,
     handleManualSceneAdd: options.handleManualSceneAdd,

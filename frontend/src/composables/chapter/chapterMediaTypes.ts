@@ -135,6 +135,15 @@ export type VideoReferenceOverride = {
   reference_image_urls?: string[] | string
   reference_video_urls?: string[] | string
   reference_audio_urls?: string[] | string
+  reference_image_bindings?: VideoReferenceBinding[]
+  reference_video_bindings?: VideoReferenceBinding[]
+  reference_audio_bindings?: VideoReferenceBinding[]
+}
+
+export type VideoReferenceBinding = {
+  url?: string
+  label?: string
+  source?: string
 }
 
 export type VideoGeneratePayload = {

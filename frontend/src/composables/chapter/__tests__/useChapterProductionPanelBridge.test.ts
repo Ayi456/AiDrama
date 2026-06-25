@@ -29,6 +29,10 @@ await runTest('production bridge unwraps state and owns small page handlers', ()
     panel,
     scriptContent: computed(() => 'script'),
     sbs: ref([{ id: 1 }]),
+    rn: ref(false),
+    rt: ref(''),
+    breakdownProgress: ref({ current: 0, total: 0 }),
+    totalDuration: computed(() => 10),
     prodTab,
     prodTabDefs: computed(() => [{ id: 'chars', label: 'Chars' }]),
     visualChars: computed(() => [{ id: 2 }]),
@@ -93,6 +97,9 @@ await runTest('production bridge unwraps state and owns small page handlers', ()
     gridFrameTypeOptions: [],
     lockedVideoConfigLabel: computed(() => 'video config'),
     shotVidCount: computed(() => 0),
+    shotTypes: ['中景'],
+    shotAngles: ['平视'],
+    shotMovements: ['固定'],
     lockedVideoProvider: computed(() => 'vidu'),
     lockedVideoModelName: computed(() => 'vidu2'),
     activeVideoSb: computed(() => null),
@@ -121,6 +128,15 @@ await runTest('production bridge unwraps state and owns small page handlers', ()
     videoHistoryUrl: noop,
     getVideoGenerateActionLabel: noop,
     buildDefaultVideoPrompt: noop,
+    getStoryboardCharacterIds: noop,
+    getStoryboardCharacterNames: noop,
+    getStoryboardStateClass: noop,
+    getStoryboardStateText: noop,
+    getSceneName: noop,
+    addShot: noop,
+    doBreakdown: noop,
+    deleteShot: noop,
+    toggleStoryboardCharacter: noop,
     batchCharImages: noop,
     genCharImg: noop,
     handleManualCharacterAdd: noop,
@@ -170,8 +186,12 @@ await runTest('production bridge unwraps state and owns small page handlers', ()
 
   assert.equal(bridge.productionPanelState.value.scriptContent, 'script')
   assert.equal(bridge.productionPanelState.value.selectedSbId, 1)
+  assert.equal(bridge.productionPanelState.value.totalDuration, 10)
+  assert.deepEqual(bridge.productionPanelState.value.shotTypes, ['中景'])
+  assert.equal(bridge.productionPanelState.value.getSceneName, noop)
   assert.deepEqual(bridge.productionPanelState.value.pendingCharImageIds, [2])
   assert.equal(bridge.productionPanelHandlers.handleCharacterReferenceClear, noop)
+  assert.equal(bridge.productionPanelHandlers.doBreakdown, noop)
 
   bridge.productionPanelHandlers.goScript()
   bridge.productionPanelHandlers.setProdTab('videos')

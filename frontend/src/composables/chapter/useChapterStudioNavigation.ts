@@ -38,6 +38,7 @@ export function useChapterStudioNavigation(options: UseChapterStudioNavigationOp
   function prodStepDone(id: string) {
     if (id === 'chars') return !visualCharTotal.value || charImgCount.value === visualCharTotal.value
     if (id === 'scenes') return !!options.scenes.value.length && sceneImgCount.value === options.scenes.value.length
+    if (id === 'storyboard') return !!options.sbs.value.length
     if (id === 'shots') return !!options.sbs.value.length && shotImgCount.value === options.sbs.value.length
     if (id === 'videos') return !!options.sbs.value.length && shotVidCount.value === options.sbs.value.length
     return false
@@ -46,6 +47,7 @@ export function useChapterStudioNavigation(options: UseChapterStudioNavigationOp
   const prodTabDefs = computed(() => [
     { id: 'chars', label: '角色形象', icon: Users, badge: visualCharTotal.value ? `${charImgCount.value}/${visualCharTotal.value}` : '' },
     { id: 'scenes', label: '场景图片', icon: MapPin, badge: sceneImgCount.value ? `${sceneImgCount.value}/${options.scenes.value.length}` : '' },
+    { id: 'storyboard', label: '分镜', icon: Clapperboard, badge: options.sbs.value.length ? `${options.sbs.value.length}` : '' },
     { id: 'shots', label: '镜头图片', icon: ImageIcon, badge: shotImgCount.value ? `${shotImgCount.value}/${options.sbs.value.length}` : '' },
     { id: 'videos', label: '视频生成', icon: Video, badge: shotVidCount.value ? `${shotVidCount.value}/${options.sbs.value.length}` : '' },
   ])
@@ -74,7 +76,6 @@ export function useChapterStudioNavigation(options: UseChapterStudioNavigationOp
         { key: 'script:raw', label: '原始内容', desc: '', icon: FileText, done: !!options.rawContent.value },
         { key: 'script:rewrite', label: 'AI 改写', desc: '', icon: FileText, done: !!options.scriptContent.value },
         { key: 'script:extract', label: '提取', desc: '', icon: Users, done: !!options.chars.value.length },
-        { key: 'script:storyboard', label: '分镜', desc: '', icon: Clapperboard, done: !!options.sbs.value.length },
       ],
     },
     {
@@ -83,6 +84,7 @@ export function useChapterStudioNavigation(options: UseChapterStudioNavigationOp
       items: [
         { key: 'prod:chars', label: '角色形象', desc: '', icon: Users, done: prodStepDone('chars') },
         { key: 'prod:scenes', label: '场景图片', desc: '', icon: MapPin, done: prodStepDone('scenes') },
+        { key: 'prod:storyboard', label: '分镜', desc: '', icon: Clapperboard, done: prodStepDone('storyboard') },
         { key: 'prod:shots', label: '镜头图片', desc: '', icon: ImageIcon, done: prodStepDone('shots') },
         { key: 'prod:videos', label: '视频生成', desc: '', icon: Video, done: prodStepDone('videos') },
       ],
@@ -100,8 +102,7 @@ export function useChapterStudioNavigation(options: UseChapterStudioNavigationOp
     if (panel.value === 'export') return 'export'
     if (panel.value === 'production') return ['chars', 'scenes'].includes(prodTab.value) ? 'assets' : 'storyboard'
     if (scriptStep.value <= 1) return 'script'
-    if (scriptStep.value <= 2) return 'assets'
-    return 'storyboard'
+    return 'assets'
   })
 
   function mainStageDone(stageId: string) {
@@ -138,16 +139,12 @@ export function useChapterStudioNavigation(options: UseChapterStudioNavigationOp
         return
       }
       panel.value = 'script'
-      scriptStep.value = options.chars.value.length ? 3 : 2
+      scriptStep.value = 2
       return
     }
     if (stageId === 'storyboard') {
-      if (panel.value === 'production') {
-        prodTab.value = ['shots', 'videos'].includes(prodTab.value) ? prodTab.value : 'shots'
-        return
-      }
-      panel.value = 'script'
-      scriptStep.value = 3
+      panel.value = 'production'
+      prodTab.value = ['storyboard', 'shots', 'videos'].includes(prodTab.value) ? prodTab.value : 'storyboard'
       return
     }
     panel.value = 'export'
@@ -169,7 +166,7 @@ export function useChapterStudioNavigation(options: UseChapterStudioNavigationOp
     }
     if (activeMainStage.value === 'storyboard') {
       return [
-        { key: 'script:storyboard', label: '分镜拆解', done: !!options.sbs.value.length },
+        { key: 'prod:storyboard', label: '分镜拆解', done: !!options.sbs.value.length },
         { key: 'prod:shots', label: '镜头图片', done: !!options.sbs.value.length && shotImgCount.value === options.sbs.value.length },
         { key: 'prod:videos', label: '视频生成', done: !!options.sbs.value.length && shotVidCount.value === options.sbs.value.length },
       ]
@@ -181,8 +178,7 @@ export function useChapterStudioNavigation(options: UseChapterStudioNavigationOp
     if (panel.value === 'script') {
       if (scriptStep.value === 0) return 'script:raw'
       if (scriptStep.value === 1) return 'script:rewrite'
-      if (scriptStep.value === 2) return 'script:extract'
-      return 'script:storyboard'
+      return 'script:extract'
     }
     if (panel.value === 'production') return `prod:${prodTab.value}`
     return 'export:merge'
@@ -199,7 +195,6 @@ export function useChapterStudioNavigation(options: UseChapterStudioNavigationOp
         { key: 'script:raw', label: '原始内容', done: !!options.rawContent.value },
         { key: 'script:rewrite', label: 'AI 改写', done: !!options.scriptContent.value },
         { key: 'script:extract', label: '提取', done: !!options.chars.value.length },
-        { key: 'script:storyboard', label: '分镜', done: !!options.sbs.value.length },
       ]
     }
     if (panel.value === 'production') {
@@ -221,13 +216,17 @@ export function useChapterStudioNavigation(options: UseChapterStudioNavigationOp
   const showBottomBubble = computed(() => panel.value === 'script' || panel.value === 'production')
 
   function goSubStep(key: string) {
+    if (key === 'script:storyboard') {
+      panel.value = 'production'
+      prodTab.value = 'storyboard'
+      return
+    }
     if (key.startsWith('script:')) {
       panel.value = 'script'
       const stepMap: Record<string, number> = {
         'script:raw': 0,
         'script:rewrite': 1,
         'script:extract': 2,
-        'script:storyboard': 3,
       }
       scriptStep.value = stepMap[key] ?? 0
       return
@@ -241,10 +240,10 @@ export function useChapterStudioNavigation(options: UseChapterStudioNavigationOp
     panel.value = 'export'
   }
 
-  const stepLabels = ['原始内容', 'AI 改写', '提取', '分镜']
+  const stepLabels = ['原始内容', 'AI 改写', '提取']
   const prevStepLabel = computed(() => scriptStep.value > 0 ? stepLabels[scriptStep.value - 1] : '')
   const nextStepLabel = computed(() => {
-    if (scriptStep.value === 3) return '进入制作'
+    if (scriptStep.value === 2) return '进入制作'
     return stepLabels[scriptStep.value + 1] || ''
   })
 
@@ -252,7 +251,6 @@ export function useChapterStudioNavigation(options: UseChapterStudioNavigationOp
     if (scriptStep.value === 0) return !!options.localRaw.value.trim()
     if (scriptStep.value === 1) return !!options.localScript.value.trim() || !!options.scriptContent.value
     if (scriptStep.value === 2) return options.chars.value.length > 0
-    if (scriptStep.value === 3) return options.sbs.value.length > 0
     return false
   })
 
@@ -260,11 +258,22 @@ export function useChapterStudioNavigation(options: UseChapterStudioNavigationOp
     if (scriptStep.value > 0) scriptStep.value--
   }
 
+  function nextPendingProductionTab() {
+    if (visualCharTotal.value && charImgCount.value < visualCharTotal.value) return 'chars'
+    if (options.scenes.value.length && sceneImgCount.value < options.scenes.value.length) return 'scenes'
+    if (!options.sbs.value.length) return 'storyboard'
+    if (shotImgCount.value < options.sbs.value.length) return 'shots'
+    if (shotVidCount.value < options.sbs.value.length) return 'videos'
+    return 'chars'
+  }
+
   function goNextStep() {
     if (scriptStep.value === 0 && options.localRaw.value.trim()) options.saveRaw()
     if (scriptStep.value === 1 && options.localScript.value.trim()) options.saveScr()
-    if (scriptStep.value === 3) {
+    if (scriptStep.value === 2) {
+      if (!canGoNext.value) return
       panel.value = 'production'
+      prodTab.value = 'chars'
       return
     }
     if (canGoNext.value) scriptStep.value++
@@ -283,7 +292,11 @@ export function useChapterStudioNavigation(options: UseChapterStudioNavigationOp
     const hasScript = !!options.scriptContent.value
     const hasStoryboards = options.sbs.value.length > 0
     if (hasStoryboards) {
-      scriptStep.value = 3
+      scriptStep.value = 2
+      if (panel.value === 'script') {
+        panel.value = 'production'
+        prodTab.value = nextPendingProductionTab()
+      }
       return
     }
     if (hasScript && options.chars.value.length) {
@@ -302,15 +315,18 @@ export function useChapterStudioNavigation(options: UseChapterStudioNavigationOp
     if (options.rawContent.value) progress++
     if (options.scriptContent.value) progress++
     if (options.chars.value.length) progress++
+    if (options.chars.value.length && prodStepDone('chars')) progress++
+    if (options.scenes.value.length && prodStepDone('scenes')) progress++
     if (options.sbs.value.length) progress++
     if (options.sbs.value.some(s => s.composed_image || s.composedImage)) progress++
     if (options.sbs.value.some(s => s.video_url || s.videoUrl)) progress++
     if (options.mergeUrl.value) progress++
     return progress
   })
+  const pipelineTotal = computed(() => 9)
 
   const currentStageLabel = computed(() => {
-    if (panel.value === 'script') return `剧本阶段 · ${stepLabels[scriptStep.value]}`
+    if (panel.value === 'script') return `剧本阶段 · ${stepLabels[Math.min(scriptStep.value, stepLabels.length - 1)]}`
     if (panel.value === 'production') return `制作阶段 · ${prodTabDefs.value[prodTabIdx.value]?.label || '制作'}`
     return options.mergeUrl.value ? '导出阶段 · 成片已生成' : '导出阶段 · 等待拼接'
   })
@@ -359,6 +375,7 @@ export function useChapterStudioNavigation(options: UseChapterStudioNavigationOp
     goNextStep,
     syncScriptStep,
     pipelineProgress,
+    pipelineTotal,
     currentStageLabel,
     currentMainStageLabel,
     currentSubStageLabel,

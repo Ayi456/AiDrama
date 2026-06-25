@@ -42,7 +42,7 @@ runTest('inferMentionedStoryboardCharacterIds ignores one-character names to avo
 
 runTest('inferMentionedStoryboardCharacterIds can match names without parenthetical suffixes', () => {
   const ids = inferMentionedStoryboardCharacterIds({
-    video_prompt: '<role>\u9752\u4e91\u5b97\u5f1f\u5b50</role>\u62ac\u5934\u770b\u5411\u4e3b\u4f4d\u3002',
+    video_prompt: '\u9752\u4e91\u5b97\u5f1f\u5b50\u62ac\u5934\u770b\u5411\u4e3b\u4f4d\u3002',
   }, candidates)
 
   assert.deepEqual(ids, [4])

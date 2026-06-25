@@ -1,14 +1,14 @@
 ---
 name: grid-image-generator
-description: 图片提示词生成指南 — 角色、场景、宫格图三类提示词规范
+description: Seedream 5.0 图片提示词生成指南 — 角色、场景、宫格图三类提示词规范
 ---
 
 # 图片提示词生成指南
 
 本 SKILL 对应 `grid_prompt_generator` Agent，支持生成三类图片提示词：
 
-1. **角色图片提示词** — 角色外貌与气质
-2. **场景图片提示词** — 场景氛围与光线
+1. **角色图片提示词** — 三视图人物外观参考图
+2. **场景图片提示词** — 空场景资产图
 3. **宫格图提示词** — 多镜头网格拼图
 
 详细模板见 `reference/` 目录。
@@ -21,15 +21,17 @@ description: 图片提示词生成指南 — 角色、场景、宫格图三类�
 
 ### 模板结构
 ```
-[appearance], [personality/temperament], [role], [cinematic portrait], [high quality], [consistent art style], [no text, no watermark]
+[角色名仅用于提示词定义], [人物外观参考图用途], [稳定外貌/气质/身份], [三视图：正面、侧面、背面], [纯白背景或浅灰背景], [cinematic quality], [consistent art style], [no text, no watermark]
 ```
 
 ### 生成规则
 - 以 `appearance`（外貌描述）为核心
 - `personality` 决定气质基调（内敛/张扬/神秘等）
 - `role` 决定服装和道具风格
-- 必须包含 `cinematic portrait` + `consistent art style`
-- 避免出现文字、签名、水印
+- 必须写明这是用于后续多模态视频生成的人物外观参考图
+- 必须保留三视图：正面、侧面、背面
+- 保持人物外貌、发型、服装和体型一致
+- 避免出现角色名、视图名称、文字、签名、Logo、水印、其他人物、剧情道具或场景
 
 ---
 
@@ -39,15 +41,16 @@ description: 图片提示词生成指南 — 角色、场景、宫格图三类�
 
 ### 模板结构
 ```
-[location], [time period], [lighting atmosphere], [scene description], [cinematic scene], [high quality], [consistent art style], [no text, no watermark]
+[空场景资产图用途], [location], [time period], [lighting atmosphere], [space structure and direction], [materials and props], [cinematic quality], [consistent art style], [no people, no text, no watermark]
 ```
 
 ### 生成规则
 - 以 `location`（地点）为基础
 - `time` 决定光线色调（白天/夜晚/黄昏）
-- 场景氛围词：atmospheric, moody, warm, cold 等
-- 必须包含 `cinematic scene` + `consistent art style`
-- 避免出现文字、签名、水印
+- 必须写明这是用于后续多模态视频生成的空场景资产图
+- 强调空间结构和方向保持稳定，明确入口、出口、墙面、主要家具或陈设的位置关系
+- 只描述环境、建筑、陈设、光线、色调、材质、空间氛围和镜头质感
+- 避免出现人物、剧情动作、对白、临时剧情道具、字幕、Logo、水印或 UI
 
 ---
 

@@ -150,3 +150,43 @@ runTest('storyboard preset enforces reveal pacing, continuity, and dialogue fiel
   assert.match(instructions, /电话声、广播声或旁白/)
   assert.match(instructions, /不能只藏在 action、description 或 video_prompt 里/)
 })
+
+runTest('storyboard preset requires explicit shot boundary planning and structured video prompts', () => {
+  const instructions = AIDRAMA_AGENT_PRESETS.storyboard_breaker.instructions
+
+  assert.match(instructions, /起始状态/)
+  assert.match(instructions, /结束状态/)
+  assert.match(instructions, /下一镜头承接点/)
+  assert.match(instructions, /禁止提前完成的下一镜头动作/)
+  assert.match(instructions, /不要作为 JSON 新字段输出/)
+  assert.match(instructions, /起始画面/)
+  assert.match(instructions, /镜头限制/)
+  assert.match(instructions, /结束画面/)
+  assert.match(instructions, /禁止项/)
+  assert.match(instructions, /如果 action、description 与 result 冲突/)
+  assert.match(instructions, /参考素材绑定/)
+  assert.match(instructions, /不要假定最终素材编号/)
+  assert.match(instructions, /多人物时必须逐个写清/)
+  assert.match(instructions, /上一镜头截帧\/首图衔接参考/)
+  assert.match(instructions, /最终生成视频时，系统会按实际上传顺序自动补充图片1、图片2、图片3等编号/)
+  assert.match(instructions, /不要使用 <role>、<location> 或 <voice>/)
+  assert.doesNotMatch(instructions, /使用 <location>地点<\/location>、<role>角色名<\/role>、<voice>说话人<\/voice> 标签/)
+  assert.match(instructions, /镜头1/)
+  assert.match(instructions, /不要写 0-3秒/)
+  assert.match(instructions, /不要生成字幕、Logo、水印或 UI/)
+  assert.match(instructions, /同款分身/)
+  assert.doesNotMatch(instructions, /可以按 3 秒为一段/)
+})
+
+runTest('visual prompt preset follows Seedream asset prompt conventions', () => {
+  const instructions = AIDRAMA_AGENT_PRESETS.grid_prompt_generator.instructions
+
+  assert.match(instructions, /Seedream 5\.0/)
+  assert.match(instructions, /人物外观参考图/)
+  assert.match(instructions, /正面、侧面、背面/)
+  assert.match(instructions, /不要出现角色名/)
+  assert.match(instructions, /空场景资产图/)
+  assert.match(instructions, /空间结构和方向保持稳定/)
+  assert.match(instructions, /图一/)
+  assert.match(instructions, /图二/)
+})

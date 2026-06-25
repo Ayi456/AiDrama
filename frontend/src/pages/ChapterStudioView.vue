@@ -21,12 +21,13 @@
       :chapter-number="chapterNumber"
       :current-sub-stage-label="currentSubStageLabel"
       :pipeline-progress="pipelineProgress"
+      :pipeline-total="pipelineTotal"
       :character-count="chars.length"
       :shot-count="sbs.length"
       :has-merge-output="!!mergeUrl"
       @back="goDramaDetail"
       @refresh="refresh"
-      @primary-action="panel = mergeUrl ? 'export' : (sbs.length ? 'production' : 'script')"
+      @primary-action="handleTopbarPrimaryAction"
     />
 
     <AutomationProgressBar
@@ -42,6 +43,7 @@
       :sidebar-sections="sidebarSections"
       :active-sub-step-key="activeSubStepKey"
       :pipeline-progress="pipelineProgress"
+      :pipeline-total="pipelineTotal"
       :sidebar-jump-steps="sidebarJumpSteps"
       @go-sub-step="goSubStep"
       @refresh="refresh"
@@ -58,7 +60,6 @@
       <!-- ===== SCRIPT PANEL ===== -->
       <div v-if="panel === 'script'" class="content-panel">
         <ChapterScriptSteps
-          v-if="scriptStep < 3"
           :script-step="scriptStep"
           :raw-len="rawLen"
           :script-len="scriptLen"
@@ -80,36 +81,6 @@
           @rewrite="doRewrite"
           @extract="doExtract"
           @start-automation="startAutomation"
-        />
-        <ChapterStoryboardEditor
-          v-else
-          :rn="rn"
-          :rt="rt"
-          :breakdown-progress="breakdownProgress"
-          :sbs="sbs"
-          :total-duration="totalDuration"
-          :locked-video-config-label="lockedVideoConfigLabel"
-          :selected-sb="selectedSb"
-          :chars="chars"
-          :scenes="scenes"
-          :shot-types="shotTypes"
-          :shot-angles="shotAngles"
-          :shot-movements="shotMovements"
-          :get-storyboard-character-ids="getStoryboardCharacterIds"
-          :get-storyboard-character-names="getStoryboardCharacterNames"
-          :get-storyboard-state-class="getStoryboardStateClass"
-          :get-storyboard-state-text="getStoryboardStateText"
-          :get-scene-name="getSceneName"
-          :get-first-frame="getFirstFrame"
-          :get-last-frame="getLastFrame"
-          :has-vid="hasVid"
-          @add-shot="addShot"
-          @breakdown="doBreakdown"
-          @select-shot="handleShotSelection"
-          @delete-shot="deleteShot"
-          @toggle-storyboard-character="toggleStoryboardCharacter($event.sb, $event.charId)"
-          @update-shot-field="handleShotFieldUpdate"
-          @open-image-viewer="handleGalleryViewerOpen"
         />
       </div>
 
@@ -184,7 +155,6 @@ import ChapterScriptSteps from '@/components/chapter/ChapterScriptSteps.vue'
 import ChapterStudioSidebar from '@/components/chapter/ChapterStudioSidebar.vue'
 import ChapterStudioSubnav from '@/components/chapter/ChapterStudioSubnav.vue'
 import ChapterStudioTopbar from '@/components/chapter/ChapterStudioTopbar.vue'
-import ChapterStoryboardEditor from '@/components/chapter/ChapterStoryboardEditor.vue'
 import AutomationProgressBar from '@/components/automation/AutomationProgressBar.vue'
 import { useChapterExportDesk } from '@/composables/chapter/useChapterExportDesk'
 import { shouldRefreshChapterForAutomationStatus } from '@/composables/automation/automationRefreshPolicy'
@@ -771,6 +741,19 @@ function goDramaDetail() {
   router.replace({ name: 'drama-detail', params: { id: String(dramaId) } })
 }
 
+function handleTopbarPrimaryAction() {
+  if (mergeUrl.value) {
+    panel.value = 'export'
+    return
+  }
+  if (chars.value.length) {
+    panel.value = 'production'
+    prodTab.value = prodTab.value || 'chars'
+    return
+  }
+  panel.value = 'script'
+}
+
 const {
   gridDialog,
   gridStep,
@@ -856,6 +839,7 @@ const {
   goNextStep,
   syncScriptStep,
   pipelineProgress,
+  pipelineTotal,
   currentSubStageLabel,
 } = useChapterStudioNavigation({
   scriptStep,
@@ -893,6 +877,10 @@ const {
   panel,
   scriptContent,
   sbs,
+  rn,
+  rt,
+  breakdownProgress,
+  totalDuration,
   prodTab,
   prodTabDefs,
   visualChars,
@@ -957,6 +945,9 @@ const {
   gridFrameTypeOptions,
   lockedVideoConfigLabel,
   shotVidCount,
+  shotTypes,
+  shotAngles,
+  shotMovements,
   lockedVideoProvider,
   lockedVideoModelName,
   activeVideoSb,
@@ -985,6 +976,15 @@ const {
   videoHistoryUrl,
   getVideoGenerateActionLabel,
   buildDefaultVideoPrompt,
+  getStoryboardCharacterIds,
+  getStoryboardCharacterNames,
+  getStoryboardStateClass,
+  getStoryboardStateText,
+  getSceneName,
+  addShot,
+  doBreakdown,
+  deleteShot,
+  toggleStoryboardCharacter,
   batchCharImages,
   genCharImg: handleCharacterGenerate,
   handleManualCharacterAdd,

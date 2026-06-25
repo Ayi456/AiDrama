@@ -29,10 +29,10 @@
       <div class="progress-wrap">
         <div class="progress-head">
           <span class="progress-label">制作进度</span>
-          <span class="progress-val">{{ pipelineProgress }}/7</span>
+          <span class="progress-val">{{ pipelineProgress }}/{{ pipelineTotal }}</span>
         </div>
         <div class="progress-track">
-          <div class="progress-fill" :style="{ width: `${pipelineProgress / 7 * 100}%` }"></div>
+          <div class="progress-fill" :style="{ width: `${pipelineProgress / pipelineTotal * 100}%` }"></div>
         </div>
       </div>
       <div v-if="sidebarJumpSteps.length" class="sidebar-jumper">
@@ -65,6 +65,10 @@ defineProps({
   pipelineProgress: {
     type: Number,
     default: 0,
+  },
+  pipelineTotal: {
+    type: Number,
+    default: 9,
   },
   sidebarJumpSteps: {
     type: Array,

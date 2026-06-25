@@ -1,11 +1,11 @@
 <template>
   <div class="content-panel">
-    <div v-if="!state.scriptContent || !state.sbs.length" class="step-empty" style="flex:1">
+    <div v-if="!state.scriptContent || !state.chars.length" class="step-empty" style="flex:1">
       <div class="empty-visual">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
       </div>
       <div class="empty-title">尚未准备就绪</div>
-      <div class="empty-desc">{{ !state.scriptContent ? '请先完成剧本编写' : '请先完成分镜拆解' }}</div>
+      <div class="empty-desc">{{ !state.scriptContent ? '请先完成剧本编写' : '请先完成角色与场景提取' }}</div>
       <button class="btn btn-primary" @click="handlers.goScript()">前往剧本</button>
     </div>
 
@@ -69,6 +69,38 @@
         @upload-scene-reference="handlers.uploadSceneReference"
         @clear-scene-reference="handlers.clearSceneReference"
         @update-scene-field="handlers.handleSceneFieldUpdate"
+        @open-image-viewer="handlers.handleGalleryViewerOpen"
+      />
+
+      <ChapterStoryboardEditor
+        v-else-if="state.prodTab === 'storyboard'"
+        class="prod-content"
+        :rn="state.rn"
+        :rt="state.rt"
+        :breakdown-progress="state.breakdownProgress"
+        :sbs="state.sbs"
+        :total-duration="state.totalDuration"
+        :locked-video-config-label="state.lockedVideoConfigLabel"
+        :selected-sb="state.selectedSb"
+        :chars="state.chars"
+        :scenes="state.scenes"
+        :shot-types="state.shotTypes"
+        :shot-angles="state.shotAngles"
+        :shot-movements="state.shotMovements"
+        :get-storyboard-character-ids="state.getStoryboardCharacterIds"
+        :get-storyboard-character-names="state.getStoryboardCharacterNames"
+        :get-storyboard-state-class="state.getStoryboardStateClass"
+        :get-storyboard-state-text="state.getStoryboardStateText"
+        :get-scene-name="state.getSceneName"
+        :get-first-frame="state.getFirstFrame"
+        :get-last-frame="state.getLastFrame"
+        :has-vid="state.hasVid"
+        @add-shot="handlers.addShot"
+        @breakdown="handlers.doBreakdown"
+        @select-shot="handlers.handleShotSelection"
+        @delete-shot="handlers.deleteShot"
+        @toggle-storyboard-character="handlers.toggleStoryboardCharacter($event.sb, $event.charId)"
+        @update-shot-field="handlers.handleShotFieldUpdate"
         @open-image-viewer="handlers.handleGalleryViewerOpen"
       />
 
@@ -169,6 +201,7 @@
 
 <script setup>
 import ChapterProductionVideos from '@/components/chapter/ChapterProductionVideos.vue'
+import ChapterStoryboardEditor from '@/components/chapter/ChapterStoryboardEditor.vue'
 import ProductionCharacterGallery from '@/components/chapter/ProductionCharacterGallery.vue'
 import ProductionSceneGallery from '@/components/chapter/ProductionSceneGallery.vue'
 import ProductionShotFrames from '@/components/chapter/ProductionShotFrames.vue'
