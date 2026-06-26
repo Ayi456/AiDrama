@@ -22,6 +22,20 @@ export type WalletTransaction = {
   relatedVideoGenerationId: number | null
   description: string | null
   createdAt: string
+  videoUsage?: WalletVideoUsage | null
+}
+
+export type WalletVideoUsage = {
+  videoGenerationId: number | null
+  taskId: string | null
+  provider: string | null
+  model: string | null
+  duration: number | null
+  resolution: string | null
+  aspectRatio: string | null
+  completionTokens: number | null
+  totalTokens: number | null
+  raw: unknown | null
 }
 
 export type RechargeCreditParams = {
@@ -66,6 +80,16 @@ type WalletTransactionRow = RowDataPacket & {
   related_video_generation_id: number | null
   description: string | null
   created_at: string
+  video_task_id?: string | null
+  video_provider?: string | null
+  video_model?: string | null
+  video_duration?: number | string | null
+  video_resolution?: string | null
+  video_aspect_ratio?: string | null
+  provider_usage_completion_tokens?: number | string | null
+  provider_usage_total_tokens?: number | string | null
+  provider_usage_raw?: string | null
+  provider_response?: string | null
 }
 
 type CountRow = RowDataPacket & {
@@ -153,7 +177,72 @@ function mapWallet(row: WalletRow): WalletAccount {
   }
 }
 
-function mapWalletTransaction(row: WalletTransactionRow): WalletTransaction {
+function readFiniteNumber(value: unknown): number | null {
+  const numeric = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN
+  if (!Number.isFinite(numeric)) return null
+  return numeric
+}
+
+function readNullableString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value : null
+}
+
+function parseJson(value: unknown): unknown | null {
+  if (!value) return null
+  if (typeof value !== 'string') return value
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+}
+
+function extractUsageRecord(value: unknown): Record<string, unknown> | null {
+  const parsed = parseJson(value)
+  if (!isRecord(parsed)) return null
+  if ('completion_tokens' in parsed || 'total_tokens' in parsed) return parsed
+  return isRecord(parsed.usage) ? parsed.usage : null
+}
+
+function mapWalletVideoUsage(row: WalletTransactionRow): WalletVideoUsage | null {
+  const usageRecord = extractUsageRecord(row.provider_usage_raw) || extractUsageRecord(row.provider_response)
+  const completionTokens = readFiniteNumber(row.provider_usage_completion_tokens)
+    ?? readFiniteNumber(usageRecord?.completion_tokens)
+  const totalTokens = readFiniteNumber(row.provider_usage_total_tokens)
+    ?? readFiniteNumber(usageRecord?.total_tokens)
+  const videoGenerationId = row.related_video_generation_id == null ? null : Number(row.related_video_generation_id)
+  const hasVideoMetadata = Boolean(
+    videoGenerationId
+      || row.video_task_id
+      || row.video_provider
+      || row.video_model
+      || row.video_duration
+      || row.video_resolution
+      || row.video_aspect_ratio,
+  )
+  const hasUsage = completionTokens != null || totalTokens != null || Boolean(usageRecord)
+  if (!hasVideoMetadata && !hasUsage) return null
+
+  return {
+    videoGenerationId,
+    taskId: readNullableString(row.video_task_id),
+    provider: readNullableString(row.video_provider),
+    model: readNullableString(row.video_model),
+    duration: readFiniteNumber(row.video_duration),
+    resolution: readNullableString(row.video_resolution),
+    aspectRatio: readNullableString(row.video_aspect_ratio),
+    completionTokens,
+    totalTokens,
+    raw: usageRecord,
+  }
+}
+
+export function mapWalletTransaction(row: WalletTransactionRow): WalletTransaction {
+  const videoUsage = mapWalletVideoUsage(row)
   return {
     transactionNo: row.transaction_no,
     userId: Number(row.user_id),
@@ -164,6 +253,7 @@ function mapWalletTransaction(row: WalletTransactionRow): WalletTransaction {
     relatedVideoGenerationId: row.related_video_generation_id == null ? null : Number(row.related_video_generation_id),
     description: row.description,
     createdAt: row.created_at,
+    ...(videoUsage ? { videoUsage } : {}),
   }
 }
 
@@ -247,11 +337,22 @@ export async function getWalletTransactions(
     ? 0
     : Math.max(Math.floor(Number(options.offset)) || 0, 0)
   const [rows] = await mysqlPool.execute<WalletTransactionRow[]>(
-    `SELECT transaction_no, user_id, amount, balance_after, type, related_order_no,
-            related_video_generation_id, description, created_at
-       FROM wallet_transactions
-      WHERE user_id = ?
-      ORDER BY created_at DESC, id DESC
+    `SELECT wt.transaction_no, wt.user_id, wt.amount, wt.balance_after, wt.type, wt.related_order_no,
+            wt.related_video_generation_id, wt.description, wt.created_at,
+            vg.task_id AS video_task_id,
+            vg.provider AS video_provider,
+            vg.model AS video_model,
+            COALESCE(NULLIF(vg.billed_seconds, 0.00), vg.pending_duration_seconds, vg.duration) AS video_duration,
+            vg.resolution AS video_resolution,
+            vg.aspect_ratio AS video_aspect_ratio,
+            vg.provider_usage_completion_tokens,
+            vg.provider_usage_total_tokens,
+            vg.provider_usage_raw,
+            vg.provider_response
+       FROM wallet_transactions wt
+       LEFT JOIN video_generations vg ON vg.id = wt.related_video_generation_id
+      WHERE wt.user_id = ?
+      ORDER BY wt.created_at DESC, wt.id DESC
       LIMIT ${pageSize} OFFSET ${offset}`,
     [userId],
   )

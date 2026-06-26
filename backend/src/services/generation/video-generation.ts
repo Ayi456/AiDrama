@@ -6,7 +6,7 @@ import { downloadFile, readImageAsCompressedDataUrl } from '../../utils/storage.
 import { uploadStaticAssetToCos } from '../../utils/cos.js'
 import { getVideoDurationPrecise } from '../ffmpeg/ffmpeg.js'
 import { getVideoAdapter } from '../adapters/registry.js'
-import type { AIConfig } from '../adapters/types.js'
+import type { AIConfig, ProviderUsage } from '../adapters/types.js'
 import {
   completeGeneratedVideoJob,
   type GeneratedVideoSource,
@@ -233,6 +233,7 @@ async function pollVideoTask(
 
       if (pollDecision.type === 'completed-url') {
         logTaskSuccess('VideoTask', 'poll-complete', { id, taskId, videoUrl: pollDecision.videoUrl })
+        await persistVideoProviderUsage(persistence, pollDecision.providerUsage)
         await completeGeneratedVideo(id, { type: 'url', videoUrl: pollDecision.videoUrl }, context.duration, storyboardId)
         return { type: 'done', value: undefined }
       }
@@ -320,6 +321,7 @@ export async function refreshVideoGenerationStatus(id: number): Promise<VideoGen
       taskId: record.taskId,
       videoUrl: pollDecision.videoUrl,
     })
+    await persistVideoProviderUsage(persistence, pollDecision.providerUsage)
     await completeGeneratedVideo(id, { type: 'url', videoUrl: pollDecision.videoUrl }, record.duration, record.storyboardId)
     return 'completed'
   }
@@ -342,6 +344,42 @@ export async function refreshVideoGenerationStatus(id: number): Promise<VideoGen
   }
 
   return 'processing'
+}
+
+function serializeProviderUsageRaw(raw: unknown): string | null {
+  if (raw == null) return null
+  if (typeof raw === 'string') return raw
+  try {
+    return JSON.stringify(raw)
+  } catch {
+    return null
+  }
+}
+
+function buildVideoProviderUsagePatch(providerUsage?: ProviderUsage) {
+  if (!providerUsage) return null
+
+  const patch: Record<string, unknown> = {}
+  if (typeof providerUsage.completionTokens === 'number') {
+    patch.providerUsageCompletionTokens = Math.round(providerUsage.completionTokens)
+  }
+  if (typeof providerUsage.totalTokens === 'number') {
+    patch.providerUsageTotalTokens = Math.round(providerUsage.totalTokens)
+  }
+
+  const raw = serializeProviderUsageRaw(providerUsage.raw)
+  if (raw) patch.providerUsageRaw = raw
+
+  return Object.keys(patch).length ? patch : null
+}
+
+async function persistVideoProviderUsage(
+  persistence: ReturnType<typeof createVideoGenerationDbPersistence>,
+  providerUsage?: ProviderUsage,
+) {
+  const patch = buildVideoProviderUsagePatch(providerUsage)
+  if (!patch) return
+  await persistence.persistVideoCompletion(patch)
 }
 
 async function completeGeneratedVideo(

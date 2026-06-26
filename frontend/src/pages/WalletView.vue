@@ -170,7 +170,11 @@
         </div>
 
         <div class="wallet-list">
-          <article v-for="transaction in transactions" :key="readTransactionNo(transaction)" class="wallet-row">
+          <article
+            v-for="transaction in transactions"
+            :key="readTransactionNo(transaction)"
+            :class="['wallet-row', { 'wallet-row--with-details': hasTransactionVideoUsage(transaction) }]"
+          >
             <span :class="['wallet-row-icon', getTransactionTone(transaction)]">
               <ArrowDownLeft v-if="getTransactionTone(transaction) === 'income'" :size="15" :stroke-width="1.9" />
               <ArrowUpRight v-else :size="15" :stroke-width="1.9" />
@@ -178,10 +182,59 @@
             <div class="wallet-row-main">
               <strong>{{ transaction.description || describeTransaction(transaction) }}</strong>
               <span>{{ formatDateTime(transaction.createdAt || transaction.created_at) }}</span>
+              <button
+                v-if="hasTransactionVideoUsage(transaction)"
+                class="wallet-usage-toggle"
+                type="button"
+                :aria-expanded="isTransactionUsageExpanded(transaction)"
+                @click="toggleTransactionUsage(transaction)"
+              >
+                <span class="wallet-usage-toggle-main">
+                  <b>{{ formatTokenCount(readVideoUsageTotalTokens(transaction)) }}</b>
+                  <span>tokens</span>
+                </span>
+                <span v-if="readVideoUsageInlineMeta(transaction)" class="wallet-usage-toggle-meta">
+                  {{ readVideoUsageInlineMeta(transaction) }}
+                </span>
+                <ChevronDown
+                  class="wallet-usage-toggle-chevron"
+                  :size="13"
+                  :stroke-width="2"
+                  :class="{ open: isTransactionUsageExpanded(transaction) }"
+                />
+              </button>
             </div>
             <div class="wallet-row-side">
               <b :class="getTransactionTone(transaction)">{{ formatTransactionAmount(transaction.amount) }}</b>
               <span>余额 ¥{{ formatMoney(transaction.balanceAfter || transaction.balance_after) }}</span>
+            </div>
+            <div
+              v-if="hasTransactionVideoUsage(transaction) && isTransactionUsageExpanded(transaction)"
+              class="wallet-usage-panel"
+            >
+              <div class="wallet-usage-total">
+                <span>总 Token</span>
+                <b>{{ formatTokenCount(readVideoUsageTotalTokens(transaction)) }}</b>
+                <small>输出 {{ formatTokenCount(readVideoUsageCompletionTokens(transaction)) }}</small>
+              </div>
+              <div class="wallet-usage-details">
+                <div class="wallet-usage-stat">
+                  <span>模型</span>
+                  <b>{{ readVideoUsageModel(transaction) }}</b>
+                </div>
+                <div class="wallet-usage-stat">
+                  <span>规格</span>
+                  <b>{{ readVideoUsageSpec(transaction) }}</b>
+                </div>
+                <div class="wallet-usage-stat">
+                  <span>时长</span>
+                  <b>{{ readVideoUsageDuration(transaction) }}</b>
+                </div>
+                <div class="wallet-usage-stat wallet-usage-stat--wide">
+                  <span>任务</span>
+                  <b>{{ readVideoUsageTask(transaction) }}</b>
+                </div>
+              </div>
             </div>
           </article>
 
@@ -265,6 +318,7 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   CheckCircle2,
+  ChevronDown,
   CircleAlert,
   Clock3,
   CreditCard,
@@ -283,20 +337,24 @@ import {
   type PendingVideoSettlement,
   type WalletSummary,
   type WalletTransaction,
+  type WalletVideoUsage,
 } from '@/composables/useApi'
 import {
   describeTransaction,
   formatDateTime,
   formatMoney,
+  formatTokenCount,
   formatTransactionAmount,
   getOrderStatusMeta,
   getPaymentOrderActions,
   getPendingSettlementMeta,
   getPendingSettlementSummary,
   getTransactionTone,
+  getTransactionVideoUsage,
   getWalletPaginationLabel,
   getWalletPaginationState,
   hasPendingPaymentOrders,
+  hasTransactionVideoUsage,
   isPendingSettlementRetryable,
   normalizeRechargeAmountInput,
   upsertPaymentOrder,
@@ -332,6 +390,7 @@ const pendingError = ref('')
 const creatingOrder = ref(false)
 const orderActionOrderNo = ref('')
 const activeOrder = ref<PaymentOrder | null>(null)
+const expandedUsageTransactionNos = ref<Record<string, boolean>>({})
 let orderRefreshTimer: number | undefined
 let settlementRefreshTimer: number | undefined
 
@@ -368,6 +427,86 @@ function readOrderNo(order: PaymentOrder) {
 
 function readTransactionNo(transaction: WalletTransaction) {
   return transaction.transactionNo || transaction.transaction_no || `${transaction.type}-${transaction.createdAt || transaction.created_at}`
+}
+
+function readVideoUsage(transaction: WalletTransaction): WalletVideoUsage | null {
+  return getTransactionVideoUsage(transaction) as WalletVideoUsage | null
+}
+
+function readUsageNumber(value: unknown): number | null {
+  const numeric = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN
+  if (!Number.isFinite(numeric)) return null
+  return numeric
+}
+
+function formatUsageDuration(value: unknown) {
+  const duration = readUsageNumber(value)
+  if (duration == null || duration <= 0) return ''
+  return Number.isInteger(duration) ? `${duration}s` : `${duration.toFixed(2)}s`
+}
+
+function readVideoUsageTotalTokens(transaction: WalletTransaction) {
+  const usage = readVideoUsage(transaction)
+  return usage?.totalTokens
+    ?? usage?.total_tokens
+    ?? usage?.completionTokens
+    ?? usage?.completion_tokens
+    ?? null
+}
+
+function readVideoUsageCompletionTokens(transaction: WalletTransaction) {
+  const usage = readVideoUsage(transaction)
+  return usage?.completionTokens ?? usage?.completion_tokens ?? readVideoUsageTotalTokens(transaction)
+}
+
+function readVideoUsageModel(transaction: WalletTransaction) {
+  const usage = readVideoUsage(transaction)
+  return usage?.model || usage?.provider || '-'
+}
+
+function readVideoUsageSpec(transaction: WalletTransaction) {
+  const usage = readVideoUsage(transaction)
+  const parts = [
+    usage?.resolution,
+    usage?.aspectRatio || usage?.aspect_ratio,
+  ].filter(Boolean)
+  return parts.length ? parts.join(' / ') : '-'
+}
+
+function readVideoUsageDuration(transaction: WalletTransaction) {
+  const usage = readVideoUsage(transaction)
+  return formatUsageDuration(usage?.duration) || '-'
+}
+
+function readVideoUsageInlineMeta(transaction: WalletTransaction) {
+  const usage = readVideoUsage(transaction)
+  const parts = [
+    usage?.resolution,
+    usage?.aspectRatio || usage?.aspect_ratio,
+    formatUsageDuration(usage?.duration),
+  ].filter(Boolean)
+  if (parts.length) return parts.join(' / ')
+  return usage?.model || usage?.provider || ''
+}
+
+function readVideoUsageTask(transaction: WalletTransaction) {
+  const usage = readVideoUsage(transaction)
+  const taskId = usage?.taskId || usage?.task_id
+  const generationId = usage?.videoGenerationId ?? usage?.video_generation_id
+  if (taskId) return taskId
+  return generationId ? `#${generationId}` : '-'
+}
+
+function isTransactionUsageExpanded(transaction: WalletTransaction) {
+  return Boolean(expandedUsageTransactionNos.value[readTransactionNo(transaction)])
+}
+
+function toggleTransactionUsage(transaction: WalletTransaction) {
+  const transactionNo = readTransactionNo(transaction)
+  expandedUsageTransactionNos.value = {
+    ...expandedUsageTransactionNos.value,
+    [transactionNo]: !expandedUsageTransactionNos.value[transactionNo],
+  }
 }
 
 async function loadSummary() {

@@ -63,6 +63,18 @@ runTest('buildVideoGenerationInput maps route body into generation params', () =
   })
 })
 
+runTest('buildVideoGenerationInput clamps overlong requested durations', () => {
+  const input = buildVideoGenerationInput(
+    {
+      prompt: 'camera follows the hero',
+      duration: 16,
+    },
+    undefined,
+  )
+
+  assert.equal(input.duration, 15)
+})
+
 runTest('buildVideoRouteLogContext exposes route-owned log fields', () => {
   const context = buildVideoRouteLogContext({
     storyboard_id: 11,
@@ -84,6 +96,8 @@ runTest('resolveVideoStartDuration uses request duration before storyboard durat
   assert.equal(resolveVideoStartDuration({}, 12), 12)
   assert.equal(resolveVideoStartDuration({}, null), 5)
   assert.equal(resolveVideoStartDuration({ duration: 0 }, 9), 9)
+  assert.equal(resolveVideoStartDuration({ duration: 16 }, 8), 15)
+  assert.equal(resolveVideoStartDuration({}, 16), 15)
 })
 
 runTest('errorMessageFromUnknown normalizes thrown values without any', () => {

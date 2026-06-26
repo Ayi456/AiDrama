@@ -439,6 +439,9 @@ const tableStatements = [
     normalized_request TEXT,
     provider_request TEXT,
     provider_response TEXT,
+    provider_usage_completion_tokens BIGINT,
+    provider_usage_total_tokens BIGINT,
+    provider_usage_raw TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     completed_at TEXT
@@ -650,6 +653,9 @@ async function initializeDatabase(pool: Pool, database: string) {
   await ensureColumn(pool, database, 'video_generations', 'user_id', 'INT')
   await ensureColumn(pool, database, 'video_generations', 'provider_request', 'TEXT')
   await ensureColumn(pool, database, 'video_generations', 'provider_response', 'TEXT')
+  await ensureColumn(pool, database, 'video_generations', 'provider_usage_completion_tokens', 'BIGINT')
+  await ensureColumn(pool, database, 'video_generations', 'provider_usage_total_tokens', 'BIGINT')
+  await ensureColumn(pool, database, 'video_generations', 'provider_usage_raw', 'TEXT')
   await ensureColumn(pool, database, 'video_generations', 'reference_video_urls', 'TEXT')
   await ensureColumn(pool, database, 'video_generations', 'reference_audio_urls', 'TEXT')
   await ensureColumn(pool, database, 'video_generations', 'defect_check_attempt', 'INT DEFAULT 0')

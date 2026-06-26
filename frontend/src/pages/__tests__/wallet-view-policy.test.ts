@@ -11,9 +11,12 @@ import {
   getWalletPaginationLabel,
   getWalletPaginationState,
   getTransactionTone,
+  getTransactionVideoUsageSummary,
   hasPendingPaymentOrders,
+  hasTransactionVideoUsage,
   isPendingSettlementRetryable,
   isValidRechargeAmount,
+  formatTokenCount,
   normalizeRechargeAmountInput,
   upsertPaymentOrder,
 } from '../wallet-view-policy.ts'
@@ -99,6 +102,44 @@ runTest('upsertPaymentOrder inserts new pending orders and replaces existing row
 runTest('transaction tone separates recharge income from video charges', () => {
   assert.equal(getTransactionTone({ type: 'recharge', amount: '100.00' }), 'income')
   assert.equal(getTransactionTone({ type: 'video_charge', amount: '-8.00' }), 'expense')
+})
+
+runTest('video usage helpers summarize transaction token usage', () => {
+  assert.equal(formatTokenCount(108900), '108,900')
+  assert.equal(
+    hasTransactionVideoUsage({
+      videoUsage: { totalTokens: 108900 },
+    }),
+    true,
+  )
+  assert.equal(
+    getTransactionVideoUsageSummary({
+      videoUsage: {
+        totalTokens: 108900,
+        resolution: '720p',
+        duration: 5,
+      },
+    }),
+    '108,900 tokens / 720p / 5s',
+  )
+  assert.equal(
+    getTransactionVideoUsageSummary({
+      video_usage: {
+        completion_tokens: '4200',
+        model: 'seedance-2.0',
+      },
+    }),
+    '4,200 tokens / seedance-2.0',
+  )
+  assert.equal(
+    getTransactionVideoUsageSummary({
+      videoUsage: {
+        totalTokens: 324900,
+        duration: '15.10',
+      },
+    }),
+    '324,900 tokens / 15.10s',
+  )
 })
 
 runTest('billing status meta highlights required recharge action', () => {

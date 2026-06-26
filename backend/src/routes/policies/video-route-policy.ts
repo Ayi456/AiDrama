@@ -1,4 +1,8 @@
 import type { VideoGenerationEnqueueParams } from '../../services/media/generation/media-generation-enqueue.js'
+import {
+  DEFAULT_VIDEO_GENERATION_DURATION_SECONDS,
+  normalizeVideoGenerationDuration,
+} from '../../services/media/generation/video-duration-policy.js'
 import { errorMessageFromUnknown as formatErrorMessage } from '../../utils/error.js'
 import { presentVideoGenerationAsset } from '../../utils/public-asset.js'
 
@@ -30,7 +34,7 @@ export type VideoListQuery = {
 
 export const DEFAULT_VIDEO_LIST_LIMIT = 24
 export const MAX_VIDEO_LIST_LIMIT = 100
-export const DEFAULT_VIDEO_START_DURATION = 5
+export const DEFAULT_VIDEO_START_DURATION = DEFAULT_VIDEO_GENERATION_DURATION_SECONDS
 
 export function validateVideoGenerateBody(body: VideoGenerateBody) {
   return body.prompt ? null : 'prompt is required'
@@ -49,10 +53,14 @@ export function readVideoListLimit(value: unknown) {
 
 export function resolveVideoStartDuration(body: VideoGenerateBody, storyboardDuration?: number | null) {
   const requestedDuration = Number(body.duration)
-  if (Number.isFinite(requestedDuration) && requestedDuration > 0) return requestedDuration
+  if (Number.isFinite(requestedDuration) && requestedDuration > 0) {
+    return normalizeVideoGenerationDuration(requestedDuration, DEFAULT_VIDEO_START_DURATION)
+  }
 
   const storedDuration = Number(storyboardDuration)
-  if (Number.isFinite(storedDuration) && storedDuration > 0) return storedDuration
+  if (Number.isFinite(storedDuration) && storedDuration > 0) {
+    return normalizeVideoGenerationDuration(storedDuration, DEFAULT_VIDEO_START_DURATION)
+  }
 
   return DEFAULT_VIDEO_START_DURATION
 }
@@ -73,7 +81,7 @@ export function buildVideoGenerationInput(
     referenceImageUrls: body.reference_image_urls,
     referenceVideoUrls: body.reference_video_urls,
     referenceAudioUrls: body.reference_audio_urls,
-    duration: body.duration,
+    duration: body.duration == null ? undefined : normalizeVideoGenerationDuration(body.duration, DEFAULT_VIDEO_START_DURATION),
     aspectRatio: body.aspect_ratio,
     configId,
   }
@@ -84,7 +92,7 @@ export function buildVideoRouteLogContext(body: VideoGenerateBody) {
     storyboardId: body.storyboard_id,
     dramaId: body.drama_id,
     referenceMode: body.reference_mode,
-    duration: body.duration,
+    duration: body.duration == null ? undefined : normalizeVideoGenerationDuration(body.duration, DEFAULT_VIDEO_START_DURATION),
   }
 }
 

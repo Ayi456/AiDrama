@@ -6,6 +6,7 @@ import {
   calculateRechargeCredit,
   calculateVideoDebit,
   isInsufficientBalanceError,
+  mapWalletTransaction,
 } from '../billing/wallet.js'
 
 function runTest(name: string, fn: () => void) {
@@ -62,5 +63,42 @@ runTest('assertCanCoverVideoDuration requires enough balance for the requested v
   assert.throws(
     () => assertCanCoverVideoDuration('1.00', '1.00', 15),
     (error) => isInsufficientBalanceError(error),
+  )
+})
+
+runTest('mapWalletTransaction includes linked video generation token usage', () => {
+  assert.deepEqual(
+    mapWalletTransaction({
+      transaction_no: 'WV202606260001',
+      user_id: 1,
+      amount: '-5.00',
+      balance_after: '15.00',
+      type: 'video_charge',
+      related_order_no: null,
+      related_video_generation_id: 7,
+      description: 'Video charge',
+      created_at: '2026-06-26T10:00:00.000Z',
+      video_task_id: 'task-1',
+      video_provider: 'volcengine',
+      video_model: 'doubao-seedance-2-0-260128',
+      video_duration: 5,
+      video_resolution: '720p',
+      video_aspect_ratio: '9:16',
+      provider_usage_completion_tokens: 108900,
+      provider_usage_total_tokens: 108900,
+      provider_usage_raw: '{"completion_tokens":108900,"total_tokens":108900}',
+    } as any).videoUsage,
+    {
+      videoGenerationId: 7,
+      taskId: 'task-1',
+      provider: 'volcengine',
+      model: 'doubao-seedance-2-0-260128',
+      duration: 5,
+      resolution: '720p',
+      aspectRatio: '9:16',
+      completionTokens: 108900,
+      totalTokens: 108900,
+      raw: { completion_tokens: 108900, total_tokens: 108900 },
+    },
   )
 })

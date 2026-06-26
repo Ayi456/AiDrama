@@ -5,6 +5,7 @@ import type {
   VideoGenerationRecord,
   VideoGenResponse,
   VideoPollResponse,
+  ProviderUsage,
 } from './types.js'
 import { joinProviderUrl } from './url.js'
 import { isRecord } from './adapter-utils.js'
@@ -97,9 +98,11 @@ export class VolcEngineVideoAdapter implements VideoProviderAdapter {
     const record = isRecord(result) ? result : {}
     const status = typeof record.status === 'string' ? record.status : undefined
     if (status === 'succeeded') {
+      const providerUsage = this.extractProviderUsage(record)
       return {
         status: 'completed',
         videoUrl: this.extractVideoUrl(record) || undefined,
+        ...(providerUsage ? { providerUsage } : {}),
       }
     }
     if (status === 'failed') {
@@ -140,6 +143,26 @@ export class VolcEngineVideoAdapter implements VideoProviderAdapter {
 
   private readString(value: unknown): string | undefined {
     return typeof value === 'string' ? value : typeof value === 'number' ? String(value) : undefined
+  }
+
+  private readNumber(value: unknown): number | undefined {
+    const numeric = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN
+    if (!Number.isFinite(numeric)) return undefined
+    return numeric
+  }
+
+  private extractProviderUsage(record: Record<string, unknown>): ProviderUsage | undefined {
+    const usage = isRecord(record.usage) ? record.usage : null
+    if (!usage) return undefined
+
+    const completionTokens = this.readNumber(usage.completion_tokens)
+    const totalTokens = this.readNumber(usage.total_tokens)
+    if (completionTokens == null && totalTokens == null) return undefined
+
+    const providerUsage: ProviderUsage = { raw: usage }
+    if (completionTokens != null) providerUsage.completionTokens = completionTokens
+    if (totalTokens != null) providerUsage.totalTokens = totalTokens
+    return providerUsage
   }
 
   private readErrorMessage(value: unknown): string | undefined {

@@ -1,7 +1,7 @@
 ﻿/**
  * Drizzle schema for the current MySQL database.
  */
-import { mysqlTable, text, int, double, boolean, primaryKey, varchar, decimal } from 'drizzle-orm/mysql-core'
+import { mysqlTable, text, int, double, boolean, primaryKey, varchar, decimal, bigint } from 'drizzle-orm/mysql-core'
 
 export const dramas = mysqlTable('dramas', {
   id: int('id').autoincrement().primaryKey(),
@@ -275,6 +275,9 @@ export const imageGenerations = mysqlTable('image_generations', {
   normalizedRequest: text('normalized_request'),
   providerRequest: text('provider_request'),
   providerResponse: text('provider_response'),
+  providerUsageCompletionTokens: bigint('provider_usage_completion_tokens', { mode: 'number' }),
+  providerUsageTotalTokens: bigint('provider_usage_total_tokens', { mode: 'number' }),
+  providerUsageRaw: text('provider_usage_raw'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
   completedAt: text('completed_at'),

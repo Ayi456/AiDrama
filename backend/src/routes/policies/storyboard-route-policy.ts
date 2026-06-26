@@ -1,5 +1,9 @@
 import type { RouteBody } from '../shared/route-body.js'
 import { hasOwn } from '../shared/route-body.js'
+import {
+  DEFAULT_STORYBOARD_DURATION_SECONDS,
+  normalizeVideoGenerationDuration,
+} from '../../services/media/generation/video-duration-policy.js'
 
 export type StoryboardCreateBody = RouteBody & {
   episode_id: number
@@ -148,7 +152,7 @@ export function buildStoryboardCreateValues(body: StoryboardCreateBody, timestam
     action: body.action,
     dialogue: body.dialogue,
     sceneId: body.scene_id,
-    duration: body.duration || 10,
+    duration: normalizeVideoGenerationDuration(body.duration, DEFAULT_STORYBOARD_DURATION_SECONDS),
     createdAt: timestamp,
     updatedAt: timestamp,
   }
@@ -163,6 +167,9 @@ export function buildStoryboardUpdatePatch(body: StoryboardUpdateBody, updatedAt
 
   for (const [sourceKey, targetKey] of STORYBOARD_UPDATE_FIELDS) {
     if (hasOwn(body, sourceKey)) target[targetKey] = body[sourceKey]
+  }
+  if (hasOwn(body, 'duration') && body.duration != null) {
+    updates.duration = normalizeVideoGenerationDuration(body.duration, DEFAULT_STORYBOARD_DURATION_SECONDS)
   }
 
   if (hasOwn(body, 'video_prompt')) {

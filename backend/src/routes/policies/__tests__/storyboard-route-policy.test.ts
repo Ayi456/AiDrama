@@ -50,6 +50,27 @@ runTest('buildStoryboardCreateValues maps create bodies and preserves legacy def
   })
 })
 
+runTest('storyboard duration is clamped to video model limits', () => {
+  const values = buildStoryboardCreateValues(
+    {
+      episode_id: 42,
+      storyboard_number: 1,
+      title: 'Long shot',
+      duration: 16,
+    },
+    '2026-05-08T00:00:00.000Z',
+  )
+  assert.equal(values.duration, 15)
+
+  const patch = buildStoryboardUpdatePatch(
+    {
+      duration: 16,
+    },
+    '2026-05-08T00:01:00.000Z',
+  )
+  assert.equal(patch.duration, 15)
+})
+
 runTest('buildStoryboardUpdatePatch maps supported fields and ignores route-only keys', () => {
   const patch = buildStoryboardUpdatePatch(
     {

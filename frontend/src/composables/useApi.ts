@@ -182,6 +182,23 @@ export type WalletSummary = {
   totalConsumed: string
   videoPricePerSecond: string
 }
+export type WalletVideoUsage = {
+  videoGenerationId?: number | null
+  video_generation_id?: number | null
+  taskId?: string | null
+  task_id?: string | null
+  provider?: string | null
+  model?: string | null
+  duration?: number | string | null
+  resolution?: string | null
+  aspectRatio?: string | null
+  aspect_ratio?: string | null
+  completionTokens?: number | string | null
+  completion_tokens?: number | string | null
+  totalTokens?: number | string | null
+  total_tokens?: number | string | null
+  raw?: unknown
+}
 export type WalletTransaction = {
   transactionNo?: string
   transaction_no?: string
@@ -196,6 +213,8 @@ export type WalletTransaction = {
   related_video_generation_id?: number
   createdAt?: string
   created_at?: string
+  videoUsage?: WalletVideoUsage | null
+  video_usage?: WalletVideoUsage | null
 }
 export type PaymentOrder = {
   orderNo?: string

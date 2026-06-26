@@ -89,6 +89,11 @@ runTest('interpretVideoGenerateResult and interpretVideoPollResult classify vide
     parseGenerateResponse: (result: any) => result,
     parsePollResponse: (result: any) => result,
   }
+  const providerUsage = {
+    completionTokens: 108900,
+    totalTokens: 108900,
+    raw: { completion_tokens: 108900, total_tokens: 108900 },
+  }
 
   assert.deepEqual(
     interpretVideoGenerateResult(adapter, { isAsync: false, videoUrl: 'https://cdn.example.com/a.mp4' }),
@@ -97,6 +102,14 @@ runTest('interpretVideoGenerateResult and interpretVideoPollResult classify vide
   assert.deepEqual(
     interpretVideoGenerateResult(adapter, { isAsync: true, taskId: 'task-2' }),
     { type: 'async', taskId: 'task-2' },
+  )
+  assert.deepEqual(
+    interpretVideoPollResult(adapter, {
+      status: 'completed',
+      videoUrl: 'https://cdn.example.com/a.mp4',
+      providerUsage,
+    }),
+    { type: 'completed-url', videoUrl: 'https://cdn.example.com/a.mp4', providerUsage },
   )
   assert.deepEqual(
     interpretVideoPollResult(adapter, { status: 'failed' }),

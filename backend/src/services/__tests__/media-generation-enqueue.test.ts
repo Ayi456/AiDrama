@@ -140,6 +140,24 @@ runTest('buildVideoGenerationEnqueueRecord includes owner user id when provided'
   assert.equal(record.userId, 9)
 })
 
+runTest('buildVideoGenerationEnqueueRecord clamps overlong VolcEngine video durations', () => {
+  const record = buildVideoGenerationEnqueueRecord({
+    params: {
+      prompt: 'Animate the scene',
+      duration: 16,
+    },
+    config: {
+      provider: 'volcengine',
+      model: 'doubao-seedance-2-0-260128',
+      baseUrl: 'https://provider.example.com',
+      apiKey: 'secret',
+    },
+    enqueuedAt: 't4',
+  })
+
+  assert.equal(record.duration, 15)
+})
+
 runTest('buildVideoGenerationEnqueueStartContext mirrors the video enqueue log payload', () => {
   assert.deepEqual(
     buildVideoGenerationEnqueueStartContext({

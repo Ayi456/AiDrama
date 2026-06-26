@@ -89,8 +89,15 @@ export interface VideoGenResponse {
   videoUrl?: string
 }
 
+export interface ProviderUsage {
+  completionTokens?: number
+  totalTokens?: number
+  raw?: unknown
+}
+
 export interface VideoPollResponse {
   status: 'pending' | 'processing' | 'completed' | 'failed'
   videoUrl?: string
   error?: string
+  providerUsage?: ProviderUsage
 }

@@ -1,6 +1,7 @@
 import type {
   ImageGenResponse,
   ImagePollResponse,
+  ProviderUsage,
   VideoGenResponse,
   VideoPollResponse,
 } from '../../adapters/types.js'
@@ -28,7 +29,7 @@ export type VideoGenerateResultDecision =
   | { type: 'missing-output'; message: string }
 
 export type VideoPollResultDecision =
-  | { type: 'completed-url'; videoUrl: string }
+  | { type: 'completed-url'; videoUrl: string; providerUsage?: ProviderUsage }
   | { type: 'failed'; error: string }
   | { type: 'continue' }
 
@@ -128,6 +129,9 @@ export function interpretVideoPollResult(
   const response = adapter.parsePollResponse(result)
 
   if (response.status === 'completed' && response.videoUrl) {
+    if (response.providerUsage) {
+      return { type: 'completed-url', videoUrl: response.videoUrl, providerUsage: response.providerUsage }
+    }
     return { type: 'completed-url', videoUrl: response.videoUrl }
   }
 

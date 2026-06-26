@@ -418,3 +418,32 @@ runTest('VolcEngineVideoAdapter parsePollResponse extracts structured error mess
     { status: 'failed', error: 'Video generation failed' },
   )
 })
+
+runTest('VolcEngineVideoAdapter parsePollResponse exposes Seedance usage tokens', () => {
+  const adapter = new VolcEngineVideoAdapter()
+
+  assert.deepEqual(
+    adapter.parsePollResponse({
+      status: 'succeeded',
+      content: { video_url: 'https://cdn.example.com/video.mp4' },
+      usage: {
+        completion_tokens: 108900,
+        total_tokens: 108900,
+        tool_usage: { web_search: 1 },
+      },
+    }),
+    {
+      status: 'completed',
+      videoUrl: 'https://cdn.example.com/video.mp4',
+      providerUsage: {
+        completionTokens: 108900,
+        totalTokens: 108900,
+        raw: {
+          completion_tokens: 108900,
+          total_tokens: 108900,
+          tool_usage: { web_search: 1 },
+        },
+      },
+    },
+  )
+})

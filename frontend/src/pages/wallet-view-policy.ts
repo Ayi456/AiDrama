@@ -4,6 +4,25 @@ export type TransactionTone = 'income' | 'expense' | 'neutral'
 export type WalletTransactionLike = {
   type?: string
   amount?: string
+  videoUsage?: WalletVideoUsageLike | null
+  video_usage?: WalletVideoUsageLike | null
+}
+
+export type WalletVideoUsageLike = {
+  videoGenerationId?: number | null
+  video_generation_id?: number | null
+  taskId?: string | null
+  task_id?: string | null
+  provider?: string | null
+  model?: string | null
+  duration?: number | string | null
+  resolution?: string | null
+  aspectRatio?: string | null
+  aspect_ratio?: string | null
+  completionTokens?: number | string | null
+  completion_tokens?: number | string | null
+  totalTokens?: number | string | null
+  total_tokens?: number | string | null
 }
 
 export type PaymentOrderLike = {
@@ -72,6 +91,55 @@ export function formatTransactionAmount(value: unknown): string {
   if (!Number.isFinite(numeric) || numeric === 0) return '¥0.00'
   const prefix = numeric < 0 ? '-¥' : '¥'
   return `${prefix}${Math.abs(numeric).toFixed(2)}`
+}
+
+function readFiniteNumber(value: unknown): number | null {
+  const numeric = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN
+  if (!Number.isFinite(numeric)) return null
+  return numeric
+}
+
+function readUsageTotalTokens(usage: WalletVideoUsageLike | null): number | null {
+  if (!usage) return null
+  return readFiniteNumber(usage.totalTokens)
+    ?? readFiniteNumber(usage.total_tokens)
+    ?? readFiniteNumber(usage.completionTokens)
+    ?? readFiniteNumber(usage.completion_tokens)
+}
+
+export function formatTokenCount(value: unknown): string {
+  const numeric = readFiniteNumber(value)
+  if (numeric == null || numeric < 0) return '0'
+  return Math.round(numeric).toLocaleString('en-US')
+}
+
+function formatDurationSeconds(value: unknown): string {
+  const numeric = readFiniteNumber(value)
+  if (numeric == null || numeric <= 0) return ''
+  return Number.isInteger(numeric) ? `${numeric}s` : `${numeric.toFixed(2)}s`
+}
+
+export function getTransactionVideoUsage(transaction: WalletTransactionLike): WalletVideoUsageLike | null {
+  return transaction.videoUsage || transaction.video_usage || null
+}
+
+export function hasTransactionVideoUsage(transaction: WalletTransactionLike): boolean {
+  return readUsageTotalTokens(getTransactionVideoUsage(transaction)) != null
+}
+
+export function getTransactionVideoUsageSummary(transaction: WalletTransactionLike): string {
+  const usage = getTransactionVideoUsage(transaction)
+  const totalTokens = readUsageTotalTokens(usage)
+  if (totalTokens == null) return ''
+
+  const parts = [`${formatTokenCount(totalTokens)} tokens`]
+  const resolution = usage?.resolution
+  const duration = formatDurationSeconds(usage?.duration)
+  const model = usage?.model
+  if (resolution) parts.push(String(resolution))
+  if (duration) parts.push(duration)
+  if (!resolution && !duration && model) parts.push(String(model))
+  return parts.join(' / ')
 }
 
 export function normalizeRechargeAmountInput(value: string): string | null {

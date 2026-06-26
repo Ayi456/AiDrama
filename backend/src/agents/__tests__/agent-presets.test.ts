@@ -151,6 +151,27 @@ runTest('storyboard preset enforces reveal pacing, continuity, and dialogue fiel
   assert.match(instructions, /不能只藏在 action、description 或 video_prompt 里/)
 })
 
+runTest('storyboard preset treats each storyboard as an atomic AI video task', () => {
+  const instructions = AIDRAMA_AGENT_PRESETS.storyboard_breaker.instructions
+
+  assert.match(instructions, /每个分镜不是剧情摘要，而是一次 AI 视频生成任务/)
+  assert.match(instructions, /单镜头只允许一个连续空间、一个主要动作目标、一种镜头运动/)
+  assert.match(instructions, /角色跨过门、电梯门、玻璃门/)
+  assert.match(instructions, /需要观众看清的文字、来电、纸条、合同、诊断、聊天记录/)
+  assert.match(instructions, /duration 优先 6-10 秒/)
+})
+
+runTest('storyboard preset requires adjacent-shot continuity anchors', () => {
+  const instructions = AIDRAMA_AGENT_PRESETS.storyboard_breaker.instructions
+
+  assert.match(instructions, /上一镜结束画面 = 下一镜起始画面的可见前因/)
+  assert.match(instructions, /入点/)
+  assert.match(instructions, /出点/)
+  assert.match(instructions, /不允许用一句“随后”“转眼”“来到”跳过关键物理动作/)
+  assert.match(instructions, /是否需要新增 1 个 3-6 秒过渡镜头/)
+  assert.match(instructions, /饭盒、便利贴、手机、文件/)
+})
+
 runTest('storyboard preset requires explicit shot boundary planning and structured video prompts', () => {
   const instructions = AIDRAMA_AGENT_PRESETS.storyboard_breaker.instructions
 

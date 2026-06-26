@@ -1,6 +1,10 @@
 import type { AIConfig } from '../../adapters/types.js'
 import { resolveRequestedImageSize } from '../../provider/image-size.js'
 import { stringifyStringList } from '../assets/media-reference-resolver.js'
+import {
+  DEFAULT_VIDEO_GENERATION_DURATION_SECONDS,
+  normalizeVideoGenerationDuration,
+} from './video-duration-policy.js'
 
 export type ImageGenerationEnqueueParams = {
   storyboardId?: number
@@ -65,6 +69,10 @@ export function buildVideoGenerationEnqueueRecord(input: {
   config: AIConfig
   enqueuedAt: string
 }) {
+  const duration = input.config.provider === 'volcengine'
+    ? normalizeVideoGenerationDuration(input.params.duration, DEFAULT_VIDEO_GENERATION_DURATION_SECONDS)
+    : input.params.duration || DEFAULT_VIDEO_GENERATION_DURATION_SECONDS
+
   return {
     ...(input.params.userId === undefined ? {} : { userId: input.params.userId }),
     storyboardId: input.params.storyboardId,
@@ -79,7 +87,7 @@ export function buildVideoGenerationEnqueueRecord(input: {
     referenceImageUrls: stringifyStringList(input.params.referenceImageUrls),
     referenceVideoUrls: stringifyStringList(input.params.referenceVideoUrls),
     referenceAudioUrls: stringifyStringList(input.params.referenceAudioUrls),
-    duration: input.params.duration || 5,
+    duration,
     aspectRatio: input.params.aspectRatio || '16:9',
     defectCheckAttempt: input.params.defectCheckAttempt,
     defectCheckParentId: input.params.defectCheckParentId,
@@ -111,13 +119,17 @@ export function buildVideoGenerationEnqueueStartContext(input: {
   params: VideoGenerationEnqueueParams
   config: AIConfig
 }) {
+  const duration = input.config.provider === 'volcengine'
+    ? normalizeVideoGenerationDuration(input.params.duration, DEFAULT_VIDEO_GENERATION_DURATION_SECONDS)
+    : input.params.duration || DEFAULT_VIDEO_GENERATION_DURATION_SECONDS
+
   return {
     id: input.id,
     provider: input.config.provider,
     storyboardId: input.params.storyboardId,
     dramaId: input.params.dramaId,
     referenceMode: input.params.referenceMode || 'none',
-    duration: input.params.duration || 5,
+    duration,
   }
 }
 
