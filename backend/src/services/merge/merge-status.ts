@@ -8,6 +8,11 @@ type MergeRecordLike = {
   scenes?: string | null
 }
 
+type ParsedMergeScene = {
+  storyboardId?: unknown
+  videoUrl?: unknown
+} | null
+
 export function resolveMergeClipCount(scenes?: string | null) {
   return parseMergeScenes(scenes).length
 }
@@ -18,7 +23,16 @@ export function resolveMergeStoryboardIds(scenes?: string | null) {
     .filter(Number.isFinite)
 }
 
-function parseMergeScenes(scenes?: string | null): Array<{ storyboardId?: unknown } | null> {
+export function resolveMergeStoryboardClipOverrides(scenes?: string | null) {
+  return parseMergeScenes(scenes)
+    .map(item => ({
+      storyboardId: Number(item?.storyboardId),
+      videoUrl: String(item?.videoUrl || '').trim(),
+    }))
+    .filter(item => Number.isInteger(item.storyboardId) && item.storyboardId > 0 && item.videoUrl)
+}
+
+function parseMergeScenes(scenes?: string | null): ParsedMergeScene[] {
   if (!scenes) return []
   try {
     const parsed = JSON.parse(scenes)

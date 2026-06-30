@@ -7,6 +7,8 @@ import type {
 } from './chapterMediaTypes'
 import { errorMessageFromUnknown } from './chapterMediaTypes'
 import {
+  getComposedVideoUrl,
+  getVideoUrl,
   hasComposedVideo,
   hasStoryboardVideo,
 } from './chapterShotMediaPolicy'
@@ -32,6 +34,10 @@ export function useChapterExportWorkflow(options: ChapterExportWorkflowOptions) 
 
   function isTerminalMergeStatus(status: unknown) {
     return status === 'completed' || status === 'failed'
+  }
+
+  function getMergeClipUrl(storyboard: ChapterStoryboard) {
+    return getVideoUrl(storyboard) || getComposedVideoUrl(storyboard) || ''
   }
 
   async function pollMergeStatus() {
@@ -116,7 +122,14 @@ export function useChapterExportWorkflow(options: ChapterExportWorkflowOptions) 
     try {
       isMerging.value = true
       stopMergePolling()
-      const mergeResult = await mergeAPI.merge(options.epId.value, clipStoryboards.map(storyboard => Number(storyboard.id)))
+      const storyboardIds = clipStoryboards.map(storyboard => Number(storyboard.id))
+      const clips = clipStoryboards
+        .map(storyboard => ({
+          storyboard_id: Number(storyboard.id),
+          video_url: getMergeClipUrl(storyboard),
+        }))
+        .filter(clip => Number.isFinite(clip.storyboard_id) && clip.video_url)
+      const mergeResult = await mergeAPI.merge(options.epId.value, storyboardIds, clips)
       if (options.mergeData) {
         const mergeId = Number(mergeResult?.merge_id || mergeResult?.mergeId || 0) || undefined
         options.mergeData.value = {

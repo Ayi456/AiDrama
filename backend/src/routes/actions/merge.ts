@@ -9,11 +9,41 @@ import { logTaskError, logTaskStart, logTaskSuccess, logTaskWarn } from '../../u
 import { isStaleProcessingMerge, resolveStaleMergeTimeoutMs } from '../../services/merge/merge-status.js'
 import { errorMessageFromUnknown } from '../../utils/error.js'
 import { readJsonBody } from '../shared/route-body.js'
-import { selectedStoryboardIdsFromBody } from '../policies/merge-route-policy.js'
+import {
+  selectedMergeClipOverridesFromBody,
+  selectedStoryboardIdsFromBody,
+} from '../policies/merge-route-policy.js'
 import { getCurrentUser } from '../../middleware/auth.js'
-import { findOwnedEpisode, findOwnedStoryboard } from '../shared/ownership.js'
+import {
+  filterOwnedVideoGenerations,
+  findOwnedEpisode,
+  findOwnedStoryboard,
+} from '../shared/ownership.js'
 
 const app = new Hono()
+
+function sameClipUrl(left: unknown, right: unknown) {
+  return String(left || '').trim() === String(right || '').trim()
+}
+
+async function canUseSelectedMergeClip(
+  userId: number,
+  storyboard: typeof schema.storyboards.$inferSelect,
+  videoUrl: string,
+) {
+  if (sameClipUrl(storyboard.videoUrl, videoUrl) || sameClipUrl(storyboard.composedVideoUrl, videoUrl)) {
+    return true
+  }
+
+  const rows = await db.select().from(schema.videoGenerations)
+    .where(eq(schema.videoGenerations.storyboardId, storyboard.id))
+    .all()
+  const ownedRows = await filterOwnedVideoGenerations(userId, rows)
+  return ownedRows.some(row => (
+    row.status === 'completed' &&
+    (sameClipUrl(row.videoUrl, videoUrl) || sameClipUrl(row.minioUrl, videoUrl))
+  ))
+}
 
 // GET /diagnostics/ffmpeg — 排查运行时 ffmpeg 环境（版本、路径、xfade 支持）
 app.get('/diagnostics/ffmpeg', async (c) => {
@@ -30,13 +60,28 @@ app.post('/chapters/:id/merge', async (c) => {
   try {
     const body = await readJsonBody(c)
     const storyboardIds = selectedStoryboardIdsFromBody(body)
+    const clipOverrides = selectedMergeClipOverridesFromBody(body)
+    const storyboardById = new Map<number, typeof schema.storyboards.$inferSelect>()
     for (const storyboardId of storyboardIds || []) {
       const storyboard = await findOwnedStoryboard(currentUser.id, storyboardId)
       if (!storyboard || storyboard.episodeId !== chapterId) return badRequest(c, 'Storyboard not found')
+      storyboardById.set(storyboardId, storyboard)
     }
-    logTaskStart('MergeAPI', 'chapter-merge', { episodeId: chapterId, dramaId: ep.dramaId, storyboardIds })
-    const mergeId = await mergeEpisodeVideos(chapterId, ep.dramaId, { storyboardIds })
-    logTaskSuccess('MergeAPI', 'chapter-merge', { episodeId: chapterId, mergeId, storyboardIds })
+    for (const override of clipOverrides) {
+      let storyboard = storyboardById.get(override.storyboardId)
+      if (!storyboard) {
+        const loadedStoryboard = await findOwnedStoryboard(currentUser.id, override.storyboardId)
+        if (!loadedStoryboard || loadedStoryboard.episodeId !== chapterId) return badRequest(c, 'Storyboard not found')
+        storyboard = loadedStoryboard
+        storyboardById.set(override.storyboardId, storyboard)
+      }
+      if (!await canUseSelectedMergeClip(currentUser.id, storyboard, override.videoUrl)) {
+        return badRequest(c, 'Selected storyboard video not found')
+      }
+    }
+    logTaskStart('MergeAPI', 'chapter-merge', { episodeId: chapterId, dramaId: ep.dramaId, storyboardIds, clipOverrides: clipOverrides.length })
+    const mergeId = await mergeEpisodeVideos(chapterId, ep.dramaId, { storyboardIds, clipOverrides })
+    logTaskSuccess('MergeAPI', 'chapter-merge', { episodeId: chapterId, mergeId, storyboardIds, clipOverrides: clipOverrides.length })
     return success(c, { merge_id: mergeId, status: 'processing' })
   } catch (error: unknown) {
     const message = errorMessageFromUnknown(error, 'Merge failed')

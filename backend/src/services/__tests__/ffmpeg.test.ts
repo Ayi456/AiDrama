@@ -12,7 +12,13 @@ import { ensureTailFrameInputFile, type TailFrameInputDownload } from '../automa
 import { ensureMergeInputFiles, type MergeInputFile, requireExistingMergeInputFiles } from '../merge/merge-inputs.js'
 import { selectMergeClipStoryboards } from '../merge/merge-clips.js'
 import { ffmpegMergeOutputOptions, ffmpegMergeStrategies, ffmpegXfadeIntermediateOutputOptions, resolveFfmpegMergeTimeoutMs, resolveXfadeGroupSize } from '../merge/merge-ffmpeg-strategy.js'
-import { isStaleProcessingMerge, resolveMergeClipCount, resolveMergeStoryboardIds, resolveStaleMergeTimeoutMs } from '../merge/merge-status.js'
+import {
+  isStaleProcessingMerge,
+  resolveMergeClipCount,
+  resolveMergeStoryboardClipOverrides,
+  resolveMergeStoryboardIds,
+  resolveStaleMergeTimeoutMs,
+} from '../merge/merge-status.js'
 import {
   buildNormalizeMergeClipArgs,
   resolveMergeClipNormalizationMode,
@@ -88,6 +94,23 @@ await runTest('selectMergeClipStoryboards filters by selected storyboard ids and
     [
       { id: 1, mergeVideoUrl: 'static/videos/a.mp4' },
       { id: 3, mergeVideoUrl: 'static/videos/c.mp4' },
+    ],
+  )
+})
+
+await runTest('selectMergeClipStoryboards honors explicit selected clip urls over stale storyboard video urls', () => {
+  const clips = (selectMergeClipStoryboards as any)([
+    { id: 1, storyboardNumber: 1, videoUrl: 'static/videos/oldest.mp4', composedVideoUrl: null },
+    { id: 2, storyboardNumber: 2, videoUrl: 'static/videos/shot-2.mp4', composedVideoUrl: null },
+  ], [1, 2], [
+    { storyboardId: 1, videoUrl: 'static/videos/latest.mp4' },
+  ])
+
+  assert.deepEqual(
+    clips.map((clip: any) => ({ id: clip.id, mergeVideoUrl: clip.mergeVideoUrl })),
+    [
+      { id: 1, mergeVideoUrl: 'static/videos/latest.mp4' },
+      { id: 2, mergeVideoUrl: 'static/videos/shot-2.mp4' },
     ],
   )
 })
@@ -320,6 +343,19 @@ await runTest('resolveMergeStoryboardIds reads valid storyboard ids from stored 
   assert.deepEqual(resolveMergeStoryboardIds(scenes), [3, 5])
   assert.deepEqual(resolveMergeStoryboardIds('not json'), [])
   assert.deepEqual(resolveMergeStoryboardIds(null), [])
+})
+
+await runTest('resolveMergeStoryboardClipOverrides reads stored merge scene urls for resume', () => {
+  const scenes = JSON.stringify([
+    { storyboardId: 3, videoUrl: 'static/videos/latest-3.mp4' },
+    { storyboardId: '5', videoUrl: ' static/videos/latest-5.mp4 ' },
+    { storyboardId: 7, videoUrl: '' },
+  ])
+
+  assert.deepEqual(resolveMergeStoryboardClipOverrides(scenes), [
+    { storyboardId: 3, videoUrl: 'static/videos/latest-3.mp4' },
+    { storyboardId: 5, videoUrl: 'static/videos/latest-5.mp4' },
+  ])
 })
 
 await runTest('normalized merge clip cache paths are deterministic per source and dimensions', () => {

@@ -9,7 +9,7 @@ import { resolveDataRoot, resolveStorageRoot } from '../../utils/runtime-paths.j
 import { staticAssetToLocalPath, uploadStaticAssetToCos } from '../../utils/cos.js'
 import { escapeConcatPath, FFMPEG_PATH, FFPROBE_PATH, getVideoDuration } from '../ffmpeg/ffmpeg.js'
 import { ensureMergeInputFiles } from './merge-inputs.js'
-import { selectMergeClipStoryboards } from './merge-clips.js'
+import { selectMergeClipStoryboards, type MergeClipOverride } from './merge-clips.js'
 import {
   createMergeJobDbPersistence,
   MERGE_CLAIM_HEARTBEAT_MS,
@@ -19,7 +19,7 @@ import {
 } from './merge-job-state.js'
 import { runFfmpegConcat, runFfmpegMergeStrategies, type RunFfmpegConcatInput } from './merge-ffmpeg-execution.js'
 import { normalizeMergeInputFiles, resolveMergeClipNormalizationMode } from './merge-normalization.js'
-import { resolveMergeStoryboardIds } from './merge-status.js'
+import { resolveMergeStoryboardClipOverrides, resolveMergeStoryboardIds } from './merge-status.js'
 import {
   isAnyTransitionEnabled,
   resolveSeamTransitions,
@@ -35,6 +35,7 @@ const DATA_ROOT = resolveDataRoot(PROJECT_ROOT)
 const STORAGE_ROOT = resolveStorageRoot(PROJECT_ROOT)
 type MergeEpisodeVideoOptions = {
   storyboardIds?: number[]
+  clipOverrides?: MergeClipOverride[]
 }
 
 type MergeJobPersistence = ReturnType<typeof createMergeJobDbPersistence>
@@ -215,9 +216,11 @@ export async function ensureMergeJobRunning(mergeId: number): Promise<boolean> {
   const mergeState = createMergeJobDbPersistence()
   const storyboards = await mergeState.loadEpisodeStoryboards(episodeId)
   const storyboardIds = resolveMergeStoryboardIds(merge.scenes)
+  const clipOverrides = resolveMergeStoryboardClipOverrides(merge.scenes)
   const mergeStoryboards = selectMergeClipStoryboards(
     storyboards,
     storyboardIds.length ? storyboardIds : undefined,
+    clipOverrides.length ? clipOverrides : undefined,
   )
   const videos = mergeStoryboards.map(storyboard => storyboard.mergeVideoUrl)
   if (videos.length === 0) {
@@ -245,7 +248,7 @@ export async function mergeEpisodeVideos(
 ): Promise<number> {
   const mergeState = createMergeJobDbPersistence()
   const storyboards = await mergeState.loadEpisodeStoryboards(episodeId)
-  const mergeStoryboards = selectMergeClipStoryboards(storyboards, options.storyboardIds)
+  const mergeStoryboards = selectMergeClipStoryboards(storyboards, options.storyboardIds, options.clipOverrides)
   const videos = mergeStoryboards.map(storyboard => storyboard.mergeVideoUrl)
 
   if (videos.length === 0) {

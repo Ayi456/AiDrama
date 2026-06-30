@@ -244,6 +244,10 @@ export type PendingVideoSettlement = {
   generationStatus?: string
   createdAt?: string
 }
+export type MergeClipSelection = {
+  storyboard_id: number
+  video_url: string
+}
 export type PaginatedResponse<T> = {
   items: T[]
   page: number
@@ -591,10 +595,12 @@ export const composeAPI = {
   status: (epId: number) => api.get(`/compose/chapters/${epId}/compose-status`),
 }
 export const mergeAPI = {
-  merge: (epId: number, storyboardIds?: number[]) => api.post(
-    `/merge/chapters/${epId}/merge`,
-    Array.isArray(storyboardIds) ? { storyboard_ids: storyboardIds } : undefined,
-  ),
+  merge: (epId: number, storyboardIds?: number[], clips?: MergeClipSelection[]) => {
+    const body: Record<string, unknown> = {}
+    if (Array.isArray(storyboardIds)) body.storyboard_ids = storyboardIds
+    if (Array.isArray(clips)) body.clips = clips
+    return api.post(`/merge/chapters/${epId}/merge`, Object.keys(body).length ? body : undefined)
+  },
   status: (epId: number) => api.get(`/merge/chapters/${epId}/merge`),
 }
 export const aiConfigAPI = {
