@@ -21,29 +21,33 @@ export type MediaGenerationPersistenceDeps = {
 }
 
 export function createImageGenerationPersistence(id: number, deps: MediaGenerationPersistenceDeps) {
+  const persistImageGenerationPatch = bindPatchId(deps.persistImageGenerationPatch, id)
+
   return {
     persistSnapshot: createMediaJobSnapshotPersistor({
-      persistPatch: patch => deps.persistImageGenerationPatch(id, patch),
+      persistPatch: persistImageGenerationPatch,
     }),
-    persistProcessing: (patch: MediaGenerationPatch) => deps.persistImageGenerationPatch(id, patch),
-    persistFailure: (patch: MediaGenerationPatch) => deps.persistImageGenerationPatch(id, patch),
-    persistImageCompletion: (patch: MediaGenerationPatch) => deps.persistImageGenerationPatch(id, patch),
-    publishStoryboardImage: deps.publishStoryboardPatch,
-    publishCharacterImage: deps.publishCharacterPatch,
-    publishCharacterAssetImage: deps.publishCharacterAssetPatch,
-    publishSceneImage: deps.publishScenePatch,
+    persistProcessing: persistImageGenerationPatch,
+    persistFailure: persistImageGenerationPatch,
+    persistImageCompletion: persistImageGenerationPatch,
+    publishStoryboardImage: guardPatchPersistor(deps.publishStoryboardPatch),
+    publishCharacterImage: guardPatchPersistor(deps.publishCharacterPatch),
+    publishCharacterAssetImage: guardPatchPersistor(deps.publishCharacterAssetPatch),
+    publishSceneImage: guardPatchPersistor(deps.publishScenePatch),
   }
 }
 
 export function createVideoGenerationPersistence(id: number, deps: MediaGenerationPersistenceDeps) {
+  const persistVideoGenerationPatch = bindPatchId(deps.persistVideoGenerationPatch, id)
+
   return {
     persistSnapshot: createMediaJobSnapshotPersistor({
-      persistPatch: patch => deps.persistVideoGenerationPatch(id, patch),
+      persistPatch: persistVideoGenerationPatch,
     }),
-    persistProcessing: (patch: MediaGenerationPatch) => deps.persistVideoGenerationPatch(id, patch),
-    persistFailure: (patch: MediaGenerationPatch) => deps.persistVideoGenerationPatch(id, patch),
-    persistVideoCompletion: (patch: MediaGenerationPatch) => deps.persistVideoGenerationPatch(id, patch),
-    publishStoryboardVideo: deps.publishStoryboardPatch,
+    persistProcessing: persistVideoGenerationPatch,
+    persistFailure: persistVideoGenerationPatch,
+    persistVideoCompletion: persistVideoGenerationPatch,
+    publishStoryboardVideo: guardPatchPersistor(deps.publishStoryboardPatch),
   }
 }
 
@@ -62,6 +66,30 @@ export const mediaGenerationDbPersistenceDeps: MediaGenerationPersistenceDeps = 
   publishCharacterPatch: updateCharacterPatch,
   publishCharacterAssetPatch: updateCharacterAssetPatch,
   publishScenePatch: updateScenePatch,
+}
+
+function hasWritablePatchValue(patch: MediaGenerationPatch) {
+  return Object.values(patch).some(value => value !== undefined)
+}
+
+function bindPatchId(
+  persistPatch: (id: number, patch: MediaGenerationPatch) => Promise<void>,
+  id: number,
+) {
+  return (patch: MediaGenerationPatch) => persistPatchIfPresent(persistPatch, id, patch)
+}
+
+function guardPatchPersistor(persistPatch: (id: number, patch: MediaGenerationPatch) => Promise<void>) {
+  return (id: number, patch: MediaGenerationPatch) => persistPatchIfPresent(persistPatch, id, patch)
+}
+
+async function persistPatchIfPresent(
+  persistPatch: (id: number, patch: MediaGenerationPatch) => Promise<void>,
+  id: number,
+  patch: MediaGenerationPatch,
+) {
+  if (!hasWritablePatchValue(patch)) return
+  await persistPatch(id, patch)
 }
 
 async function updateImageGenerationPatch(id: number, patch: MediaGenerationPatch) {

@@ -557,7 +557,7 @@ import { useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
 import { Camera, Check, CircleAlert, Film, History, Image as ImageIcon, Loader2, Music, ReceiptText, RefreshCw, Trash2, Wallet } from 'lucide-vue-next'
 import { uploadAPI } from '@/composables/useApi'
-import { buildAllMultimodalReferenceOptions, buildMultimodalReferenceOptions, getReferenceModeGuidance } from '@/composables/chapter/chapterShotMediaPolicy'
+import { buildAllMultimodalReferenceOptions, buildMultimodalReferenceOptions, getReferenceModeGuidance, shouldShowVideoPendingPlaceholder } from '@/composables/chapter/chapterShotMediaPolicy'
 import {
   getCaptureSourceVideoUrl,
   getCaptureTailFrameOptions,
@@ -600,7 +600,12 @@ const selectedVideoUrl = computed(() => (
   selectedShot.value ? props.state.getVideoUrl(selectedShot.value) : ''
 ))
 const isSelectedVideoPending = computed(() => (
-  selectedShot.value ? props.state.isPendingVideo(selectedShot.value.id) : false
+  selectedShot.value
+    ? shouldShowVideoPendingPlaceholder({
+        pendingVideo: props.state.isPendingVideo(selectedShot.value.id),
+        videoUrl: selectedVideoUrl.value,
+      })
+    : false
 ))
 
 const promptDraft = ref('')

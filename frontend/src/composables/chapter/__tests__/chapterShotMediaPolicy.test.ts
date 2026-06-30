@@ -7,6 +7,7 @@ import {
   buildMultimodalReferenceOptions,
   buildVideoGeneratePayload,
   getReferenceModeGuidance,
+  shouldShowVideoPendingPlaceholder,
 } from '../chapterShotMediaPolicy.ts'
 
 function runTest(name: string, fn: () => void) {
@@ -49,6 +50,24 @@ runTest('default video prompt includes dialogue and narration', () => {
 
   assert.match(prompt, /对白\/旁白：旁白：山门外的钟声骤然响起。/)
   assert.match(prompt, /顾玄：别慌，先看阵眼。/)
+})
+
+runTest('pending video placeholder is hidden when an existing video is playable', () => {
+  assert.equal(shouldShowVideoPendingPlaceholder({
+    pendingVideo: true,
+    videoUrl: 'https://cdn.example.com/current.mp4',
+  }), false)
+})
+
+runTest('pending video placeholder is shown when no existing video is playable', () => {
+  assert.equal(shouldShowVideoPendingPlaceholder({
+    pendingVideo: true,
+    videoUrl: '',
+  }), true)
+  assert.equal(shouldShowVideoPendingPlaceholder({
+    pendingVideo: false,
+    videoUrl: '',
+  }), false)
 })
 
 runTest('video generation payload appends dialogue when custom video prompt omits it', () => {

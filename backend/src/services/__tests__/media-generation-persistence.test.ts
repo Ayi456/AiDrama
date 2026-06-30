@@ -86,3 +86,23 @@ await runTest('video generation persistence forwards job patches and storyboard 
     { channel: 'storyboard', id: 22, patch: { videoUrl: 'cos://video.mp4', duration: 8, updatedAt: 'v5' } },
   ])
 })
+
+await runTest('video generation persistence ignores empty job patches', async () => {
+  const calls: unknown[] = []
+  const persistence = createVideoGenerationPersistence(13, {
+    persistImageGenerationPatch: async () => assert.fail('video persistence should not update image generations'),
+    persistVideoGenerationPatch: async (id, patch) => {
+      calls.push({ channel: 'video', id, patch })
+    },
+    publishStoryboardPatch: async () => assert.fail('empty job patches should not publish storyboards'),
+    publishCharacterPatch: async () => assert.fail('video persistence should not publish character images'),
+    publishCharacterAssetPatch: async () => assert.fail('video persistence should not publish character asset images'),
+    publishScenePatch: async () => assert.fail('video persistence should not publish scene images'),
+  })
+
+  await persistence.persistProcessing({})
+  await persistence.persistFailure({})
+  await persistence.persistVideoCompletion({})
+
+  assert.deepEqual(calls, [])
+})

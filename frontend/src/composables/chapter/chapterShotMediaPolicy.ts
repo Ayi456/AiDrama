@@ -592,6 +592,13 @@ export function getVideoGenerateActionLabel(pendingVideo: boolean) {
   return pendingVideo ? '生成中' : '生成视频'
 }
 
+export function shouldShowVideoPendingPlaceholder(input: {
+  pendingVideo: boolean
+  videoUrl?: string | null
+}) {
+  return input.pendingVideo && !String(input.videoUrl || '').trim()
+}
+
 export function getVideoStateText(input: {
   storyboard: ChapterStoryboard | null | undefined
   pendingVideo: boolean
