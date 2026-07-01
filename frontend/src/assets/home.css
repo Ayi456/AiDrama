@@ -322,6 +322,12 @@
   background: #05080d;
 }
 
+.public-hero-image picture {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .public-hero-image::before {
   content: "";
   position: absolute;
@@ -559,6 +565,12 @@
   object-fit: cover;
   filter: none;
   transform: none;
+}
+
+.public-media-panel picture,
+.public-bento-media picture,
+.public-gallery-frame picture {
+  display: block;
 }
 
 .public-media-panel img {

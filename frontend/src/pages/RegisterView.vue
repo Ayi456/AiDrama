@@ -104,6 +104,7 @@ import { toast } from 'vue-sonner'
 import { Lock, LockKeyhole, Mail, Phone, ShieldCheck, User, UserPlus } from 'lucide-vue-next'
 import { authAPI } from '../composables/useApi'
 import { useAuth } from '../composables/useAuth'
+import '@/assets/auth.css'
 
 const form = reactive({
   username: '',

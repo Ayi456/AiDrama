@@ -1,15 +1,16 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import HomeView from './pages/HomeView.vue'
-import WorkspaceView from './pages/WorkspaceView.vue'
-import SettingsView from './pages/SettingsView.vue'
-import CharacterAssetsView from './pages/CharacterAssetsView.vue'
-import DramaDetailView from './pages/DramaDetailView.vue'
-import ChapterStudioView from './pages/ChapterStudioView.vue'
-import WalletView from './pages/WalletView.vue'
-import ProfileView from './pages/ProfileView.vue'
-import LoginView from './pages/LoginView.vue'
-import RegisterView from './pages/RegisterView.vue'
 import { useAuth } from './composables/useAuth'
+
+const HomeView = () => import('./pages/HomeView.vue')
+const WorkspaceView = () => import('./pages/WorkspaceView.vue')
+const SettingsView = () => import('./pages/SettingsView.vue')
+const CharacterAssetsView = () => import('./pages/CharacterAssetsView.vue')
+const DramaDetailView = () => import('./pages/DramaDetailView.vue')
+const ChapterStudioView = () => import('./pages/ChapterStudioView.vue')
+const WalletView = () => import('./pages/WalletView.vue')
+const ProfileView = () => import('./pages/ProfileView.vue')
+const LoginView = () => import('./pages/LoginView.vue')
+const RegisterView = () => import('./pages/RegisterView.vue')
 
 export const router = createRouter({
   history: createWebHistory(),

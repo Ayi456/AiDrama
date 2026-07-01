@@ -66,10 +66,15 @@
         <canvas ref="particleCanvasRef" class="public-particle-canvas" aria-hidden="true"></canvas>
         <div class="public-liquid-sheet" aria-hidden="true"></div>
         <div class="public-hero-image">
-          <img
-            src="/landing/public-landing-hero.png"
-            alt="AI 短剧制作台，包含分镜稿、角色设定、脚本和视频画面"
-          />
+          <picture>
+            <source srcset="/landing/public-landing-hero.webp" type="image/webp" />
+            <img
+              src="/landing/public-landing-hero.png"
+              fetchpriority="high"
+              decoding="async"
+              alt="AI 短剧制作台，包含分镜稿、角色设定、脚本和视频画面"
+            />
+          </picture>
         </div>
         <aside class="public-visual-card">
           <strong>剧本、角色、画面和视频任务，在同一个项目里连续推进。</strong>
@@ -99,10 +104,15 @@
       </div>
 
       <figure class="public-media-panel public-reveal">
-        <img
-          src="/landing/public-landing-workflow.png"
-          alt="AI 短剧制作流程界面，包含分镜、镜头队列和制作素材"
-        />
+        <picture>
+          <source srcset="/landing/public-landing-workflow.webp" type="image/webp" />
+          <img
+            src="/landing/public-landing-workflow.png"
+            loading="lazy"
+            decoding="async"
+            alt="AI 短剧制作流程界面，包含分镜、镜头队列和制作素材"
+          />
+        </picture>
         <figcaption>
           <strong>从剧本到镜头的制作链路</strong>
           <span>分集结构、画面参考、镜头队列和素材状态集中呈现，制作团队可以更快判断下一步该推进什么。</span>
@@ -121,10 +131,15 @@
           <h3>一个项目空间承载剧本、角色、场景和镜头任务</h3>
           <p>每部短剧都有独立上下文。角色设定、视觉参考、生成任务和分集内容集中管理，制作过程更稳。</p>
           <figure class="public-bento-media">
-            <img
-              src="/landing/public-landing-characters.png"
-              alt="AI 短剧角色资产管理画面，展示角色设定和造型参考"
-            />
+            <picture>
+              <source srcset="/landing/public-landing-characters.webp" type="image/webp" />
+              <img
+                src="/landing/public-landing-characters.png"
+                loading="lazy"
+                decoding="async"
+                alt="AI 短剧角色资产管理画面，展示角色设定和造型参考"
+              />
+            </picture>
           </figure>
           <div class="public-bento-lines" aria-hidden="true"></div>
           <div class="public-bento-film" aria-hidden="true"></div>
@@ -153,20 +168,30 @@
 
       <div class="public-gallery-stack">
         <figure class="public-gallery-frame">
-          <img
-            src="/landing/public-landing-gallery.png"
-            alt="AI 短剧概念画面示例，包含不同题材的电影画面"
-          />
+          <picture>
+            <source srcset="/landing/public-landing-gallery.webp" type="image/webp" />
+            <img
+              src="/landing/public-landing-gallery.png"
+              loading="lazy"
+              decoding="async"
+              alt="AI 短剧概念画面示例，包含不同题材的电影画面"
+            />
+          </picture>
           <figcaption>
             <strong>概念画面矩阵</strong>
             <span>把不同题材的光影、构图和美术方向并排呈现，方便快速确认短剧调性。</span>
           </figcaption>
         </figure>
         <figure class="public-gallery-frame">
-          <img
-            src="/landing/public-landing-stills.png"
-            alt="AI 短剧成片风格示例，展示多组电影感画面"
-          />
+          <picture>
+            <source srcset="/landing/public-landing-stills.webp" type="image/webp" />
+            <img
+              src="/landing/public-landing-stills.png"
+              loading="lazy"
+              decoding="async"
+              alt="AI 短剧成片风格示例，展示多组电影感画面"
+            />
+          </picture>
           <figcaption>
             <strong>成片风格示例</strong>
             <span>用接近成片预览的画面展示镜头气质，为后续视频生成建立明确参考。</span>

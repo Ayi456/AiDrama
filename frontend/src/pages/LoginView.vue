@@ -65,6 +65,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
 import { Film, Lock, LogIn, Mail } from 'lucide-vue-next'
 import { useAuth } from '../composables/useAuth'
+import '@/assets/auth.css'
 
 const identifier = ref('')
 const password = ref('')
