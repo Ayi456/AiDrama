@@ -20,7 +20,10 @@ import { buildAutomationVideoReferences } from './video-reference-policy.js'
 import { resolvePreviousTailFrameState } from './previous-tail-frame-policy.js'
 import { captureAndPersistTailFrame } from './tail-frame-capture.js'
 import { setAutomationProgress } from './progress-state.js'
-import { getVideoGenerationInFlightState } from './video-generation-staleness-policy.js'
+import {
+  buildStaleVideoGenerationFailurePatch,
+  getVideoGenerationInFlightState,
+} from './video-generation-staleness-policy.js'
 import { selectRefreshableVideoGeneration } from './video-task-refresh-policy.js'
 
 type InFlightImageKeys = {
@@ -225,25 +228,24 @@ async function expireStaleVideoGenerationsForStoryboard(storyboardId: number): P
   const rows = await db.select().from(schema.videoGenerations).where(eq(schema.videoGenerations.storyboardId, storyboardId))
   const nowMs = Date.now()
   const staleRows = rows
-    .map(row => ({ row, state: getVideoGenerationInFlightState(row, nowMs) }))
-    .filter(({ state }) => state.stale)
+    .map(row => ({
+      row,
+      patch: buildStaleVideoGenerationFailurePatch(row, nowMs, 'Automation reset stale video generation'),
+    }))
+    .filter(({ patch }) => patch != null)
 
   if (!staleRows.length) return
 
-  const updatedAt = new Date(nowMs).toISOString()
-  await Promise.all(staleRows.map(async ({ row, state }) => {
+  await Promise.all(staleRows.map(async ({ row, patch }) => {
+    if (!patch) return
     await db.update(schema.videoGenerations)
-      .set({
-        status: 'failed',
-        errorMsg: `Automation reset stale video generation: ${state.reason ?? 'stale in-flight video generation'}`,
-        updatedAt,
-      })
+      .set(patch)
       .where(eq(schema.videoGenerations.id, row.id))
       .run()
     console.warn('[automation] expired stale video generation', {
       storyboardId,
       videoGenerationId: row.id,
-      reason: state.reason,
+      reason: patch.errorMsg,
     })
   }))
 }
@@ -268,8 +270,8 @@ const videoHandler: StageHandler = {
     const firstPending = sbs.findIndex(sb => !sb.videoUrl)
     if (firstPending < 0) return
     const sb = sbs[firstPending]
-    await expireStaleVideoGenerationsForStoryboard(sb.id)
     if (await refreshInFlightVideoForStoryboard(sb.id)) return
+    await expireStaleVideoGenerationsForStoryboard(sb.id)
     if (await hasInFlightVideoForStoryboard(sb.id)) return
 
     const prev = firstPending > 0 ? sbs[firstPending - 1] : null

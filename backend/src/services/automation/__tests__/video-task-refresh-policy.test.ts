@@ -1,6 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { selectRefreshableVideoGeneration } from '../video-task-refresh-policy.js'
+import {
+  selectRefreshableVideoGeneration,
+  shouldRefreshProviderTaskStatus,
+} from '../video-task-refresh-policy.js'
 
 test('selectRefreshableVideoGeneration picks the newest root in-flight task with task id', () => {
   const selected = selectRefreshableVideoGeneration([
@@ -29,4 +32,51 @@ test('selectRefreshableVideoGeneration returns null when no provider task can be
   ])
 
   assert.equal(selected, null)
+})
+
+test('selectRefreshableVideoGeneration can recover local timeout failures with provider task ids', () => {
+  const selected = selectRefreshableVideoGeneration([
+    {
+      id: 40,
+      status: 'failed',
+      taskId: 'timed-out-task',
+      errorMsg: 'Timeout: Polling attempts exhausted',
+      defectCheckParentId: null,
+    },
+    {
+      id: 41,
+      status: 'failed',
+      taskId: 'provider-rejected-task',
+      errorMsg: 'Sensitive content rejected by provider',
+      defectCheckParentId: null,
+    },
+  ])
+
+  assert.equal(selected?.id, 40)
+})
+
+test('shouldRefreshProviderTaskStatus separates local polling failures from provider terminal failures', () => {
+  assert.equal(shouldRefreshProviderTaskStatus({
+    id: 50,
+    status: 'failed',
+    taskId: 'task-50',
+    errorMsg: 'Automation reset stale video generation: provider task status unknown',
+  }), true)
+  assert.equal(shouldRefreshProviderTaskStatus({
+    id: 51,
+    status: 'failed',
+    taskId: 'task-51',
+    errorMsg: 'Stale video generation expired: provider task status unknown',
+  }), true)
+  assert.equal(shouldRefreshProviderTaskStatus({
+    id: 52,
+    status: 'failed',
+    taskId: 'task-52',
+    errorMsg: 'Provider failed: sensitive content',
+  }), false)
+  assert.equal(shouldRefreshProviderTaskStatus({
+    id: 53,
+    status: 'processing',
+    taskId: 'task-53',
+  }), true)
 })

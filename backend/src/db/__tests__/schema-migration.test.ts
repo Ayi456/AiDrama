@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { videoGenerations } from '../schema.js'
 
 function runTest(name: string, fn: () => void) {
   try {
@@ -36,4 +37,12 @@ runTest('image generation provider usage columns are backfilled for existing MyS
       new RegExp(`ensureColumn\\(pool, database, 'image_generations', '${column}',`),
     )
   }
+})
+
+runTest('video generation provider usage columns are available to Drizzle patches', () => {
+  const columns = videoGenerations as unknown as Record<string, { name: string } | undefined>
+
+  assert.equal(columns.providerUsageCompletionTokens?.name, 'provider_usage_completion_tokens')
+  assert.equal(columns.providerUsageTotalTokens?.name, 'provider_usage_total_tokens')
+  assert.equal(columns.providerUsageRaw?.name, 'provider_usage_raw')
 })

@@ -41,12 +41,18 @@ export function getVideoGenerationInFlightState(
 
   if (ageMs <= staleAfterMs) return activeInFlight()
 
+  if (taskId) {
+    return {
+      inFlight: true,
+      stale: true,
+      reason: `Provider task ${taskId} remains unconfirmed after ${formatMinutes(staleAfterMs)} minutes`,
+    }
+  }
+
   return {
     inFlight: false,
     stale: true,
-    reason: taskId
-      ? `Video generation timed out after ${formatMinutes(staleAfterMs)} minutes while waiting for provider task ${taskId}`
-      : `Video generation missing provider task id after ${formatMinutes(staleAfterMs)} minutes`,
+    reason: `Video generation missing provider task id after ${formatMinutes(staleAfterMs)} minutes`,
   }
 }
 
@@ -57,6 +63,7 @@ export function buildStaleVideoGenerationFailurePatch(
 ): StaleVideoGenerationFailurePatch | null {
   const state = getVideoGenerationInFlightState(row, nowMs)
   if (!state.stale) return null
+  if (row.taskId?.trim()) return null
 
   return {
     status: 'failed',

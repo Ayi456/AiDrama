@@ -1,7 +1,6 @@
 import {
   getVideoGenerationInFlightState,
   STALE_VIDEO_GENERATION_NO_TASK_MS,
-  STALE_VIDEO_GENERATION_WITH_TASK_MS,
 } from '../../services/automation/video-generation-staleness-policy.js'
 
 export function readWalletListLimit(value: unknown) {
@@ -74,7 +73,6 @@ const BILLING_PENDING_STATUSES = new Set(['billing', 'billing_required', 'billin
 export function buildPendingSettlementInFlightCutoffs(nowMs = Date.now()) {
   return {
     withoutTaskUpdatedAfter: new Date(nowMs - STALE_VIDEO_GENERATION_NO_TASK_MS).toISOString(),
-    withTaskUpdatedAfter: new Date(nowMs - STALE_VIDEO_GENERATION_WITH_TASK_MS).toISOString(),
   }
 }
 

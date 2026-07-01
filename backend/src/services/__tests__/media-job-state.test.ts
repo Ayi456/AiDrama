@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 
 import {
   buildJobFailurePatch,
+  buildJobProviderTaskUnconfirmedPatch,
   buildJobProcessingPatch,
   buildJobSnapshotPatch,
   createMediaJobSnapshotPersistor,
@@ -60,6 +61,18 @@ runTest('buildJobProcessingPatch records async task ownership consistently', () 
   assert.deepEqual(
     buildJobProcessingPatch('task-123', 't2'),
     { taskId: 'task-123', status: 'processing', updatedAt: 't2' },
+  )
+})
+
+runTest('buildJobProviderTaskUnconfirmedPatch keeps accepted provider tasks in processing state', () => {
+  assert.deepEqual(
+    buildJobProviderTaskUnconfirmedPatch('task-123', 'Polling attempts exhausted', 't2c'),
+    {
+      taskId: 'task-123',
+      status: 'processing',
+      errorMsg: 'Provider task status unconfirmed: Polling attempts exhausted',
+      updatedAt: 't2c',
+    },
   )
 })
 

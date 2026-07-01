@@ -44,6 +44,21 @@ export function buildJobProcessingPatch(taskId: string | null | undefined, updat
 
 export type MediaJobProcessingPatch = ReturnType<typeof buildJobProcessingPatch>
 
+export function buildJobProviderTaskUnconfirmedPatch(
+  taskId: string,
+  reason: string,
+  updatedAt: string,
+) {
+  return {
+    taskId,
+    status: 'processing' as const,
+    errorMsg: `Provider task status unconfirmed: ${reason}`,
+    updatedAt,
+  }
+}
+
+export type MediaJobProviderTaskUnconfirmedPatch = ReturnType<typeof buildJobProviderTaskUnconfirmedPatch>
+
 export type MediaJobProcessingHandoffInput = {
   taskName: string
   event: string

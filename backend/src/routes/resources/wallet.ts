@@ -89,16 +89,12 @@ app.get('/pending-settlements', async (c) => {
                 TRIM(COALESCE(vg.task_id, '')) = ''
                 AND ${lastTouchedSql} >= ?
               )
-              OR (
-                TRIM(COALESCE(vg.task_id, '')) <> ''
-                AND ${lastTouchedSql} >= ?
-              )
+              OR TRIM(COALESCE(vg.task_id, '')) <> ''
             )
           ))
         AND (vg.user_id = ? OR d.user_id = ? OR sd.user_id = ?)`
   const params = [
     cutoffs.withoutTaskUpdatedAfter,
-    cutoffs.withTaskUpdatedAfter,
     currentUser.id,
     currentUser.id,
     currentUser.id,

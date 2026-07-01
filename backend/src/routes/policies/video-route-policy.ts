@@ -1,4 +1,5 @@
 import type { VideoGenerationEnqueueParams } from '../../services/media/generation/media-generation-enqueue.js'
+import { shouldRefreshProviderTaskStatus } from '../../services/automation/video-task-refresh-policy.js'
 import {
   DEFAULT_VIDEO_GENERATION_DURATION_SECONDS,
   normalizeVideoGenerationDuration,
@@ -30,6 +31,21 @@ export type VideoListQuery = {
   storyboard_id?: string | null
   drama_id?: string | null
   limit?: string | null
+}
+
+export type ReadableVideoGenerationRow = {
+  id: number
+  status?: string | null
+  taskId?: string | null
+  errorMsg?: string | null
+  createdAt?: string | null
+  updatedAt?: string | null
+}
+
+export type ReadableVideoGenerationRefreshDeps<T extends ReadableVideoGenerationRow> = {
+  refreshStatus: (id: number) => Promise<unknown>
+  reload: (id: number) => Promise<T | null | undefined>
+  onRefreshError?: (error: unknown, row: T) => void
 }
 
 export const DEFAULT_VIDEO_LIST_LIMIT = 24
@@ -98,6 +114,43 @@ export function buildVideoRouteLogContext(body: VideoGenerateBody) {
 
 export function errorMessageFromUnknown(error: unknown) {
   return formatErrorMessage(error, 'Unknown video generation error')
+}
+
+export function shouldRefreshReadableVideoGeneration(row: ReadableVideoGenerationRow) {
+  return shouldRefreshProviderTaskStatus(row)
+}
+
+function preserveOriginalReadClock<T extends ReadableVideoGenerationRow>(original: T, refreshed: T): T {
+  if (!shouldRefreshReadableVideoGeneration(refreshed)) return refreshed
+
+  return {
+    ...refreshed,
+    ...(original.createdAt != null ? { createdAt: original.createdAt } : {}),
+    ...(original.updatedAt != null ? { updatedAt: original.updatedAt } : {}),
+  }
+}
+
+export async function refreshReadableVideoGenerationRow<T extends ReadableVideoGenerationRow>(
+  row: T,
+  deps: ReadableVideoGenerationRefreshDeps<T>,
+): Promise<T> {
+  if (!shouldRefreshReadableVideoGeneration(row)) return row
+
+  try {
+    await deps.refreshStatus(row.id)
+    const refreshed = await deps.reload(row.id)
+    return refreshed ? preserveOriginalReadClock(row, refreshed) : row
+  } catch (error) {
+    deps.onRefreshError?.(error, row)
+    return row
+  }
+}
+
+export async function refreshReadableVideoGenerationRows<T extends ReadableVideoGenerationRow>(
+  rows: T[],
+  deps: ReadableVideoGenerationRefreshDeps<T>,
+): Promise<T[]> {
+  return await Promise.all(rows.map(row => refreshReadableVideoGenerationRow(row, deps)))
 }
 
 function numberValue(value: unknown) {

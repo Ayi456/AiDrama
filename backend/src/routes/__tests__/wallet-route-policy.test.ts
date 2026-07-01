@@ -90,7 +90,7 @@ runTest('pending settlement list includes in-flight unbilled video generations',
     taskId: 'task-3',
     updatedAt: staleUpdatedAt,
     nowMs,
-  }), false)
+  }), true)
   assert.equal(shouldExposePendingSettlement({
     billingStatus: 'unbilled',
     generationStatus: 'failed_defect',
@@ -136,10 +136,9 @@ runTest('pending settlement list includes in-flight unbilled video generations',
   }), false)
 })
 
-runTest('pending settlement SQL cutoffs match in-flight staleness windows', () => {
+runTest('pending settlement SQL cutoff only applies to local-only in-flight rows', () => {
   const nowMs = Date.parse('2026-06-17T12:00:00.000Z')
   assert.deepEqual(buildPendingSettlementInFlightCutoffs(nowMs), {
     withoutTaskUpdatedAfter: '2026-06-17T11:30:00.000Z',
-    withTaskUpdatedAfter: '2026-06-17T10:00:00.000Z',
   })
 })

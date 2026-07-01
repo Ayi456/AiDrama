@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { and, desc, eq, type SQL } from 'drizzle-orm'
 import { db, schema } from '../../db/index.js'
 import { success, created, badRequest } from '../../utils/response.js'
-import { generateVideo } from '../../services/generation/video-generation.js'
+import { generateVideo, refreshVideoGenerationStatus } from '../../services/generation/video-generation.js'
 import { logTaskError, logTaskPayload, logTaskStart, logTaskSuccess } from '../../utils/task-logger.js'
 import { presentVideoGenerationAsset, presentVideoGenerationAssets } from '../../utils/public-asset.js'
 import { appendProjectStyleToVideoPrompt } from '../../agents/visual-prompt-policy.js'
@@ -11,6 +11,8 @@ import {
   buildVideoRouteLogContext,
   errorMessageFromUnknown,
   presentEffectiveVideoGenerationAsset,
+  refreshReadableVideoGenerationRow,
+  refreshReadableVideoGenerationRows,
   readVideoListLimit,
   readVideoListNumber,
   resolveVideoStartDuration,
@@ -83,9 +85,11 @@ app.get('/:id', async (c) => {
   const row = await findOwnedVideoGeneration(currentUser.id, id)
   if (!row) return success(c, null)
 
-  const freshRow = await expireStaleVideoGeneration(row)
+  const refreshedRow = await refreshVideoGenerationForRead(row)
+  const freshRow = await expireStaleVideoGeneration(refreshedRow)
   const effective = await loadLatestEffectiveVideoGeneration(freshRow)
-  const freshEffective = effective ? await expireStaleVideoGeneration(effective) : null
+  const refreshedEffective = effective ? await refreshVideoGenerationForRead(effective) : null
+  const freshEffective = refreshedEffective ? await expireStaleVideoGeneration(refreshedEffective) : null
   return success(c, presentEffectiveVideoGenerationAsset(freshRow, freshEffective))
 })
 
@@ -139,7 +143,8 @@ app.get('/', async (c) => {
       .all()
 
   const ownedRows = await filterOwnedVideoGenerations(currentUser.id, rows)
-  const freshRows = await expireStaleVideoGenerations(ownedRows)
+  const refreshedRows = await refreshVideoGenerationsForRead(ownedRows)
+  const freshRows = await expireStaleVideoGenerations(refreshedRows)
   return success(c, presentVideoGenerationAssets(freshRows))
 })
 
@@ -210,6 +215,41 @@ async function expireStaleVideoGeneration<T extends typeof schema.videoGeneratio
     .run()
 
   return { ...row, ...patch }
+}
+
+async function reloadVideoGeneration(id: number) {
+  const [row] = await db.select().from(schema.videoGenerations)
+    .where(eq(schema.videoGenerations.id, id))
+    .all()
+  return row || null
+}
+
+async function refreshVideoGenerationForRead<T extends typeof schema.videoGenerations.$inferSelect>(row: T): Promise<T> {
+  return await refreshReadableVideoGenerationRow(row, {
+    refreshStatus: refreshVideoGenerationStatus,
+    reload: async id => await reloadVideoGeneration(id) as T | null,
+    onRefreshError: (error, currentRow) => {
+      logTaskError('VideoAPI', 'read-refresh-failed', {
+        generationId: currentRow.id,
+        taskId: currentRow.taskId || '',
+        error: errorMessageFromUnknown(error),
+      })
+    },
+  })
+}
+
+async function refreshVideoGenerationsForRead<T extends typeof schema.videoGenerations.$inferSelect>(rows: T[]): Promise<T[]> {
+  return await refreshReadableVideoGenerationRows(rows, {
+    refreshStatus: refreshVideoGenerationStatus,
+    reload: async id => await reloadVideoGeneration(id) as T | null,
+    onRefreshError: (error, currentRow) => {
+      logTaskError('VideoAPI', 'list-refresh-failed', {
+        generationId: currentRow.id,
+        taskId: currentRow.taskId || '',
+        error: errorMessageFromUnknown(error),
+      })
+    },
+  })
 }
 
 async function expireStaleVideoGenerations<T extends typeof schema.videoGenerations.$inferSelect>(rows: T[]): Promise<T[]> {

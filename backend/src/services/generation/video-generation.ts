@@ -35,10 +35,10 @@ import {
 } from '../media/provider/media-provider-execution.js'
 import { runMediaPollingLoop } from '../media/job/media-polling-loop.js'
 import {
+  buildJobProviderTaskUnconfirmedPatch,
   logDetachedMediaJobError,
   recordMediaJobFailure,
   recordMediaJobProcessingHandoff,
-  recordMediaJobTimeout,
 } from '../media/job/media-job-state.js'
 import { createVideoGenerationDbPersistence } from '../media/generation/media-generation-persistence.js'
 import { isProviderApiError, sendProviderJsonRequest } from '../media/provider/media-provider-transport.js'
@@ -50,6 +50,7 @@ import {
   resolveVideoGenerationUserId,
   settleCompletedVideo,
 } from '../billing/video-billing.js'
+import { shouldRefreshProviderTaskStatus } from '../automation/video-task-refresh-policy.js'
 
 type GenerateVideoParams = VideoGenerationEnqueueParams
 export type VideoGenerationRefreshResult = 'missing' | 'idle' | 'processing' | 'completed' | 'failed'
@@ -264,27 +265,20 @@ async function pollVideoTask(
   const errorMessage = pollResult.status === 'exhausted'
     ? 'Polling attempts exhausted'
     : pollResult.error.message
-  await recordMediaJobTimeout({
-    taskName: 'VideoTask',
-    event: 'poll-timeout',
-    id,
-    taskId,
-    errorMessage,
-    failedAt: now(),
-  }, {
-    logError: logTaskError,
-    persistFailure: persistence.persistFailure,
-  })
-  await notifyAutomationAfterVideo(id, storyboardId ?? null, 'failed')
+  logTaskWarn('VideoTask', 'poll-unconfirmed', { id, taskId, error: errorMessage })
+  await persistence.persistProcessing(buildJobProviderTaskUnconfirmedPatch(taskId, errorMessage, now()))
 }
 
 export async function refreshVideoGenerationStatus(id: number): Promise<VideoGenerationRefreshResult> {
   const [record] = await db.select().from(schema.videoGenerations).where(eq(schema.videoGenerations.id, id))
   if (!record) return 'missing'
 
-  const status = record.status ?? 'pending'
-  if (status !== 'pending' && status !== 'processing') return 'idle'
-  if (!record.taskId) return 'processing'
+  const taskId = record.taskId?.trim()
+  if (!taskId) {
+    const status = record.status ?? 'pending'
+    return status === 'pending' || status === 'processing' ? 'processing' : 'idle'
+  }
+  if (!shouldRefreshProviderTaskStatus(record)) return 'idle'
 
   const config = await getActiveConfig('video')
   if (!config) throw new Error('No active video AI config')
@@ -296,7 +290,7 @@ export async function refreshVideoGenerationStatus(id: number): Promise<VideoGen
   const persistence = createVideoGenerationDbPersistence(id)
   const preparedPoll = prepareProviderPollAttempt({
     id,
-    taskId: record.taskId,
+    taskId,
     attemptNumber: 1,
     config,
     adapter,
@@ -312,13 +306,16 @@ export async function refreshVideoGenerationStatus(id: number): Promise<VideoGen
     sendJsonRequest: sendProviderJsonRequest,
     persistSnapshot: persistence.persistSnapshot,
   })
-  if (providerPoll.type === 'continue') return 'processing'
+  if (providerPoll.type === 'continue') {
+    await persistence.persistProcessing(buildJobProviderTaskUnconfirmedPatch(taskId, 'Provider task still processing', now()))
+    return 'processing'
+  }
 
   const pollDecision = interpretVideoPollResult(adapter, providerPoll.result)
   if (pollDecision.type === 'completed-url') {
     logTaskSuccess('VideoTask', 'resume-poll-complete', {
       id,
-      taskId: record.taskId,
+      taskId,
       videoUrl: pollDecision.videoUrl,
     })
     await persistVideoProviderUsage(persistence, pollDecision.providerUsage)
@@ -327,7 +324,7 @@ export async function refreshVideoGenerationStatus(id: number): Promise<VideoGen
   }
 
   if (pollDecision.type === 'failed') {
-    logTaskError('VideoTask', 'resume-poll-failed', { id, taskId: record.taskId, error: pollDecision.error })
+    logTaskError('VideoTask', 'resume-poll-failed', { id, taskId, error: pollDecision.error })
     await recordMediaJobFailure({
       taskName: 'VideoTask',
       event: 'resume-poll-failed',
