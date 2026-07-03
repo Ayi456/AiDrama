@@ -3,6 +3,7 @@
 > 关联调研文档：`docs/video-transition-plan.md`
 >
 > **实施状态：已落地（2026-05-21）**。本节内容含最终实施的偏差。
+> 2026-07-03 依据当前实现同步：归一化链顺序、anullsrc 静音兜底恢复、树状合并、ffmpeg 二进制解析。
 
 ## 选型决策：留在 xfade，暂不引入 editly
 
@@ -31,15 +32,16 @@
 | 合并任务快照 | ✅ 已实现 | `video_merges` 表同名两列写入 |
 | 过渡类型白名单 | ✅ 已实现 | 10 种常用 xfade 转场，分组（淡变 / 滑动 / 圆形 / 擦除 / 像素）见下方"过渡类型白名单" |
 | 前端集页面弹窗 | ✅ 已实现 | 合并按钮旁齿轮 → 类型 + 0–1000ms 滑块 |
-| `anullsrc` 静音兜底 | ❌ 已撤销 | 决策：所有分镜自带音轨，不再做缺音轨补静音 |
+| `anullsrc` 静音兜底 | ✅ 已实现（2026-07 恢复） | xfade 各阶段对缺音轨输入用 `anullsrc`（48kHz 双声道、按片段时长收尾）补静音；合并前 clip 归一化同样补静音输入 |
 | 接缝级降级 | ✅ 已实现 | 接缝有效时长 < 50ms 自动降级为该接缝硬切 |
-| **流参数归一化** | ✅ 新增 | 在 xfade 前对每路视频/音频做 `fps=30,format=yuv420p,setpts=PTS-STARTPTS` 与 `aformat=48k/stereo,asetpts=PTS-STARTPTS`，否则不同分镜的 fps/timebase 微差会让 xfade 报 "Invalid argument" |
+| **流参数归一化** | ✅ 新增 | 在 xfade 前对每路视频/音频做 `setpts=PTS-STARTPTS,fps=<fps>,format=yuv420p` 与 `aformat=48k/stereo,asetpts=PTS-STARTPTS`；`fps` 取各源最大帧率（默认 30）。`fps` 必须在 `setpts` 之后：`setpts` 会把帧率元数据重置为 1/0，ffmpeg 7.x 的 xfade 要求 CFR，否则 EINVAL |
+| **4 叉树状合并** | ✅ 新增（2026-06） | `planXfadeMergeTree` 每步 ≤4 路输入（`MERGE_XFADE_GROUP_SIZE` 可调 2–6），峰值内存不随分镜数增长；中间档 crf18 无 faststart，用完即删 |
 | **ffmpeg xfade 能力探测** | ✅ 新增 | 首次合并时缓存 `ffmpeg -filters` 结果。老版（< 4.3，无 xfade）直接跳过 xfade 走 transcode，日志事件 `ffmpeg-xfade-unsupported` |
 | **根 `.env` 注入 process.env** | ✅ 新增 | 项目原先只手动 parse `.env` 用于 DB 配置；新建 `backend/src/utils/project-env.ts` 在 ffmpeg / db 启动时统一注入，确保 `FFMPEG_PATH` 等被全模块读到 |
 
 ## 运行环境备注
 
-- **本地开发**：默认 bundle 是 `@ffmpeg-installer/win32-x64`（2018 年版，无 xfade）。会被探测命中并跳过 xfade。如需本地验证淡入淡出效果，在根 `.env` 加 `FFMPEG_PATH` / `FFPROBE_PATH` 指向系统新版（≥ 4.3）即可。
+- **本地开发**：不再捆绑 npm ffmpeg 包；解析顺序为 `FFMPEG_PATH`/`FFPROBE_PATH` env → SCF `/opt` 层 → 项目 `bin/` → 系统 PATH。本地验证淡入淡出需保证 PATH 或 `.env` 指向 ≥ 4.3 的 ffmpeg。
 - **生产 SCF**：层挂载的是 2026 年 2 月下载的 ffmpeg，xfade 正常生效。
 
 ## 目标
@@ -121,9 +123,9 @@ xfade  →  transcode  →  copy
 **1. 输入归一化（必须）**：每路视频/音频先经过参数统一，否则不同分镜的 fps/pixel format/timebase 差异会让 xfade 报 "Invalid argument"。
 
 ```
-[0:v] fps=30,format=yuv420p,setpts=PTS-STARTPTS [v0n]
+[0:v] setpts=PTS-STARTPTS,fps=<fps>,format=yuv420p [v0n]
 [0:a] aformat=sample_rates=48000:channel_layouts=stereo,asetpts=PTS-STARTPTS [a0n]
-... (每路都做)
+... (每路都做；fps 取各源最大帧率，默认 30；fps 必须在 setpts 之后，见"实施总览")
 ```
 
 **2. 视频链**：
@@ -140,7 +142,7 @@ xfade  →  transcode  →  copy
 ...
 ```
 
-**音轨缺失兜底**：~~`anullsrc` 补静音~~ — 已撤销。所有分镜自带音轨；若个别片段确实无音轨，xfade 路径会失败并降级到 transcode 硬切，这是可接受的兜底行为。
+**音轨缺失兜底**：`buildXfadeStageAudioPlan` 逐路探测音轨；缺音轨的输入用 `anullsrc=channel_layout=stereo:sample_rate=48000:d=<片段时长>` 生成静音源接入音频链（2026-07 恢复，早期一度撤销）。
 
 **接缝级降级**：每条接缝有效时长 `seamD = min(d, dur[k]/2, dur[k+1]/2)`；若 `seamD < 50ms`（`MIN_SEAM_DURATION_SECONDS`），该接缝改用 `concat=n=2:v=1:a=0` / `concat=n=2:v=0:a=1` 硬切（不影响其他接缝）。当 N 段所有接缝都退化为 0 时，`buildXfadeFilter` 返回 `null`，整体走 transcode。
 
@@ -226,10 +228,10 @@ xfade  →  transcode  →  copy
 | 重编码 CPU 显著上升 | 沿用 14 分钟超时；超时则降级 transcode |
 | filter graph 字符串拼接易错 | 抽 `buildXfadeFilter`，11 个单元用例覆盖 |
 | ffmpeg 版本不支持 xfade | 启动前 `ffmpegSupportsXfade()` 探测，缓存结果，不支持则跳过策略 |
-| 不同分镜 fps/timebase 微差导致 xfade 报错 | 进入 xfade 前对每路视频/音频做归一化（`fps=30,format=yuv420p,setpts` + `aformat=48k/stereo,asetpts`） |
+| 不同分镜 fps/timebase 微差导致 xfade 报错 | 进入 xfade 前对每路视频/音频做归一化（`setpts,fps,format` + `aformat/asetpts`，fps 收尾保证 CFR） |
 | `.env` 中 `FFMPEG_PATH` 不生效 | `project-env.ts` 在 ffmpeg / db 启动时统一把根 `.env` 注入 `process.env` |
 | 现有合并任务在升级后跑老数据 | `video_merges` 字段允许 NULL，老任务读出来即"未配置" |
-| 个别分镜确实无音轨 | 走 transcode 硬切兜底；前期决策不引入 anullsrc 静音补齐 |
+| 个别分镜确实无音轨 | `anullsrc` 静音补齐（xfade 阶段与 clip 归一化均覆盖，2026-07 恢复） |
 
 ## 推迟项
 
