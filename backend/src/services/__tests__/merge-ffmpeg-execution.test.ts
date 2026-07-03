@@ -144,3 +144,32 @@ await runTest('buildXfadeStageAudioPlan backfills missing audio with finite sile
     'anullsrc=channel_layout=stereo:sample_rate=48000:d=6.750[silent2a]',
   ])
 })
+
+await runTest('buildXfadeStageAudioPlan maps tree-stage node ids onto per-stage input positions', () => {
+  // Later tree stages pass global node ids (e.g. intermediates) while ffmpeg
+  // labels follow the per-stage input order, so flags/durations must be read
+  // by node id and labels emitted by position.
+  const nodeHasAudio = [true, false, true, false, true]
+  const nodeDurations = [3, 4.5, 5, 6, 7.25]
+
+  const plan = buildXfadeStageAudioPlan([4, 1, 2], nodeHasAudio, nodeDurations)
+
+  assert.deepEqual(plan.audioLabels, ['[0:a]', '[silent1a]', '[2:a]'])
+  assert.deepEqual(plan.preludeFilters, [
+    'anullsrc=channel_layout=stereo:sample_rate=48000:d=4.500[silent1a]',
+  ])
+})
+
+await runTest('buildXfadeStageAudioPlan clamps invalid silent durations to zero', () => {
+  const plan = buildXfadeStageAudioPlan(
+    [0, 1],
+    [false, false],
+    [Number.NaN, -2],
+  )
+
+  assert.deepEqual(plan.audioLabels, ['[silent0a]', '[silent1a]'])
+  assert.deepEqual(plan.preludeFilters, [
+    'anullsrc=channel_layout=stereo:sample_rate=48000:d=0.000[silent0a]',
+    'anullsrc=channel_layout=stereo:sample_rate=48000:d=0.000[silent1a]',
+  ])
+})
