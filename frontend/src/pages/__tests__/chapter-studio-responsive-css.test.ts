@@ -25,6 +25,22 @@ function assertContainsAfter(css: string, anchor: string, required: string, mess
   assert.ok(foundIndex >= 0, message)
 }
 
+function cssRule(css: string, selector: string) {
+  const start = css.indexOf(`${selector} {`)
+  assert.ok(start >= 0, `Missing rule: ${selector}`)
+
+  const end = css.indexOf('\n}', start)
+  assert.ok(end >= 0, `Missing closing brace for rule: ${selector}`)
+
+  return css.slice(start, end)
+}
+
+function cssRuleByPattern(css: string, pattern: RegExp, label: string) {
+  const match = css.match(pattern)
+  assert.ok(match?.[1], `Missing rule: ${label}`)
+  return match[1]
+}
+
 runTest('chapter studio shell declares a dedicated tablet breakpoint', () => {
   assertContainsAfter(
     episodeCss,
@@ -67,6 +83,70 @@ runTest('video workbench has compact phone rules for generated media and history
     '@media (max-width: 640px)',
     '.video-history-item {',
     'Phone video breakpoint must simplify video history rows.',
+  )
+})
+
+runTest('video result preview keeps a stable footprint while history scrolls', () => {
+  const resultRule = cssRule(productionCss, '.video-workbench__result')
+  assert.match(
+    resultRule,
+    /flex:\s*0 0 auto;/,
+    'Generated video preview must not flex-shrink when history grows.',
+  )
+  assert.match(
+    resultRule,
+    /aspect-ratio:\s*16\s*\/\s*9;/,
+    'Generated video preview must reserve a complete 16:9 media frame.',
+  )
+
+  const resultMediaRule = cssRuleByPattern(
+    productionCss,
+    /\.video-workbench__result video,\s*\.video-workbench__result img,\s*\.video-workbench__result \.prod-cover-empty\s*\{([^}]*)\}/s,
+    '.video-workbench__result media',
+  )
+  assert.match(
+    resultMediaRule,
+    /min-height:\s*0;/,
+    'Result media should fit the reserved frame instead of forcing overflow.',
+  )
+  assert.match(
+    resultMediaRule,
+    /object-fit:\s*contain;/,
+    'Result media should be fully visible inside the preview frame.',
+  )
+
+  const historyPanelRule = cssRule(productionCss, '.video-history-panel')
+  assert.match(
+    historyPanelRule,
+    /flex:\s*1 1 0;/,
+    'Video history panel should take remaining space after the stable preview.',
+  )
+  assert.match(
+    historyPanelRule,
+    /min-height:\s*0;/,
+    'Video history panel needs min-height: 0 so its list can scroll.',
+  )
+  assert.match(
+    historyPanelRule,
+    /overflow:\s*hidden;/,
+    'Video history panel should contain its scrolling list.',
+  )
+
+  const historyListRule = cssRule(productionCss, '.video-history-list')
+  assert.match(
+    historyListRule,
+    /flex:\s*1 1 auto;/,
+    'Video history list should scroll inside the panel instead of resizing the preview.',
+  )
+  assert.match(
+    historyListRule,
+    /min-height:\s*0;/,
+    'Video history list needs min-height: 0 for nested flex scrolling.',
+  )
+  assert.match(
+    historyListRule,
+    /overflow-y:\s*auto;/,
+    'Video history list must keep its own vertical scroll.',
   )
 })
 

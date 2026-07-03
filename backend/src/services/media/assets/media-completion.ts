@@ -53,6 +53,8 @@ export type ImageCompletionOwnerRecord = {
   characterAssetId?: number | null
   sceneId?: number | null
   frameType?: string | null
+  createdAt?: string | null
+  sceneUpdatedAt?: string | null
 }
 
 export type CompleteGeneratedImageJobInput = {
@@ -182,6 +184,18 @@ export function buildVideoCompletionPatch(input: VideoCompletionInput) {
   }
 }
 
+function timeValue(value?: string | null) {
+  const parsed = Date.parse(String(value || ''))
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+export function isSceneImageGenerationStale(ownerRecord: ImageCompletionOwnerRecord) {
+  const generationCreatedAt = timeValue(ownerRecord.createdAt)
+  const sceneUpdatedAt = timeValue(ownerRecord.sceneUpdatedAt)
+  if (generationCreatedAt == null || sceneUpdatedAt == null) return false
+  return sceneUpdatedAt > generationCreatedAt
+}
+
 export async function completeGeneratedImageJob(
   input: CompleteGeneratedImageJobInput,
   deps: CompleteGeneratedImageJobDeps,
@@ -233,6 +247,15 @@ export async function completeGeneratedImageJob(
     )
   }
   if (ownerRecord?.sceneId) {
+    if (isSceneImageGenerationStale(ownerRecord)) {
+      deps.logSuccess('ImageTask', 'skip-stale-scene-publish', {
+        id: input.id,
+        sceneId: ownerRecord.sceneId,
+        generationCreatedAt: ownerRecord.createdAt,
+        sceneUpdatedAt: ownerRecord.sceneUpdatedAt,
+      })
+      return { publicUrl, localPath }
+    }
     await deps.publishSceneImage(
       ownerRecord.sceneId,
       buildSceneImagePatch(publicUrl, localPath, deps.now()),

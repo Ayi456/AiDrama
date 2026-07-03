@@ -303,7 +303,18 @@ async function completeGeneratedImage(id: number, provider: string, source: Gene
       const loadedRecord = await loadMediaGenerationRecord(jobId, async (recordId) => {
         return await db.select().from(schema.imageGenerations).where(eq(schema.imageGenerations.id, recordId)).all()
       })
-      return loadedRecord.type === 'found' ? loadedRecord.record : null
+      if (loadedRecord.type !== 'found') return null
+      const record = loadedRecord.record
+      if (!record.sceneId) return record
+
+      const [scene] = await db.select({ updatedAt: schema.scenes.updatedAt })
+        .from(schema.scenes)
+        .where(eq(schema.scenes.id, record.sceneId))
+        .all()
+      return {
+        ...record,
+        sceneUpdatedAt: scene?.updatedAt ?? null,
+      }
     },
     persistImageCompletion: persistence.persistImageCompletion,
     publishStoryboardImage: persistence.publishStoryboardImage,

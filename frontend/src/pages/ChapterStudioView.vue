@@ -165,6 +165,7 @@ import { useChapterMediaPipeline } from '@/composables/chapter/useChapterMediaPi
 import { useChapterProductionPanelBridge } from '@/composables/chapter/useChapterProductionPanelBridge'
 import { useChapterScriptDesk } from '@/composables/chapter/useChapterScriptDesk'
 import { useChapterShotImagePreferences } from '@/composables/chapter/useChapterShotImagePreferences'
+import { createChapterSceneFieldSaver } from '@/composables/chapter/useChapterSceneFieldSave'
 import { useChapterStoryboardDesk } from '@/composables/chapter/useChapterStoryboardDesk'
 import { useChapterStudioConfig } from '@/composables/chapter/useChapterStudioConfig'
 import { useChapterStudioNavigation } from '@/composables/chapter/useChapterStudioNavigation'
@@ -328,6 +329,7 @@ function mergeCharDesc(char) {
 }
 
 const characterDescriptionSavePromises = new Map()
+const { updateSceneField: saveSceneField } = createChapterSceneFieldSaver()
 
 async function saveCharImagePrompt(char, value) {
   const next = String(value || '')
@@ -347,11 +349,8 @@ async function saveCharImagePrompt(char, value) {
   await savePromise
 }
 
-function updateSceneField(scene, field, value) {
-  const current = scene[field] ?? ''
-  if (current === value) return
-  scene[field] = value
-  sceneAPI.update(scene.id, { [field]: value })
+async function updateSceneField(scene, field, value) {
+  await saveSceneField(scene, field, value)
 }
 
 async function handleCharacterDescriptionUpdate(payload) {
@@ -552,9 +551,13 @@ async function handleManualSceneAdd(payload) {
   }
 }
 
-function handleSceneFieldUpdate(payload) {
+async function handleSceneFieldUpdate(payload) {
   if (!payload?.scene || !payload?.field) return
-  updateSceneField(payload.scene, payload.field, payload.value)
+  try {
+    await updateSceneField(payload.scene, payload.field, payload.value)
+  } catch (error) {
+    toast.error(error?.message || '场景信息保存失败')
+  }
 }
 
 async function refresh() {

@@ -245,6 +245,41 @@ runTest('completeGeneratedImageJob persists generated image and publishes owner 
   }])
 })
 
+runTest('completeGeneratedImageJob skips publishing stale scene generations after manual scene edits', async () => {
+  const scenePatches: unknown[] = []
+  const result = await completeGeneratedImageJob({
+    id: 18,
+    provider: 'seedream',
+    source: { type: 'url', imageUrl: 'https://provider.example.com/old-scene.png' },
+  }, {
+    now: () => '2026-07-03T12:10:00.000Z',
+    downloadFile: async () => 'static/images/old-scene.png',
+    saveBase64Image: async () => {
+      assert.fail('URL image sources should not use base64 storage')
+    },
+    uploadGeneratedAsset: async () => 'https://cos.example.com/images/old-scene.png',
+    loadOwnerRecord: async () => ({
+      sceneId: 5,
+      createdAt: '2026-07-03T12:00:00.000Z',
+      sceneUpdatedAt: '2026-07-03T12:05:00.000Z',
+    }),
+    persistImageCompletion: async () => {},
+    publishStoryboardImage: async () => {},
+    publishCharacterImage: async () => {},
+    publishCharacterAssetImage: async () => {},
+    publishSceneImage: async (sceneId, patch) => {
+      scenePatches.push({ sceneId, patch })
+    },
+    logSuccess: () => {},
+  })
+
+  assert.deepEqual(result, {
+    localPath: 'static/images/old-scene.png',
+    publicUrl: 'https://cos.example.com/images/old-scene.png',
+  })
+  assert.deepEqual(scenePatches, [])
+})
+
 runTest('completeGeneratedVideoJob persists generated video and publishes storyboard video', async () => {
   let tick = 0
   const videoPatches: unknown[] = []
