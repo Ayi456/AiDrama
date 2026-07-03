@@ -14,7 +14,7 @@ async function runTest(name: string, fn: () => void | Promise<void>) {
   }
 }
 
-const noop = () => undefined
+const noop = (): undefined => undefined
 
 await runTest('production bridge unwraps state and owns small page handlers', () => {
   const panel = ref('production')
@@ -51,7 +51,7 @@ await runTest('production bridge unwraps state and owns small page handlers', ()
     lockedImageModelName: computed(() => 'seedream'),
     lockedImageProvider: computed(() => 'volcengine'),
     selectedSb: ref({ id: 1 }),
-    shotReferenceOptions: computed(() => []),
+    shotReferenceOptions: computed((): unknown[] => []),
     shotImageHistory: ref({}),
     frameMode: ref('first'),
     frameModeOptions: [],
@@ -85,15 +85,15 @@ await runTest('production bridge unwraps state and owns small page handlers', ()
     gridBlankStyle: computed(() => ({})),
     gridStatusText: computed(() => 'ready'),
     gridOverlayStyle: computed(() => ({})),
-    gridAssignments: computed(() => []),
+    gridAssignments: computed((): unknown[] => []),
     activeGridCell: ref(null),
     gridAssignedCount: computed(() => 0),
     gridAssignmentTotalPages: computed(() => 1),
     gridAssignmentPage,
     gridAssignmentPageStart: computed(() => 1),
     gridAssignmentPageEnd: computed(() => 1),
-    pagedGridAssignments: computed(() => []),
-    gridAssignmentShotOptions: computed(() => []),
+    pagedGridAssignments: computed((): unknown[] => []),
+    gridAssignmentShotOptions: computed((): unknown[] => []),
     gridFrameTypeOptions: [],
     lockedVideoConfigLabel: computed(() => 'video config'),
     shotVidCount: computed(() => 0),
@@ -102,7 +102,7 @@ await runTest('production bridge unwraps state and owns small page handlers', ()
     shotMovements: ['固定'],
     lockedVideoProvider: computed(() => 'vidu'),
     lockedVideoModelName: computed(() => 'vidu2'),
-    activeVideoSb: computed(() => null),
+    activeVideoSb: computed((): null => null),
     activeVideoShotIndexLabel: computed(() => '01'),
     videoFailMessage: noop,
     videoBillingInfo: noop,

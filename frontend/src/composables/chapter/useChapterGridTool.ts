@@ -114,7 +114,7 @@ export function useChapterGridTool(options: UseChapterGridToolOptions) {
   })
 
   function createGridAssignments(): GridAssignment[] {
-    return Array.from({ length: gridActualLayout.value.rows * gridActualLayout.value.cols }, () => ({
+    return Array.from({ length: gridActualLayout.value.rows * gridActualLayout.value.cols }, (): GridAssignment => ({
       storyboard_id: null,
       frame_type: 'first_frame',
     }))

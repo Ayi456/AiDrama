@@ -11,6 +11,7 @@
     "isolatedModules": true,
     "noEmit": true,
     "strict": false,
+    "noImplicitAny": true,
     "jsx": "preserve",
     "baseUrl": ".",
     "paths": {
