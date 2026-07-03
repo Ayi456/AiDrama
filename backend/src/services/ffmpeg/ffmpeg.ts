@@ -14,7 +14,7 @@ export function firstExistingPath(candidates: Array<string | undefined>): string
   for (const candidate of candidates) {
     if (!candidate) continue
     try {
-      if (fs.existsSync(candidate)) return candidate
+      if (fs.statSync(candidate).isFile()) return candidate
     } catch {
       // ignore inaccessible candidates
     }
@@ -22,67 +22,65 @@ export function firstExistingPath(candidates: Array<string | undefined>): string
   return undefined
 }
 
-function wingetFfmpegPath(binary: 'ffmpeg.exe' | 'ffprobe.exe'): string | undefined {
-  if (process.platform !== 'win32' || !process.env.LOCALAPPDATA) return undefined
-  return path.join(
-    process.env.LOCALAPPDATA,
-    'Microsoft',
-    'WinGet',
-    'Packages',
-    'Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe',
-    'ffmpeg-8.0.1-full_build',
-    'bin',
-    binary,
-  )
+function binaryName(name: 'ffmpeg' | 'ffprobe', platform = process.platform) {
+  return platform === 'win32' ? `${name}.exe` : name
 }
 
-function binaryName(name: 'ffmpeg' | 'ffprobe') {
-  return process.platform === 'win32' ? `${name}.exe` : name
-}
-
-function nodeModuleRoots(projectRoot = PROJECT_ROOT) {
+export function scfLayerFfmpegCandidatePaths(optRoot = '/opt', platform = process.platform): string[] {
+  if (platform === 'win32') return []
+  const name = binaryName('ffmpeg', platform)
   return [
-    path.join(projectRoot, 'node_modules'),
-    path.join(projectRoot, 'backend', 'node_modules'),
+    path.join(optRoot, 'bin', name),
+    path.join(optRoot, 'ffmpeg', 'bin', name),
+    path.join(optRoot, 'ffmpeg', name),
+    path.join(optRoot, name),
   ]
 }
 
-export function bundledFfmpegCandidatePaths(projectRoot = PROJECT_ROOT): string[] {
-  const name = binaryName('ffmpeg')
-  const platformPackage = `${process.platform}-${process.arch}`
-  return nodeModuleRoots(projectRoot).flatMap(nodeModules => [
-    path.join(nodeModules, '@ffmpeg-installer', platformPackage, name),
-    path.join(nodeModules, 'ffmpeg-static', name),
-  ])
+export function scfLayerFfprobeCandidatePaths(optRoot = '/opt', platform = process.platform): string[] {
+  if (platform === 'win32') return []
+  const name = binaryName('ffprobe', platform)
+  return [
+    path.join(optRoot, 'bin', name),
+    path.join(optRoot, 'ffmpeg', 'bin', name),
+    path.join(optRoot, 'ffprobe', 'bin', name),
+    path.join(optRoot, 'ffprobe', name),
+    path.join(optRoot, name),
+  ]
 }
 
-export function bundledFfprobeCandidatePaths(projectRoot = PROJECT_ROOT): string[] {
-  const name = binaryName('ffprobe')
-  const platformPackage = `${process.platform}-${process.arch}`
-  return nodeModuleRoots(projectRoot).flatMap(nodeModules => [
-    path.join(nodeModules, '@ffprobe-installer', platformPackage, name),
-    path.join(nodeModules, 'ffprobe-static', 'bin', process.platform, process.arch, name),
-    path.join(nodeModules, 'ffprobe-static', name),
-  ])
+type RuntimeBinaryCandidateOptions = {
+  projectRoot?: string
+  platform?: NodeJS.Platform
 }
 
-export const FFMPEG_PATH = firstExistingPath([
-  process.env.FFMPEG_PATH,
-  process.platform !== 'win32' ? '/opt/bin/ffmpeg' : undefined,
-  process.platform !== 'win32' ? path.join(PROJECT_ROOT, 'bin', 'ffmpeg') : undefined,
-  ...bundledFfmpegCandidatePaths(),
-  process.platform === 'win32' ? 'D:\\ChromeDownload\\ffmpeg-8.0.1-full_build\\bin\\ffmpeg.exe' : undefined,
-  wingetFfmpegPath('ffmpeg.exe'),
-]) || 'ffmpeg'
+export function runtimeFfmpegCandidatePaths(options: RuntimeBinaryCandidateOptions = {}): string[] {
+  const projectRoot = options.projectRoot ?? PROJECT_ROOT
+  const platform = options.platform ?? process.platform
+  const name = binaryName('ffmpeg', platform)
+  return [
+    process.env.FFMPEG_PATH,
+    ...scfLayerFfmpegCandidatePaths('/opt', platform),
+    path.join(projectRoot, 'bin', name),
+    'ffmpeg',
+  ].filter((candidate): candidate is string => Boolean(candidate))
+}
 
-export const FFPROBE_PATH = firstExistingPath([
-  process.env.FFPROBE_PATH,
-  process.platform !== 'win32' ? '/opt/bin/ffprobe' : undefined,
-  process.platform !== 'win32' ? path.join(PROJECT_ROOT, 'bin', 'ffprobe') : undefined,
-  ...bundledFfprobeCandidatePaths(),
-  process.platform === 'win32' ? 'D:\\ChromeDownload\\ffmpeg-8.0.1-full_build\\bin\\ffprobe.exe' : undefined,
-  wingetFfmpegPath('ffprobe.exe'),
-]) || 'ffprobe'
+export function runtimeFfprobeCandidatePaths(options: RuntimeBinaryCandidateOptions = {}): string[] {
+  const projectRoot = options.projectRoot ?? PROJECT_ROOT
+  const platform = options.platform ?? process.platform
+  const name = binaryName('ffprobe', platform)
+  return [
+    process.env.FFPROBE_PATH,
+    ...scfLayerFfprobeCandidatePaths('/opt', platform),
+    path.join(projectRoot, 'bin', name),
+    'ffprobe',
+  ].filter((candidate): candidate is string => Boolean(candidate))
+}
+
+export const FFMPEG_PATH = firstExistingPath(runtimeFfmpegCandidatePaths()) || 'ffmpeg'
+
+export const FFPROBE_PATH = firstExistingPath(runtimeFfprobeCandidatePaths()) || 'ffprobe'
 
 ffmpeg.setFfmpegPath(FFMPEG_PATH)
 ffmpeg.setFfprobePath(FFPROBE_PATH)

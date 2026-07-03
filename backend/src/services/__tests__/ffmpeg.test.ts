@@ -1,12 +1,15 @@
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import {
-  bundledFfmpegCandidatePaths,
-  bundledFfprobeCandidatePaths,
   escapeConcatPath,
   firstExistingPath,
+  runtimeFfmpegCandidatePaths,
+  runtimeFfprobeCandidatePaths,
+  scfLayerFfmpegCandidatePaths,
+  scfLayerFfprobeCandidatePaths,
 } from '../ffmpeg/ffmpeg.js'
 import { ensureTailFrameInputFile, type TailFrameInputDownload } from '../automation/tail-frame-input.js'
 import { ensureMergeInputFiles, type MergeInputFile, requireExistingMergeInputFiles } from '../merge/merge-inputs.js'
@@ -35,10 +38,31 @@ async function runTest(name: string, fn: () => void | Promise<void>) {
   }
 }
 
+function withoutFfmpegEnv(fn: () => void) {
+  const previousFfmpegPath = process.env.FFMPEG_PATH
+  const previousFfprobePath = process.env.FFPROBE_PATH
+  delete process.env.FFMPEG_PATH
+  delete process.env.FFPROBE_PATH
+  try {
+    fn()
+  } finally {
+    if (previousFfmpegPath == null) delete process.env.FFMPEG_PATH
+    else process.env.FFMPEG_PATH = previousFfmpegPath
+    if (previousFfprobePath == null) delete process.env.FFPROBE_PATH
+    else process.env.FFPROBE_PATH = previousFfprobePath
+  }
+}
+
 await runTest('firstExistingPath returns first existing candidate', () => {
   const currentFile = fileURLToPath(import.meta.url)
 
   assert.equal(firstExistingPath([undefined, 'Z:/definitely/missing/ffmpeg.exe', currentFile]), currentFile)
+})
+
+await runTest('firstExistingPath skips directories when resolving binary paths', () => {
+  const currentFile = fileURLToPath(import.meta.url)
+
+  assert.equal(firstExistingPath([path.dirname(currentFile), currentFile]), currentFile)
 })
 
 await runTest('escapeConcatPath normalizes Windows separators and quotes', () => {
@@ -48,20 +72,52 @@ await runTest('escapeConcatPath normalizes Windows separators and quotes', () =>
   )
 })
 
-await runTest('bundled FFmpeg candidates include static npm package binaries for SCF', () => {
-  const root = path.resolve('/var/user')
-  assert.ok(
-    bundledFfmpegCandidatePaths(root).includes(path.join(root, 'node_modules', 'ffmpeg-static', process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg')),
-  )
-  assert.ok(
-    bundledFfmpegCandidatePaths(root).includes(path.join(root, 'node_modules', '@ffmpeg-installer', `${process.platform}-${process.arch}`, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg')),
-  )
-  assert.ok(
-    bundledFfprobeCandidatePaths(root).includes(path.join(root, 'node_modules', 'ffprobe-static', 'bin', process.platform, process.arch, process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe')),
-  )
-  assert.ok(
-    bundledFfprobeCandidatePaths(root).includes(path.join(root, 'node_modules', '@ffprobe-installer', `${process.platform}-${process.arch}`, process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe')),
-  )
+await runTest('SCF layer FFmpeg candidates cover common Tencent layer layouts', () => {
+  assert.deepEqual(scfLayerFfmpegCandidatePaths('/opt', 'linux'), [
+    path.join('/opt', 'bin', 'ffmpeg'),
+    path.join('/opt', 'ffmpeg', 'bin', 'ffmpeg'),
+    path.join('/opt', 'ffmpeg', 'ffmpeg'),
+    path.join('/opt', 'ffmpeg'),
+  ])
+  assert.deepEqual(scfLayerFfprobeCandidatePaths('/opt', 'linux'), [
+    path.join('/opt', 'bin', 'ffprobe'),
+    path.join('/opt', 'ffmpeg', 'bin', 'ffprobe'),
+    path.join('/opt', 'ffprobe', 'bin', 'ffprobe'),
+    path.join('/opt', 'ffprobe', 'ffprobe'),
+    path.join('/opt', 'ffprobe'),
+  ])
+})
+
+await runTest('runtime FFmpeg candidates rely on env, SCF layer, project bin, or PATH only', () => {
+  withoutFfmpegEnv(() => {
+    const root = path.resolve('/var/user')
+    const ffmpegCandidates = runtimeFfmpegCandidatePaths({ projectRoot: root, platform: 'linux' })
+    const ffprobeCandidates = runtimeFfprobeCandidatePaths({ projectRoot: root, platform: 'linux' })
+
+    assert.ok(ffmpegCandidates.includes(path.join('/opt', 'bin', 'ffmpeg')))
+    assert.ok(ffmpegCandidates.includes(path.join(root, 'bin', 'ffmpeg')))
+    assert.ok(ffprobeCandidates.includes(path.join('/opt', 'bin', 'ffprobe')))
+    assert.ok(ffprobeCandidates.includes(path.join(root, 'bin', 'ffprobe')))
+    assert.equal([...ffmpegCandidates, ...ffprobeCandidates].some(candidate => candidate.includes('node_modules')), false)
+  })
+})
+
+await runTest('SCF packaging scripts do not install or validate npm FFmpeg binaries', () => {
+  const currentFile = fileURLToPath(import.meta.url)
+  const repoRoot = path.resolve(path.dirname(currentFile), '../../../..')
+  const buildScript = fs.readFileSync(path.join(repoRoot, 'scripts', 'build-scf.mjs'), 'utf8')
+  const packageScript = fs.readFileSync(path.join(repoRoot, 'scripts', 'package-scf.ps1'), 'utf8')
+  const forbiddenMarkers = [
+    '@ffmpeg-installer',
+    '@ffprobe-installer',
+    'ffmpeg-static',
+    'ffprobe-static',
+  ]
+
+  for (const marker of forbiddenMarkers) {
+    assert.equal(buildScript.includes(marker), false, `build-scf.mjs still references ${marker}`)
+    assert.equal(packageScript.includes(marker), false, `package-scf.ps1 still references ${marker}`)
+  }
 })
 
 await runTest('selectMergeClipStoryboards prefers generated clips and falls back to legacy composed clips', () => {

@@ -35,8 +35,6 @@ function injectScfLinuxDependencies(packageJsonPath, packageLockPath) {
   const scfLinuxDependencies = {
     '@img/sharp-libvips-linux-x64': '1.2.4',
     '@img/sharp-linux-x64': '0.34.5',
-    '@ffmpeg-installer/linux-x64': '4.1.0',
-    '@ffprobe-installer/linux-x64': '5.2.0',
   }
 
   const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'))

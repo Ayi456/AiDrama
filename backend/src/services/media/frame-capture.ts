@@ -1,9 +1,6 @@
 import { mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import ffmpegPath from '@ffmpeg-installer/ffmpeg'
-import ffmpeg from 'fluent-ffmpeg'
-
-ffmpeg.setFfmpegPath(ffmpegPath.path)
+import { ffmpeg } from '../ffmpeg/ffmpeg.js'
 
 export type CaptureArgs = {
   input: string

@@ -104,10 +104,6 @@ try {
       Assert-Condition (Test-Path -LiteralPath (Join-Path $deployRoot 'node_modules\sharp')) 'Missing sharp in node_modules'
       Assert-Condition (Test-Path -LiteralPath (Join-Path $deployRoot 'node_modules\@img\sharp-linux-x64')) 'Missing @img/sharp-linux-x64 in node_modules'
       Assert-Condition (Test-Path -LiteralPath (Join-Path $deployRoot 'node_modules\@img\sharp-libvips-linux-x64')) 'Missing @img/sharp-libvips-linux-x64 in node_modules'
-      Assert-Condition (Test-Path -LiteralPath (Join-Path $deployRoot 'node_modules\@ffmpeg-installer\ffmpeg')) 'Missing @ffmpeg-installer/ffmpeg in node_modules'
-      Assert-Condition (Test-Path -LiteralPath (Join-Path $deployRoot 'node_modules\@ffmpeg-installer\linux-x64\ffmpeg')) 'Missing @ffmpeg-installer/linux-x64 binary in node_modules'
-      Assert-Condition (Test-Path -LiteralPath (Join-Path $deployRoot 'node_modules\@ffprobe-installer\ffprobe')) 'Missing @ffprobe-installer/ffprobe in node_modules'
-      Assert-Condition (Test-Path -LiteralPath (Join-Path $deployRoot 'node_modules\@ffprobe-installer\linux-x64\ffprobe')) 'Missing @ffprobe-installer/linux-x64 binary in node_modules'
     }
   }
 
@@ -140,11 +136,7 @@ try {
         }
 
         $entry = $zip.CreateEntry($entryName, [System.IO.Compression.CompressionLevel]::Optimal)
-        if (
-          $entryName -eq 'scf_bootstrap' -or
-          $entryName -eq 'node_modules/@ffmpeg-installer/linux-x64/ffmpeg' -or
-          $entryName -eq 'node_modules/@ffprobe-installer/linux-x64/ffprobe'
-        ) {
+        if ($entryName -eq 'scf_bootstrap') {
           $entry.ExternalAttributes = -2115174400
         }
         $entry.LastWriteTime = $file.LastWriteTime
@@ -191,10 +183,6 @@ try {
         Assert-Condition ($entries -contains 'node_modules/sharp/package.json') 'Zip is missing node_modules/sharp'
         Assert-Condition ($entries -contains 'node_modules/@img/sharp-linux-x64/package.json') 'Zip is missing node_modules/@img/sharp-linux-x64'
         Assert-Condition ($entries -contains 'node_modules/@img/sharp-libvips-linux-x64/package.json') 'Zip is missing node_modules/@img/sharp-libvips-linux-x64'
-        Assert-Condition ($entries -contains 'node_modules/@ffmpeg-installer/ffmpeg/package.json') 'Zip is missing node_modules/@ffmpeg-installer/ffmpeg'
-        Assert-Condition ($entries -contains 'node_modules/@ffmpeg-installer/linux-x64/ffmpeg') 'Zip is missing node_modules/@ffmpeg-installer/linux-x64/ffmpeg'
-        Assert-Condition ($entries -contains 'node_modules/@ffprobe-installer/ffprobe/package.json') 'Zip is missing node_modules/@ffprobe-installer/ffprobe'
-        Assert-Condition ($entries -contains 'node_modules/@ffprobe-installer/linux-x64/ffprobe') 'Zip is missing node_modules/@ffprobe-installer/linux-x64/ffprobe'
       } else {
         Assert-Condition (-not ($entries | Where-Object { $_ -like 'node_modules/*' -or $_ -like 'backend/node_modules/*' } | Select-Object -First 1)) 'Zip contains node_modules'
       }
@@ -202,10 +190,6 @@ try {
       $packageJson = Read-ZipEntryText -Zip $zip -EntryName 'package.json' | ConvertFrom-Json
       Assert-Condition ($packageJson.dependencies.'@img/sharp-linux-x64' -eq '0.34.5') 'Missing @img/sharp-linux-x64 dependency'
       Assert-Condition ($packageJson.dependencies.'@img/sharp-libvips-linux-x64' -eq '1.2.4') 'Missing @img/sharp-libvips-linux-x64 dependency'
-      Assert-Condition ($packageJson.dependencies.'@ffmpeg-installer/ffmpeg' -eq '^1.1.0') 'Missing @ffmpeg-installer/ffmpeg dependency'
-      Assert-Condition ($packageJson.dependencies.'@ffmpeg-installer/linux-x64' -eq '4.1.0') 'Missing @ffmpeg-installer/linux-x64 dependency'
-      Assert-Condition ($packageJson.dependencies.'@ffprobe-installer/ffprobe' -eq '^2.1.2') 'Missing @ffprobe-installer/ffprobe dependency'
-      Assert-Condition ($packageJson.dependencies.'@ffprobe-installer/linux-x64' -eq '5.2.0') 'Missing @ffprobe-installer/linux-x64 dependency'
     } finally {
       $zip.Dispose()
     }

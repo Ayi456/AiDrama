@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 
 import {
+  buildXfadeStageAudioPlan,
   runFfmpegMergeStrategies,
 } from '../merge/merge-ffmpeg-execution.js'
 
@@ -128,4 +129,18 @@ await runTest('runFfmpegMergeStrategies reports unsupported xfade before skippin
   assert.equal(strategy, 'copy')
   assert.deepEqual(attempted, ['copy'])
   assert.deepEqual(fallbacks, ['xfade filter unavailable in ffmpeg'])
+})
+
+await runTest('buildXfadeStageAudioPlan backfills missing audio with finite silent sources', () => {
+  const plan = buildXfadeStageAudioPlan(
+    [0, 1, 2],
+    [false, true, false],
+    [4.2, 5, 6.75],
+  )
+
+  assert.deepEqual(plan.audioLabels, ['[silent0a]', '[1:a]', '[silent2a]'])
+  assert.deepEqual(plan.preludeFilters, [
+    'anullsrc=channel_layout=stereo:sample_rate=48000:d=4.200[silent0a]',
+    'anullsrc=channel_layout=stereo:sample_rate=48000:d=6.750[silent2a]',
+  ])
 })

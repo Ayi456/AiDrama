@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { v4 as uuid } from 'uuid'
-import { ffmpeg, ffmpegSupportsXfade, getVideoStreamInfo } from '../ffmpeg/ffmpeg.js'
+import { ffmpeg, ffmpegSupportsXfade, getVideoStreamInfo, hasAudioStream } from '../ffmpeg/ffmpeg.js'
 import {
   type FfmpegMergeStrategy,
   ffmpegMergeOutputOptions,
@@ -51,6 +51,29 @@ export type RunFfmpegMergeStrategiesDeps = {
 
 function normalizeError(error: unknown) {
   return error instanceof Error ? error : new Error(String(error))
+}
+
+export function buildXfadeStageAudioPlan(
+  inputNodes: number[],
+  nodeHasAudio: boolean[],
+  nodeDurations: number[],
+): { audioLabels: string[]; preludeFilters: string[] } {
+  const audioLabels: string[] = []
+  const preludeFilters: string[] = []
+
+  inputNodes.forEach((nodeId, position) => {
+    if (nodeHasAudio[nodeId]) {
+      audioLabels.push(`[${position}:a]`)
+      return
+    }
+
+    const label = `[silent${position}a]`
+    const duration = Math.max(0, Number(nodeDurations[nodeId]) || 0)
+    preludeFilters.push(`anullsrc=channel_layout=stereo:sample_rate=48000:d=${duration.toFixed(3)}${label}`)
+    audioLabels.push(label)
+  })
+
+  return { audioLabels, preludeFilters }
 }
 
 function resolveStrategiesForInput(input: RunFfmpegMergeStrategiesInput): readonly FfmpegMergeStrategy[] {
@@ -204,6 +227,7 @@ async function runFfmpegXfade(input: RunFfmpegConcatInput) {
   if (clipDurations.some(duration => !(duration > 0))) {
     throw new Error('xfade strategy requires positive duration for every clip')
   }
+  const clipAudioFlags = await Promise.all(input.clipPaths.map(hasAudioStream))
   const fps = pickXfadeFps(clipInfos.map(info => info?.frameRate))
 
   const { seamDurations } = computeSeamDurations(
@@ -230,6 +254,7 @@ async function runFfmpegXfade(input: RunFfmpegConcatInput) {
 
   const nodePaths = [...input.clipPaths]
   const nodeDurations = [...clipDurations]
+  const nodeHasAudio = [...clipAudioFlags]
   const tempDir = path.dirname(input.listPath)
   const tempFiles = new Set<string>()
 
@@ -245,10 +270,11 @@ async function runFfmpegXfade(input: RunFfmpegConcatInput) {
       const isFinal = stageIndex === plan.length - 1
       const stepOutputPath = isFinal ? input.outputPath : path.join(tempDir, `${uuid()}.xfade.mp4`)
 
+      const audioPlan = buildXfadeStageAudioPlan(step.inputNodes, nodeHasAudio, nodeDurations)
       const built = buildXfadeFilter(
         step.inputNodes.map(id => nodeDurations[id]),
         step.seamIndices.map(index => input.seamTransitions![index]),
-        step.inputNodes.map((_, position) => `[${position}:a]`),
+        audioPlan.audioLabels,
         fps,
         { emitWhenAllSeamsZero: true },
       )
@@ -261,7 +287,7 @@ async function runFfmpegXfade(input: RunFfmpegConcatInput) {
         episodeId: input.episodeId,
         stage: `${stageIndex + 1}/${plan.length}`,
         inputPaths: step.inputNodes.map(id => nodePaths[id]),
-        filter: built.filter,
+        filter: [...audioPlan.preludeFilters, built.filter].join(';'),
         videoOutLabel: built.videoOutLabel,
         audioOutLabel: built.audioOutLabel,
         outputOptions: isFinal ? ffmpegMergeOutputOptions('xfade') : ffmpegXfadeIntermediateOutputOptions(),
@@ -277,6 +303,7 @@ async function runFfmpegXfade(input: RunFfmpegConcatInput) {
         }
         nodePaths[step.outputNode] = stepOutputPath
         nodeDurations[step.outputNode] = intermediateDuration
+        nodeHasAudio[step.outputNode] = true
       }
 
       for (const id of step.inputNodes) {
