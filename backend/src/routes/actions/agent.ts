@@ -43,8 +43,9 @@ const STORYBOARD_DIRECT_DIRECTIVE = [
   '本次为直连模式：不存在、也不要调用任何工具（read_storyboard_context / save_storyboards / append_storyboards 等都不可用）。请忽略上文中任何“调用工具/使用步骤”的说明。',
   '所需的剧本、角色（含 id）、场景（含 id）、项目风格、已有分镜，都已在用户消息的 JSON 中直接给出。',
   '你必须只输出一个 JSON 对象，不要任何解释文字，不要 markdown 代码块（不要 ```）。结构严格如下：',
-  '{"storyboards":[{"shot_number":1,"title":"","shot_type":"","angle":"","movement":"","location":"","time":"","action":"","dialogue":"","description":"","result":"","atmosphere":"","image_prompt":"","video_prompt":"","bgm_prompt":"","sound_effect":"","duration":10,"scene_id":null,"character_ids":[]}]}',
+  '{"storyboards":[{"shot_number":1,"title":"","shot_type":"","angle":"","movement":"","location":"","time":"","action":"","dialogue":"","description":"","result":"","director_intent":"","audience_info_change":"","emotion_shift":"","dramatic_value":"","atmosphere":"","image_prompt":"","video_prompt":"","bgm_prompt":"","sound_effect":"","duration":10,"scene_id":null,"character_ids":[]}]}',
   '- shot_number 从 1 开始递增即可（系统会自动续接整集真实编号）。',
+  '- director_intent / audience_info_change / emotion_shift / dramatic_value 必须说明本镜头的导演意图、观众信息变化、情绪变化和不可删除的戏剧价值。',
   '- scene_id 与 character_ids 必须取自用户消息中提供的 scenes / characters 的 id；没有合适的就用 null / 空数组，禁止编造 id。',
   '- storyboards 至少包含 1 个镜头。',
 ].join('\n')

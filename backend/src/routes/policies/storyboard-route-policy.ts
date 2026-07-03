@@ -12,6 +12,10 @@ export type StoryboardCreateBody = RouteBody & {
   description?: string | null
   action?: string | null
   dialogue?: string | null
+  director_intent?: string | null
+  audience_info_change?: string | null
+  emotion_shift?: string | null
+  dramatic_value?: string | null
   video_prompt?: string | null
   scene_id?: number | null
   duration?: number | null
@@ -26,6 +30,10 @@ export type StoryboardUpdateBody = RouteBody & {
   movement?: string | null
   action?: string | null
   dialogue?: string | null
+  director_intent?: string | null
+  audience_info_change?: string | null
+  emotion_shift?: string | null
+  dramatic_value?: string | null
   duration?: number | null
   video_prompt?: string | null
   image_prompt?: string | null
@@ -49,6 +57,10 @@ export type StoryboardCreateValues = {
   description?: string | null
   action?: string | null
   dialogue?: string | null
+  directorIntent?: string | null
+  audienceInfoChange?: string | null
+  emotionShift?: string | null
+  dramaticValue?: string | null
   videoPrompt?: string | null
   sceneId?: number | null
   duration: number
@@ -64,6 +76,10 @@ type StoryboardPatchField =
   | 'movement'
   | 'action'
   | 'dialogue'
+  | 'directorIntent'
+  | 'audienceInfoChange'
+  | 'emotionShift'
+  | 'dramaticValue'
   | 'duration'
   | 'videoPrompt'
   | 'imagePrompt'
@@ -87,6 +103,10 @@ export type StoryboardUpdatePatch = {
   movement?: string | null
   action?: string | null
   dialogue?: string | null
+  directorIntent?: string | null
+  audienceInfoChange?: string | null
+  emotionShift?: string | null
+  dramaticValue?: string | null
   duration?: number | null
   videoPrompt?: string | null
   imagePrompt?: string | null
@@ -112,6 +132,10 @@ const STORYBOARD_UPDATE_FIELDS = [
   ['movement', 'movement'],
   ['action', 'action'],
   ['dialogue', 'dialogue'],
+  ['director_intent', 'directorIntent'],
+  ['audience_info_change', 'audienceInfoChange'],
+  ['emotion_shift', 'emotionShift'],
+  ['dramatic_value', 'dramaticValue'],
   ['duration', 'duration'],
   ['video_prompt', 'videoPrompt'],
   ['image_prompt', 'imagePrompt'],
@@ -156,6 +180,10 @@ export function buildStoryboardCreateValues(body: StoryboardCreateBody, timestam
     createdAt: timestamp,
     updatedAt: timestamp,
   }
+  if (hasOwn(body, 'director_intent')) values.directorIntent = body.director_intent
+  if (hasOwn(body, 'audience_info_change')) values.audienceInfoChange = body.audience_info_change
+  if (hasOwn(body, 'emotion_shift')) values.emotionShift = body.emotion_shift
+  if (hasOwn(body, 'dramatic_value')) values.dramaticValue = body.dramatic_value
   const videoPrompt = appendDialogueToVideoPrompt(body.video_prompt, body.dialogue)
   if (videoPrompt) values.videoPrompt = videoPrompt
   return values

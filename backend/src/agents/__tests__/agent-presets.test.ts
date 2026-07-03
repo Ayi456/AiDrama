@@ -138,6 +138,20 @@ runTest('storyboard preset folds genre trigger points without forcing over-split
   assert.match(instructions, /穿越：初穿反应/)
 })
 
+runTest('storyboard preset requires a reusable director planning layer', () => {
+  const instructions = AIDRAMA_AGENT_PRESETS.storyboard_breaker.instructions
+
+  assert.match(instructions, /导演层优先原则/)
+  assert.match(instructions, /按戏剧节拍拆镜/)
+  assert.match(instructions, /导演意图/)
+  assert.match(instructions, /观众新增或改变的关键信息/)
+  assert.match(instructions, /反复出现的道具、动作、地点是母题/)
+  assert.match(instructions, /director_intent/)
+  assert.match(instructions, /audience_info_change/)
+  assert.match(instructions, /emotion_shift/)
+  assert.match(instructions, /dramatic_value/)
+})
+
 runTest('storyboard preset enforces reveal pacing, continuity, and dialogue fields', () => {
   const instructions = AIDRAMA_AGENT_PRESETS.storyboard_breaker.instructions
 

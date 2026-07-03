@@ -212,6 +212,10 @@ const tableStatements = [
     movement TEXT,
     action TEXT,
     result TEXT,
+    director_intent TEXT,
+    audience_info_change TEXT,
+    emotion_shift TEXT,
+    dramatic_value TEXT,
     atmosphere TEXT,
     image_prompt TEXT,
     video_prompt TEXT,
@@ -675,6 +679,10 @@ async function initializeDatabase(pool: Pool, database: string) {
   await ensureColumn(pool, database, 'scenes', 'reference_image', 'TEXT')
   await ensureColumn(pool, database, 'storyboards', 'transition_type', 'VARCHAR(32)')
   await ensureColumn(pool, database, 'storyboards', 'transition_duration_ms', 'INT')
+  await ensureColumn(pool, database, 'storyboards', 'director_intent', 'TEXT')
+  await ensureColumn(pool, database, 'storyboards', 'audience_info_change', 'TEXT')
+  await ensureColumn(pool, database, 'storyboards', 'emotion_shift', 'TEXT')
+  await ensureColumn(pool, database, 'storyboards', 'dramatic_value', 'TEXT')
 
   await ensureIndex(pool, database, 'video_generations', 'idx_video_generations_storyboard_id_id', '(`storyboard_id`, `id`)')
   await ensureIndex(pool, database, 'video_generations', 'idx_video_generations_drama_id_id', '(`drama_id`, `id`)')

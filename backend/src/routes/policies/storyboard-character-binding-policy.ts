@@ -4,6 +4,14 @@ export type StoryboardCharacterBindingSource = {
   action?: string | null
   dialogue?: string | null
   result?: string | null
+  director_intent?: string | null
+  directorIntent?: string | null
+  audience_info_change?: string | null
+  audienceInfoChange?: string | null
+  emotion_shift?: string | null
+  emotionShift?: string | null
+  dramatic_value?: string | null
+  dramaticValue?: string | null
   atmosphere?: string | null
   image_prompt?: string | null
   imagePrompt?: string | null
@@ -45,6 +53,14 @@ function storyboardSearchText(source: StoryboardCharacterBindingSource) {
     source.action,
     source.dialogue,
     source.result,
+    source.director_intent,
+    source.directorIntent,
+    source.audience_info_change,
+    source.audienceInfoChange,
+    source.emotion_shift,
+    source.emotionShift,
+    source.dramatic_value,
+    source.dramaticValue,
     source.atmosphere,
     source.image_prompt,
     source.imagePrompt,

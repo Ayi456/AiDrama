@@ -129,6 +129,10 @@ function buildStoryboardUpdateBindingSource(
     action: 'action' in fields ? fields.action : storyboard.action,
     dialogue: 'dialogue' in fields ? fields.dialogue : storyboard.dialogue,
     result: 'result' in fields ? fields.result : storyboard.result,
+    director_intent: 'director_intent' in fields ? fields.director_intent : storyboard.directorIntent,
+    audience_info_change: 'audience_info_change' in fields ? fields.audience_info_change : storyboard.audienceInfoChange,
+    emotion_shift: 'emotion_shift' in fields ? fields.emotion_shift : storyboard.emotionShift,
+    dramatic_value: 'dramatic_value' in fields ? fields.dramatic_value : storyboard.dramaticValue,
     atmosphere: 'atmosphere' in fields ? fields.atmosphere : storyboard.atmosphere,
     image_prompt: 'image_prompt' in fields ? fields.image_prompt : storyboard.imagePrompt,
     video_prompt: 'video_prompt' in fields ? fields.video_prompt : storyboard.videoPrompt,
@@ -161,6 +165,10 @@ async function insertStoryboards(episodeId: number, dramaId: number, storyboards
       dialogue: storyboard.dialogue,
       description: storyboard.description,
       result: storyboard.result,
+      directorIntent: storyboard.director_intent,
+      audienceInfoChange: storyboard.audience_info_change,
+      emotionShift: storyboard.emotion_shift,
+      dramaticValue: storyboard.dramatic_value,
       atmosphere: storyboard.atmosphere,
       imagePrompt: storyboard.image_prompt,
       videoPrompt: appendDialogueToVideoPrompt(storyboard.video_prompt, storyboard.dialogue) || undefined,
@@ -404,6 +412,10 @@ export function createStoryboardTools(episodeId: number, dramaId: number, option
       time: z.string().optional(),
       action: z.string().optional(),
       result: z.string().optional(),
+      director_intent: z.string().optional(),
+      audience_info_change: z.string().optional(),
+      emotion_shift: z.string().optional(),
+      dramatic_value: z.string().optional(),
       atmosphere: z.string().optional(),
       image_prompt: z.string().optional(),
       video_prompt: z.string().optional(),
@@ -448,6 +460,10 @@ export function createStoryboardTools(episodeId: number, dramaId: number, option
       if ('time' in fields) updates.time = fields.time
       if ('action' in fields) updates.action = fields.action
       if ('result' in fields) updates.result = fields.result
+      if ('director_intent' in fields) updates.directorIntent = fields.director_intent
+      if ('audience_info_change' in fields) updates.audienceInfoChange = fields.audience_info_change
+      if ('emotion_shift' in fields) updates.emotionShift = fields.emotion_shift
+      if ('dramatic_value' in fields) updates.dramaticValue = fields.dramatic_value
       if ('atmosphere' in fields) updates.atmosphere = fields.atmosphere
       if ('image_prompt' in fields) updates.imagePrompt = fields.image_prompt
       if ('video_prompt' in fields) {

@@ -55,6 +55,44 @@ test('normalizes null optional text fields from model JSON', () => {
   })
 })
 
+test('parses director planning fields for storyboard shots', () => {
+  const shots = parseStoryboardsFromText(JSON.stringify({
+    storyboards: [{
+      shot_number: 1,
+      title: '医院真相',
+      director_intent: '揭开真相',
+      audience_info_change: '观众确认被照顾的人其实是林晚',
+      emotion_shift: '林晚从疑惑转为害怕和明白',
+      dramatic_value: '完成核心反转并推动父女关系变化',
+    }],
+  }))
+
+  assert.equal(shots[0].director_intent, '揭开真相')
+  assert.equal(shots[0].audience_info_change, '观众确认被照顾的人其实是林晚')
+  assert.equal(shots[0].emotion_shift, '林晚从疑惑转为害怕和明白')
+  assert.equal(shots[0].dramatic_value, '完成核心反转并推动父女关系变化')
+})
+
+test('rejects duplicate shot numbers from model JSON', () => {
+  assert.throws(
+    () => parseStoryboardsFromText('{"storyboards":[{"shot_number":1,"title":"开场"},{"shot_number":1,"title":"重复"}]}'),
+    /分镜编号重复/,
+  )
+})
+
+test('rejects placeholder shots without production content', () => {
+  assert.throws(
+    () => parseStoryboardsFromText(JSON.stringify({
+      storyboards: [{
+        shot_number: 28,
+        title: '镜头28',
+        video_prompt: '镜头标题：镜头28',
+      }],
+    })),
+    /占位镜头/,
+  )
+})
+
 test('throws on invalid JSON', () => {
   assert.throws(() => parseStoryboardsFromText('not json at all'), /未返回合法 JSON/)
 })

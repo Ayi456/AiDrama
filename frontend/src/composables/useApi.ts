@@ -82,6 +82,14 @@ export type Scene = ApiEntity & { location?: string; time?: string; prompt?: str
 export type Storyboard = ApiEntity & {
   storyboard_number?: number
   storyboardNumber?: number
+  director_intent?: string | null
+  directorIntent?: string | null
+  audience_info_change?: string | null
+  audienceInfoChange?: string | null
+  emotion_shift?: string | null
+  emotionShift?: string | null
+  dramatic_value?: string | null
+  dramaticValue?: string | null
   first_frame_image?: string
   firstFrameImage?: string
   last_frame_image?: string

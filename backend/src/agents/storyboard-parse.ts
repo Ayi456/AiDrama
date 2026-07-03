@@ -11,6 +11,10 @@ const storyboardTextFields = [
   'dialogue',
   'description',
   'result',
+  'director_intent',
+  'audience_info_change',
+  'emotion_shift',
+  'dramatic_value',
   'atmosphere',
   'image_prompt',
   'video_prompt',
@@ -39,6 +43,10 @@ const rawStoryboardInputSchema = z.object({
   dialogue: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
   result: z.string().nullable().optional(),
+  director_intent: z.string().nullable().optional(),
+  audience_info_change: z.string().nullable().optional(),
+  emotion_shift: z.string().nullable().optional(),
+  dramatic_value: z.string().nullable().optional(),
   atmosphere: z.string().nullable().optional(),
   image_prompt: z.string().nullable().optional(),
   video_prompt: z.string().nullable().optional(),
@@ -66,6 +74,37 @@ const rawStoryboardInputSchema = z.object({
 // 分镜结构化输出的 schema。独立于工具与 DB，便于直连解析与单测复用。
 export const storyboardInputSchema = z.object({
   storyboards: z.array(rawStoryboardInputSchema).min(1),
+}).superRefine((value, ctx) => {
+  const seenShotNumbers = new Set<number>()
+
+  value.storyboards.forEach((storyboard, index) => {
+    if (seenShotNumbers.has(storyboard.shot_number)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['storyboards', index, 'shot_number'],
+        message: `分镜编号重复：${storyboard.shot_number}`,
+      })
+    }
+    seenShotNumbers.add(storyboard.shot_number)
+
+    const title = String(storyboard.title || '').trim()
+    const isPlaceholderTitle = /^镜头\s*\d+$/i.test(title) || /^shot\s*\d+$/i.test(title)
+    const hasCoreProductionContent = [
+      storyboard.description,
+      storyboard.action,
+      storyboard.result,
+      storyboard.dialogue,
+      storyboard.image_prompt,
+    ].some((field) => String(field || '').trim())
+
+    if (isPlaceholderTitle && !hasCoreProductionContent) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['storyboards', index, 'title'],
+        message: `占位镜头缺少可拍摄内容：${title}`,
+      })
+    }
+  })
 })
 
 export type StoryboardInput = z.infer<typeof storyboardInputSchema>['storyboards'][number]

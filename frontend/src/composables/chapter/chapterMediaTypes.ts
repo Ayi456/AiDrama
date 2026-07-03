@@ -39,6 +39,14 @@ export type ChapterStoryboard = Storyboard & {
   voiceOver?: string
   location?: string
   time?: string
+  director_intent?: string
+  directorIntent?: string
+  audience_info_change?: string
+  audienceInfoChange?: string
+  emotion_shift?: string
+  emotionShift?: string
+  dramatic_value?: string
+  dramaticValue?: string
   atmosphere?: string
   image_prompt?: string
   imagePrompt?: string

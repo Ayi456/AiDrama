@@ -71,6 +71,25 @@ runTest('storyboard duration is clamped to video model limits', () => {
   assert.equal(patch.duration, 15)
 })
 
+runTest('buildStoryboardCreateValues maps director planning fields', () => {
+  const values = buildStoryboardCreateValues(
+    {
+      episode_id: 42,
+      storyboard_number: 3,
+      director_intent: '触发怀疑',
+      audience_info_change: '观众看到医院提醒和父亲回避',
+      emotion_shift: '林晚从烦躁转为不安',
+      dramatic_value: '把生活道具线索推进到医院线索',
+    },
+    '2026-05-08T00:00:00.000Z',
+  )
+
+  assert.equal(values.directorIntent, '触发怀疑')
+  assert.equal(values.audienceInfoChange, '观众看到医院提醒和父亲回避')
+  assert.equal(values.emotionShift, '林晚从烦躁转为不安')
+  assert.equal(values.dramaticValue, '把生活道具线索推进到医院线索')
+})
+
 runTest('buildStoryboardUpdatePatch maps supported fields and ignores route-only keys', () => {
   const patch = buildStoryboardUpdatePatch(
     {
@@ -90,6 +109,26 @@ runTest('buildStoryboardUpdatePatch maps supported fields and ignores route-only
     shotType: 'close_up',
     videoPrompt: 'slow push in',
     videoUrl: 'https://cdn.example.com/history.mp4',
+  })
+})
+
+runTest('buildStoryboardUpdatePatch maps director planning fields', () => {
+  const patch = buildStoryboardUpdatePatch(
+    {
+      director_intent: '揭开真相',
+      audience_info_change: '观众确认疾病属于林晚',
+      emotion_shift: '林晚从困惑变成害怕',
+      dramatic_value: '完成全片核心认知反转',
+    },
+    '2026-05-08T00:01:00.000Z',
+  )
+
+  assert.deepEqual(patch, {
+    updatedAt: '2026-05-08T00:01:00.000Z',
+    directorIntent: '揭开真相',
+    audienceInfoChange: '观众确认疾病属于林晚',
+    emotionShift: '林晚从困惑变成害怕',
+    dramaticValue: '完成全片核心认知反转',
   })
 })
 
