@@ -31,6 +31,8 @@ docs/      Specs, plans, and cleanup notes
 - `npm run dev` - Start Vite dev server on port 3013, proxying `/api` and `/static` to 5679.
 - `npm run build` - Build the SPA to `dist-vite/`.
 - `npm run generate` - Alias for `npm run build`.
+- `npm test` - Run unit tests under `src/**/__tests__/` plus the layout check.
+- `npm run test:unit` - Run only the unit tests.
 - `npm run test:layout` - Check route CSS scope rules.
 
 ## Architecture

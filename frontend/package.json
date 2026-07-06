@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 3013",
+    "test": "node run-unit-tests.mjs && npm run test:layout",
+    "test:unit": "node run-unit-tests.mjs",
     "test:layout": "node check-route-css-scope.mjs",
     "typecheck": "vue-tsc --noEmit",
     "build": "vite build",
@@ -19,6 +21,7 @@
   "devDependencies": {
     "@types/node": "^25.6.0",
     "@vitejs/plugin-vue": "^6.0.5",
+    "tsx": "^4.23.0",
     "typescript": "^5.8.3",
     "vite": "^7.3.1",
     "vue-tsc": "^3.2.8"
