@@ -344,7 +344,7 @@ function setupParticles() {
     'rgba(159, 211, 255, 0.76)',
     'rgba(220, 239, 255, 0.62)',
     'rgba(90, 167, 255, 0.54)',
-  ]
+  ] as const
   let width = 0
   let height = 0
   let pixelRatio = Math.min(window.devicePixelRatio || 1, 2)
@@ -360,7 +360,7 @@ function setupParticles() {
       vy: -0.05 - Math.random() * 0.16,
       radius,
       pulse: Math.random() * Math.PI * 2,
-      color: palette[Math.floor(Math.random() * palette.length)],
+      color: palette[Math.floor(Math.random() * palette.length)] ?? palette[0],
       line: Math.random() > 0.72,
     }
   }

@@ -254,7 +254,7 @@ export function useChapterVideoWorkflow(options: ChapterVideoWorkflowOptions) {
             ...failedVideoMessages.value,
             [storyboardId]: outcome.message,
           }
-          toast.error(failedVideoMessages.value[storyboardId])
+          toast.error(outcome.message)
           return
         }
         if (outcome.type === 'billing_required') {

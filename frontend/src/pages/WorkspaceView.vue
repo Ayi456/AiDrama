@@ -371,8 +371,8 @@ async function loadConfigs() {
     ])
     imageConfigs.value = imgs || []
     videoConfigs.value = vids || []
-    if (!form.value.image_config_id && imageConfigs.value.length) form.value.image_config_id = Number(imageConfigs.value[0].id)
-    if (!form.value.video_config_id && videoConfigs.value.length) form.value.video_config_id = Number(videoConfigs.value[0].id)
+    if (!form.value.image_config_id && imageConfigs.value.length) form.value.image_config_id = Number(imageConfigs.value[0]?.id)
+    if (!form.value.video_config_id && videoConfigs.value.length) form.value.video_config_id = Number(videoConfigs.value[0]?.id)
   } catch (error) {
     toast.error(getErrorMessage(error))
   }

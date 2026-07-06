@@ -197,7 +197,9 @@ export function useChapterGridTool(options: UseChapterGridToolOptions) {
 
   function updateGridAssignment(index: number, field: 'storyboard_id' | 'frame_type', value: number | string | null) {
     const next = [...gridAssignmentsState.value]
-    next[index] = { ...next[index], [field]: value }
+    const current = next[index]
+    if (!current) return
+    next[index] = { ...current, [field]: value }
     gridAssignmentsState.value = next
     activeGridCell.value = index
     if (gridImagePath.value) persistGridImagePath(gridImagePath.value)

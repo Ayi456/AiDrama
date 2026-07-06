@@ -108,7 +108,7 @@ await runTest('uploadAPI.image falls back to multipart when direct upload is not
         ['/api/v1/upload/image', 'POST'],
       ],
     )
-    assert.ok(calls[1].body instanceof FormData)
+    assert.ok(calls[1]!.body instanceof FormData)
   } finally {
     globalThis.fetch = originalFetch
   }

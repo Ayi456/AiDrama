@@ -342,7 +342,7 @@ export function normalizeApiErrorMessage(message: unknown, fallback = '操作失
 
   const apiError = rawMessage.match(/^API error\s+(\d{3})\s*:\s*(.*)$/is)
   if (apiError) {
-    const status = apiError[1]
+    const status = apiError[1] ?? ''
     const detail = compactErrorText(apiError[2] || '', '')
 
     if (status === '400') return detail || '请求参数有误，请检查输入内容后重试。'

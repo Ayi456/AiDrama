@@ -242,7 +242,10 @@ export function useChapterMediaPipeline(options: UseChapterMediaPipelineOptions)
   }
 
   const activeVideoSb = computed(() => options.selectedSb.value || options.sbs.value[0] || null)
-  const activeVideoShotIndex = computed(() => activeVideoSb.value ? options.sbs.value.findIndex(sb => sb.id === activeVideoSb.value.id) : -1)
+  const activeVideoShotIndex = computed(() => {
+    const active = activeVideoSb.value
+    return active ? options.sbs.value.findIndex(sb => sb.id === active.id) : -1
+  })
   const activeVideoShotIndexLabel = computed(() => String(activeVideoShotIndex.value + 1).padStart(2, '0'))
 
   async function genShotFrame(storyboard: ChapterStoryboard, frameType: string) {

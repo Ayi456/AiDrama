@@ -49,9 +49,9 @@ const projects = [
 ]
 
 runTest('home project status reflects running, draft, and completed projects', () => {
-  assert.equal(getHomeProjectStatus(projects[0]).key, 'running')
-  assert.equal(getHomeProjectStatus(projects[1]).key, 'draft')
-  assert.equal(getHomeProjectStatus(projects[2]).key, 'done')
+  assert.equal(getHomeProjectStatus(projects[0]!).key, 'running')
+  assert.equal(getHomeProjectStatus(projects[1]!).key, 'draft')
+  assert.equal(getHomeProjectStatus(projects[2]!).key, 'done')
 })
 
 runTest('home project filtering matches status and searchable project text', () => {

@@ -76,7 +76,7 @@ await runTest('storyboard desk handles scene labels and list actions', async () 
   assert.equal(desk.getSceneName(sbs.value[1]), 'Atrium · Night')
   assert.equal(desk.getSceneName({ id: 3 }), '未绑定场景')
 
-  desk.handleStoryboardOpen(sbs.value[1])
+  desk.handleStoryboardOpen(sbs.value[1]!)
   assert.equal(selectedSb.value?.id, 2)
   assert.deepEqual(opened, ['prod:storyboard'])
 
@@ -101,7 +101,7 @@ await runTest('storyboard desk inserts a shot after the selected one and shifts 
     { id: 2, storyboard_number: 2 },
     { id: 3, storyboard_number: 3 },
   ])
-  const selectedSb = ref<ChapterStoryboard | null>(sbs.value[0])
+  const selectedSb = ref<ChapterStoryboard | null>(sbs.value[0] ?? null)
   const desk = useChapterStoryboardDesk({
     epId: computed(() => 7),
     sbs,

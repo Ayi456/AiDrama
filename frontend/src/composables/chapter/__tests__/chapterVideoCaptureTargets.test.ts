@@ -48,7 +48,7 @@ runTest('capture source video falls back to composed video when needed', () => {
           ...storyboards[0],
           video_url: '',
         },
-        storyboards[1],
+        storyboards[1]!,
       ],
     ),
     'prev-composed.mp4',

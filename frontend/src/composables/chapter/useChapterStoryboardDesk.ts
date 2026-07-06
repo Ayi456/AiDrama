@@ -98,8 +98,10 @@ export function useChapterStoryboardDesk(options: ChapterStoryboardDeskOptions) 
 
     // 在当前镜头之后插入：先把其后的镜头序号整体顺延 +1（从后往前更新避免序号冲突）。
     for (let i = list.length - 1; i > idx; i--) {
-      const next = getStoryboardNumber(list[i], i + 1)
-      await updateStoryboard(Number(list[i].id), { storyboard_number: next + 1 })
+      const item = list[i]
+      if (!item) continue
+      const next = getStoryboardNumber(item, i + 1)
+      await updateStoryboard(Number(item.id), { storyboard_number: next + 1 })
     }
 
     const insertNumber = getStoryboardNumber(list[idx], idx + 1) + 1
@@ -123,7 +125,7 @@ export function useChapterStoryboardDesk(options: ChapterStoryboardDeskOptions) 
     const index = Math.max(0, options.sbs.value.findIndex(item => item === storyboard || item.id === storyboard.id))
     await deleteStoryboard(Number(storyboard.id))
     await options.refresh()
-    if (options.sbs.value.length) options.selectedSb.value = options.sbs.value[Math.min(index, options.sbs.value.length - 1)]
+    if (options.sbs.value.length) options.selectedSb.value = options.sbs.value[Math.min(index, options.sbs.value.length - 1)] ?? null
     else options.selectedSb.value = null
   }
 

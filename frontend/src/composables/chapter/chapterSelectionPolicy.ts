@@ -13,7 +13,7 @@ export function resolveSelectedStoryboardAfterRefresh<T extends SelectableStoryb
   selected: SelectableStoryboard | null | undefined,
 ): T | null {
   if (!storyboards.length) return null
-  if (!selected?.id) return storyboards[0]
+  if (!selected?.id) return storyboards[0] ?? null
 
-  return storyboards.find(storyboard => sameId(storyboard.id, selected.id)) || storyboards[0]
+  return storyboards.find(storyboard => sameId(storyboard.id, selected.id)) ?? storyboards[0] ?? null
 }
