@@ -46,4 +46,6 @@ router.beforeEach((to) => {
       : '/workspace'
     return redirect
   }
+
+  return true
 })
