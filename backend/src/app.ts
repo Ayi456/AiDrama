@@ -33,6 +33,7 @@ import { requireAuth } from './middleware/auth.js'
 import { requestLogger, errorHandler } from './middleware/logger.js'
 import { resumeRunningEpisodes } from './services/automation/episode-orchestrator.js'
 import { externalAssetRedirectUrl } from './utils/external-asset-redirect.js'
+import { notFound } from './utils/response.js'
 import { resolveDataRoot, resolveFrontendPublicPath } from './utils/runtime-paths.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -89,6 +90,9 @@ export function createApp() {
 
   app.route('/api/v1', api)
   app.route('/webhooks', webhooks)
+
+  // 未匹配的 API 路径必须返回 JSON 404，而不是落进 SPA 兜底返回 200 HTML。
+  app.all('/api/*', (c) => notFound(c, 'api route not found'))
 
   // SCF 定时触发器对 Web 函数以 POST / 投递事件；SPA 兜底只接管 GET *，
   // 这里把根路径的 POST 当作自动化打点，推进所有 running 集（幂等）。
