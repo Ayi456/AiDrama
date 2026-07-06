@@ -12,6 +12,11 @@
     "noEmit": true,
     "strict": false,
     "noImplicitAny": true,
+    "noImplicitThis": true,
+    "strictBindCallApply": true,
+    "strictFunctionTypes": true,
+    "alwaysStrict": true,
+    "useUnknownInCatchVariables": true,
     "jsx": "preserve",
     "baseUrl": ".",
     "paths": {
