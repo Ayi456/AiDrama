@@ -719,7 +719,7 @@ export function buildVideoGeneratePayload(input: {
     return { ...payload, reference_mode: 'first_last', first_frame_url: first, last_frame_url: last }
   }
   if (refs.length) {
-    return { ...payload, reference_mode: 'multiple', reference_image_urls: [first, ...refs].filter(Boolean) }
+    return { ...payload, reference_mode: 'multiple', reference_image_urls: [first, ...refs].filter((url): url is string => !!url) }
   }
   if (first) {
     return { ...payload, reference_mode: 'single', image_url: first }

@@ -227,7 +227,7 @@ export function useChapterMediaPipeline(options: UseChapterMediaPipelineOptions)
   }
 
   function getVideoGenerateActionLabel(storyboard: ChapterStoryboard) {
-    return videoGenerateActionLabelForPending(isPendingVideo(storyboard.id))
+    return videoGenerateActionLabelForPending(!!storyboard.id && isPendingVideo(storyboard.id))
   }
 
   function getVideoStateText(storyboard: ChapterStoryboard | null | undefined) {
@@ -246,16 +246,18 @@ export function useChapterMediaPipeline(options: UseChapterMediaPipelineOptions)
   const activeVideoShotIndexLabel = computed(() => String(activeVideoShotIndex.value + 1).padStart(2, '0'))
 
   async function genShotFrame(storyboard: ChapterStoryboard, frameType: string) {
+    const storyboardId = storyboard.id
+    if (!storyboardId) return
     const prompt = buildShotImagePrompt(storyboard, frameType, options.shotImageAspectRatio.value)
     const referenceImages = getShotReferenceImages(storyboard)
-    const key = framePendingKey(storyboard.id, frameType)
+    const key = framePendingKey(storyboardId, frameType)
     const previousImage = frameType === 'first_frame' ? getFirstFrame(storyboard) : getLastFrame(storyboard)
     const isReroll = !!previousImage
-    if (previousImage) pushShotImageHistory(storyboard.id, frameType, previousImage)
+    if (previousImage) pushShotImageHistory(storyboardId, frameType, previousImage)
     try {
       if (!pendingShotFrameKeys.value.includes(key)) pendingShotFrameKeys.value.push(key)
       const generation = await imageAPI.generate({
-        storyboard_id: storyboard.id,
+        storyboard_id: storyboardId,
         drama_id: options.dramaId,
         config_id: options.lockedImageConfigId.value || undefined,
         prompt,
@@ -291,12 +293,13 @@ export function useChapterMediaPipeline(options: UseChapterMediaPipelineOptions)
   }
 
   function handleShotFrameRestore(payload: ShotFrameRestorePayload) {
-    if (!payload?.sb || !payload?.frameType || !payload?.src) return
+    if (!payload?.sb?.id || !payload?.frameType || !payload?.src) return
+    const storyboardId = payload.sb.id
     const field = payload.frameType === 'last_frame' ? 'last_frame_image' : 'first_frame_image'
     const current = payload.frameType === 'last_frame' ? getLastFrame(payload.sb) : getFirstFrame(payload.sb)
-    pushShotImageHistory(payload.sb.id, payload.frameType, current)
+    pushShotImageHistory(storyboardId, payload.frameType, current)
     options.updateField(payload.sb, field, payload.src)
-    removeShotImageHistory(payload.sb.id, payload.frameType, payload.src)
+    removeShotImageHistory(storyboardId, payload.frameType, payload.src)
     toast.success('已替换为历史图片')
   }
 

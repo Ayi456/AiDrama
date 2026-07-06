@@ -66,4 +66,4 @@ docs/      Specs, plans, and cleanup notes
 - Keep cleanup batches small and verify after each batch.
 - Do not commit secrets, generated media, `deploy/scf/`, or deployment zip files.
 - Keep `docs/`, `scripts/`, and deployment templates trackable; they are source material.
-- The frontend currently has `strict: false`; tighten types incrementally instead of flipping strict mode globally in one change.
+- The frontend tsconfig has `strict: true`; keep it enabled and fix type errors instead of loosening compiler flags.

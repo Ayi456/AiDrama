@@ -328,12 +328,16 @@ function setupReveal() {
 }
 
 function setupParticles() {
-  const canvas = particleCanvasRef.value
+  const canvasElement = particleCanvasRef.value
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  if (!canvas || reducedMotion) return
+  if (!canvasElement || reducedMotion) return
 
-  const context = canvas.getContext('2d', { alpha: true })
-  if (!context) return
+  const renderingContext = canvasElement.getContext('2d', { alpha: true })
+  if (!renderingContext) return
+
+  // Hoisted inner functions cannot see the narrowing above, so re-declare as non-null.
+  const canvas: HTMLCanvasElement = canvasElement
+  const context: CanvasRenderingContext2D = renderingContext
 
   const particles: Particle[] = []
   const palette = [

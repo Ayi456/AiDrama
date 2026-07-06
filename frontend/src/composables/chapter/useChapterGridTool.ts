@@ -247,7 +247,7 @@ export function useChapterGridTool(options: UseChapterGridToolOptions) {
 
   function handleGridAssignmentUpdate(payload: GridAssignmentUpdatePayload) {
     if (payload?.index === undefined || !payload?.field) return
-    updateGridAssignment(payload.index, payload.field, payload.value)
+    updateGridAssignment(payload.index, payload.field, payload.value ?? null)
   }
 
   async function handleGridDialogFinish() {
@@ -260,7 +260,7 @@ export function useChapterGridTool(options: UseChapterGridToolOptions) {
       gridSelected.value = []
       return
     }
-    gridSelected.value = options.sbs.value.map(s => s.id)
+    gridSelected.value = options.sbs.value.flatMap(s => (typeof s.id === 'number' ? [s.id] : []))
   }
 
   function openGridTool() {
@@ -457,8 +457,10 @@ export function useChapterGridTool(options: UseChapterGridToolOptions) {
   async function pollGridStatus() {
     for (let i = 0; i < 120; i++) {
       await new Promise(resolve => setTimeout(resolve, 3000))
+      const genId = gridGenId.value
+      if (!genId) return
       try {
-        const res = await gridAPI.status(gridGenId.value)
+        const res = await gridAPI.status(genId)
         gridStatusText.value = `状态: ${res.status}`
         const imagePath = getGeneratedAssetPath(res)
         if (res.status === 'completed' && imagePath) {
