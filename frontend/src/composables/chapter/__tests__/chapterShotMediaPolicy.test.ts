@@ -368,6 +368,61 @@ runTest('multimodal payload adds conservative bindings when reference metadata i
   assert.doesNotMatch(payload.prompt, /<\/?(?:location|role|voice)>/)
 })
 
+runTest('default fallback uses multiple mode when only reference images exist', () => {
+  const payload = buildVideoGeneratePayload({
+    storyboard: {
+      ...storyboard,
+      first_frame_image: '',
+      last_frame_image: '',
+      reference_images: JSON.stringify(['ref-a.png', 'ref-b.png']),
+    },
+    dramaId: 3,
+  })
+
+  assert.equal(payload.reference_mode, 'multiple')
+  assert.deepEqual(payload.reference_image_urls, ['ref-a.png', 'ref-b.png'])
+  assert.equal(payload.image_url, undefined)
+  assert.equal(payload.first_frame_url, undefined)
+})
+
+runTest('default fallback prepends first frame to reference images in multiple mode', () => {
+  const payload = buildVideoGeneratePayload({
+    storyboard: {
+      ...storyboard,
+      last_frame_image: '',
+      reference_images: JSON.stringify(['ref-a.png']),
+    },
+    dramaId: 3,
+  })
+
+  assert.equal(payload.reference_mode, 'multiple')
+  assert.deepEqual(payload.reference_image_urls, ['current-first.png', 'ref-a.png'])
+})
+
+runTest('default fallback returns prompt-only payload without frames or references', () => {
+  const payload = buildVideoGeneratePayload({
+    storyboard: {
+      ...storyboard,
+      first_frame_image: '',
+      last_frame_image: '',
+    },
+    dramaId: 3,
+  })
+
+  assert.equal(payload.reference_mode, undefined)
+  assert.equal(payload.image_url, undefined)
+  assert.equal(payload.reference_image_urls, undefined)
+})
+
+runTest('all multimodal reference options fall back to readable Chinese labels', () => {
+  const options = buildAllMultimodalReferenceOptions({
+    chars: [{ id: 7, image_url: 'lead.png' }],
+    scenes: [{ id: 3, image_url: 'atrium.png' }],
+  })
+
+  assert.deepEqual(options.map(item => item.label), ['角色 7', '场景 3'])
+})
+
 runTest('reference mode guidance distinguishes continuity control from multimodal references', () => {
   assert.match(getReferenceModeGuidance('capture'), /衔接/)
   assert.match(getReferenceModeGuidance('capture'), /首尾帧/)

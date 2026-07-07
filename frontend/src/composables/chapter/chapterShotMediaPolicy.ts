@@ -143,7 +143,7 @@ export function buildAllMultimodalReferenceOptions(input: {
   const references: MultimodalReferenceOption[] = []
 
   input.chars.forEach((character) => {
-    const label = character.name || `瑙掕壊 ${character.id}`
+    const label = character.name || `角色 ${character.id}`
     addMultimodalReference(references, {
       label,
       url: character.image_url || character.imageUrl || '',
@@ -153,7 +153,7 @@ export function buildAllMultimodalReferenceOptions(input: {
 
   input.scenes.forEach((scene) => {
     addMultimodalReference(references, {
-      label: scene.name || scene.location || `鍦烘櫙 ${scene.id}`,
+      label: scene.name || scene.location || `场景 ${scene.id}`,
       url: scene.image_url || scene.imageUrl || '',
       source: 'scene',
     })
