@@ -101,7 +101,7 @@ runTest('default video prompt adds shot boundary, end-state and risky motion gua
   assert.doesNotMatch(prompt, /<\/?(?:location|role|voice)>/)
 })
 
-runTest('video generation payload wraps custom prompts with continuity guardrails', () => {
+runTest('custom video prompt is sent verbatim without template wrapping', () => {
   const payload = buildVideoGeneratePayload({
     storyboard: {
       ...elevatorStoryboard,
@@ -110,31 +110,56 @@ runTest('video generation payload wraps custom prompts with continuity guardrail
     dramaId: 30,
   })
 
-  assert.match(payload.prompt, /原始镜头意图/)
-  assert.match(payload.prompt, /林晚看完便利贴后电梯门打开，她走出电梯/)
-  assert.match(payload.prompt, /结束画面：电梯到达一楼，门即将打开/)
-  assert.match(payload.prompt, /如果动作描述与结束画面冲突，以结束画面为准/)
-  assert.match(payload.prompt, /不要提前完成下一镜头动作/)
+  assert.equal(payload.prompt, '固定中景，林晚看完便利贴后电梯门打开，她走出电梯。')
 })
 
-runTest('legacy structured video prompts missing Seedance sections are upgraded', () => {
+runTest('partially structured video prompts are sent verbatim without re-wrapping', () => {
+  const customPrompt = [
+    '起始画面：林晚在电梯里低头看手机。',
+    '镜头限制：固定中景。',
+    '结束画面：电梯门即将打开。',
+    '禁止项：不要切到大厅。',
+  ].join('\n')
   const payload = buildVideoGeneratePayload({
     storyboard: {
       ...elevatorStoryboard,
-      video_prompt: [
-        '起始画面：林晚在电梯里低头看手机。',
-        '镜头限制：固定中景。',
-        '结束画面：电梯门即将打开。',
-        '禁止项：不要切到大厅。',
-      ].join('\n'),
+      video_prompt: customPrompt,
     },
     dramaId: 30,
   })
 
-  assert.match(payload.prompt, /主体与场景/)
-  assert.match(payload.prompt, /画质与风格/)
-  assert.match(payload.prompt, /原始镜头意图/)
-  assert.match(payload.prompt, /起始画面：林晚在电梯里低头看手机/)
+  assert.equal(payload.prompt, customPrompt)
+})
+
+runTest('multimodal payload keeps custom prompt as a single copy with bindings prepended', () => {
+  const payload = buildVideoGeneratePayload({
+    storyboard: {
+      ...elevatorStoryboard,
+      video_prompt: '林晚看完便利贴后电梯门打开，她走出电梯。',
+    },
+    dramaId: 30,
+    override: {
+      reference_mode: 'multimodal',
+      reference_image_urls: ['lin-wan.png'],
+      reference_image_bindings: [
+        { url: 'lin-wan.png', label: '林晚', source: 'character' },
+      ],
+    },
+  })
+
+  assert.match(payload.prompt, /将图片1中的人物定义为林晚/)
+  assert.equal(payload.prompt.split('她走出电梯').length, 2)
+  assert.doesNotMatch(payload.prompt, /原始镜头意图/)
+})
+
+runTest('default video prompt renders bound character names instead of object placeholders', () => {
+  const prompt = buildDefaultVideoPrompt({
+    ...elevatorStoryboard,
+    characters: [{ name: '林晚' }, { name: '林建国' }],
+  })
+
+  assert.match(prompt, /主体与场景：林晚、林建国在公寓电梯/)
+  assert.doesNotMatch(prompt, /\[object Object\]/)
 })
 
 runTest('capture mode keeps captured first frame and current tail frame', () => {

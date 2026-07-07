@@ -184,15 +184,6 @@ function textValue(value: unknown) {
   return String(value || '').trim()
 }
 
-function hasStructuredVideoGuardrails(prompt: string) {
-  return prompt.includes('主体与场景') &&
-    prompt.includes('起始画面') &&
-    prompt.includes('镜头限制') &&
-    prompt.includes('结束画面') &&
-    prompt.includes('画质与风格') &&
-    (prompt.includes('禁止项') || prompt.includes('约束'))
-}
-
 function buildShotLimitText(storyboard: ChapterStoryboard) {
   const shotType = textValue(storyboard.shot_type || storyboard.shotType)
   const angle = textValue(storyboard.angle)
@@ -208,12 +199,11 @@ function buildShotLimitText(storyboard: ChapterStoryboard) {
   return parts.join('；') || '保持单一镜头语言和同一空间连续性'
 }
 
-function buildRiskDirectives(storyboard: ChapterStoryboard, prompt: string) {
+function buildRiskDirectives(storyboard: ChapterStoryboard) {
   const source = [
     storyboard.action,
     storyboard.description,
     storyboard.result,
-    prompt,
   ].map(textValue).join('\n')
   const directives: string[] = []
 
@@ -226,7 +216,7 @@ function buildRiskDirectives(storyboard: ChapterStoryboard, prompt: string) {
   return directives
 }
 
-function buildForbiddenDirectives(storyboard: ChapterStoryboard, prompt: string) {
+function buildForbiddenDirectives(storyboard: ChapterStoryboard) {
   const movement = textValue(storyboard.movement)
   const location = textValue(storyboard.location)
   const result = textValue(storyboard.result)
@@ -239,13 +229,28 @@ function buildForbiddenDirectives(storyboard: ChapterStoryboard, prompt: string)
     location ? `不要切到${location}以外的远景或新场景` : '',
     '不要跟拍离开当前地点，除非结束画面明确要求角色已经离开',
     result ? '如果动作描述与结束画面冲突，以结束画面为准' : '',
-    ...buildRiskDirectives(storyboard, prompt),
+    ...buildRiskDirectives(storyboard),
   ].filter(Boolean)
+}
+
+function characterNamesText(value: unknown): string {
+  if (value == null) return ''
+  if (typeof value === 'string') return value.trim()
+  if (Array.isArray(value)) {
+    return value.map(item => characterNamesText(item)).filter(Boolean).join('、')
+  }
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    return textValue(record.name ?? record.character_name ?? record.characterName)
+  }
+  return textValue(value)
 }
 
 function buildSubjectSceneText(storyboard: ChapterStoryboard) {
   const raw = storyboard as Record<string, unknown>
-  const character = textValue(raw.character || raw.characterName || raw.characters)
+  const character = [raw.character, raw.characterName, raw.characters]
+    .map(characterNamesText)
+    .find(Boolean) || ''
   const location = textValue(storyboard.location)
   const time = textValue(storyboard.time)
   const subject = character || '本镜头明确写到的人物或主体'
@@ -257,11 +262,8 @@ function buildMotionBeatText(input: {
   title: string
   description: string
   action: string
-  rawPrompt: string
 }) {
-  const { title, description, action, rawPrompt } = input
-  if (rawPrompt) return `镜头1：按原始镜头意图完成动作，但不得越过结束画面：${rawPrompt}`
-
+  const { title, description, action } = input
   const beats: string[] = []
   if (description) beats.push(`镜头1：${description}`)
   if (action && action !== description) {
@@ -271,25 +273,21 @@ function buildMotionBeatText(input: {
   return beats.join('\n')
 }
 
-function buildVideoGenerationPrompt(storyboard: ChapterStoryboard, prompt = '') {
-  const rawPrompt = textValue(prompt)
+function buildVideoGenerationPrompt(storyboard: ChapterStoryboard) {
   const title = textValue(storyboard.title)
   const description = textValue(storyboard.description)
   const action = textValue(storyboard.action)
   const result = textValue(storyboard.result)
   const atmosphere = textValue(storyboard.atmosphere)
   const start = description || action || title || '保持本镜头开场状态'
-  const motion = rawPrompt
-    ? `原始镜头意图：\n${rawPrompt}\n动作节奏：\n${buildMotionBeatText({ title, description, action, rawPrompt })}`
-    : `动作节奏：\n${buildMotionBeatText({ title, description, action, rawPrompt })}`
-  const forbidden = buildForbiddenDirectives(storyboard, rawPrompt).join('；')
+  const forbidden = buildForbiddenDirectives(storyboard).join('；')
 
   return [
     title ? `镜头标题：${title}` : '',
     `主体与场景：${buildSubjectSceneText(storyboard)}`,
     `起始画面：${start}`,
     `镜头限制：${buildShotLimitText(storyboard)}`,
-    motion,
+    `动作节奏：\n${buildMotionBeatText({ title, description, action })}`,
     result ? `结束画面：${result}` : '结束画面：停在本镜头动作的自然落点，保持可被下一镜头直接承接的状态。',
     atmosphere ? `氛围：${atmosphere}` : '',
     '画质与风格：高清，真实短剧电影感，色彩自然，光线稳定，人物面部和服装保持一致，动作低缓连续。',
@@ -300,8 +298,8 @@ function buildVideoGenerationPrompt(storyboard: ChapterStoryboard, prompt = '') 
 
 function resolveVideoPromptForGeneration(storyboard: ChapterStoryboard) {
   const prompt = textValue(storyboard.video_prompt || storyboard.videoPrompt)
-  if (prompt && hasStructuredVideoGuardrails(prompt)) return appendDialogueToVideoPrompt(prompt, storyboard)
-  return appendDialogueToVideoPrompt(buildVideoGenerationPrompt(storyboard, prompt), storyboard)
+  if (prompt) return appendDialogueToVideoPrompt(prompt, storyboard)
+  return appendDialogueToVideoPrompt(buildVideoGenerationPrompt(storyboard), storyboard)
 }
 
 function normalizeReferenceBindings(value: unknown): VideoReferenceBinding[] {
