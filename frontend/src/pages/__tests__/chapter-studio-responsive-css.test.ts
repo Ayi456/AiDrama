@@ -101,7 +101,7 @@ runTest('video result preview keeps a stable footprint while history scrolls', (
 
   const resultMediaRule = cssRuleByPattern(
     productionCss,
-    /\.video-workbench__result video,\s*\.video-workbench__result img,\s*\.video-workbench__result \.prod-cover-empty\s*\{([^}]*)\}/s,
+    /\.video-workbench__result video,\s*\.video-workbench__result img\s*\{([^}]*)\}/s,
     '.video-workbench__result media',
   )
   assert.match(

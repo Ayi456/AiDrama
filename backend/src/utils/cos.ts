@@ -203,10 +203,13 @@ function contentTypeForPath(filePath: string) {
   return 'application/octet-stream'
 }
 
+// 浏览器媒体管线会长期复用 302 后的签名直链；1 小时会让挂机页面拉流 403。
+const SIGN_TTL_SECONDS = 86400
+
 function createAuthorization(method: string, uriPath: string, config: CosConfig) {
   const host = cosHost(config)
   const now = Math.floor(Date.now() / 1000)
-  const expires = now + 3600
+  const expires = now + SIGN_TTL_SECONDS
   const keyTime = `${now};${expires}`
   const signTime = keyTime
   const httpString = `${method.toLowerCase()}\n${uriPath}\n\nhost=${host}\n`

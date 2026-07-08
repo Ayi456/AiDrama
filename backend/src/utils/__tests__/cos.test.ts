@@ -114,6 +114,19 @@ runTest('createCosRequestAuthorization signs configured COS URLs only', () => {
   )
 })
 
+runTest('createCosRequestAuthorization signs for 24h so long-lived media sessions keep working', () => {
+  const authorization = createCosRequestAuthorization(
+    'GET',
+    'https://ai-drama-1255393412.cos.ap-shanghai.myqcloud.com/seedance/videos/demo.mp4',
+    config,
+  )
+
+  assert.ok(authorization)
+  const signTime = authorization.match(/q-sign-time=(\d+);(\d+)/)
+  assert.ok(signTime, 'expected q-sign-time in authorization')
+  assert.equal(Number(signTime[2]) - Number(signTime[1]), 86400)
+})
+
 runTest('createCosPresignedObjectUrl builds a signed PUT URL for direct uploads', () => {
   const signedUrl = createCosPresignedObjectUrl('PUT', 'seedream/uploads/demo.jpg', config)
 

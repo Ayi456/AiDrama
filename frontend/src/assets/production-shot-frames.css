@@ -3054,12 +3054,18 @@
 }
 
 .video-workbench__result video,
-.video-workbench__result img,
-.video-workbench__result .prod-cover-empty {
+.video-workbench__result img {
   width: 100%;
   height: 100%;
   min-height: 0;
   object-fit: contain;
+  display: block;
+}
+
+.video-workbench__result .prod-cover-empty {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   display: flex;
 }
 

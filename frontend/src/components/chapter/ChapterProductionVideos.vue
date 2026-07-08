@@ -455,7 +455,7 @@
           </div>
         </div>
 
-        <div class="video-workbench__result">
+        <div class="video-workbench__result" @click="onResultBoxClick">
           <div v-if="isSelectedVideoPending" class="prod-cover-empty video-workbench__pending-result">
             <Loader2 :size="28" class="animate-spin" />
             <div class="video-workbench__pending-title">新视频生成中</div>
@@ -1139,6 +1139,18 @@ function clearCapturedFrame() {
   delete nextSourceLabels[key]
   capturedFrameByShot.value = nextCaptured
   capturedFrameSourceLabelByShot.value = nextSourceLabels
+}
+
+// 个别环境下原生 <video> 控件命中区失效，点击会落到容器上；这里兜底切换播放。
+function onResultBoxClick(event) {
+  if (event.target !== event.currentTarget) return
+  const video = selectedVideoEl.value
+  if (!video) return
+  if (video.paused) {
+    video.play().catch(() => {})
+  } else {
+    video.pause()
+  }
 }
 
 async function captureCurrentFrame() {
