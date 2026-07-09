@@ -17,6 +17,7 @@ import {
   findOwnedEpisode,
 } from '../shared/ownership.js'
 import {
+  buildCharacterImageSyncPatch,
   buildCharacterCreateValues,
   buildCharacterUpdatePatch,
   readCharacterBindAssetId,
@@ -75,8 +76,18 @@ app.put('/:id', async (c) => {
   if (!character) return badRequest(c, 'Character not found')
   const body = await readJsonBody(c)
   const updates = buildCharacterUpdatePatch(body, now())
+  const imageSyncPatch = buildCharacterImageSyncPatch(updates)
 
   await db.update(schema.characters).set(updates).where(eq(schema.characters.id, id)).run()
+  if (imageSyncPatch && character.name) {
+    await db.update(schema.characters)
+      .set(imageSyncPatch)
+      .where(and(
+        eq(schema.characters.dramaId, character.dramaId),
+        eq(schema.characters.name, character.name),
+      ))
+      .run()
+  }
   return success(c)
 })
 

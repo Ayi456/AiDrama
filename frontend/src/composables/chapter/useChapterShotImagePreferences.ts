@@ -65,8 +65,9 @@ export function useChapterShotImagePreferences(options: ChapterShotImagePreferen
   const shotReferenceOptions = computed<ShotReferenceOption[]>(() => {
     const references: ShotReferenceOption[] = []
     options.chars.value.forEach((character) => {
+      const src = character.image_url || character.imageUrl
       const assetSrc = character.character_asset_image_url || character.characterAssetImageUrl
-      if (assetSrc) {
+      if (!src && assetSrc) {
         references.push({
           key: `character-asset-${character.id}`,
           type: 'character',
@@ -74,7 +75,6 @@ export function useChapterShotImagePreferences(options: ChapterShotImagePreferen
           label: `${character.name || `角色 ${character.id}`} 形象`,
         })
       }
-      const src = character.image_url || character.imageUrl
       if (src) {
         references.push({
           key: `character-${character.id}`,

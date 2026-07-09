@@ -29,12 +29,43 @@ type ChapterAssetWorkflowOptions = ImageAssetMonitor & {
   refresh: () => Promise<void>
 }
 
+export type CharacterImageReplacement = {
+  imageUrl: string
+  localPath?: string
+}
+
+export function mergeCharacterImageReplacements(
+  characters: ChapterCharacter[],
+  replacements: Map<number, CharacterImageReplacement>,
+) {
+  if (!replacements.size) return characters
+
+  return characters.map((character) => {
+    const id = Number(character?.id || 0)
+    const replacement = id ? replacements.get(id) : null
+    if (!replacement?.imageUrl) return character
+
+    return {
+      ...character,
+      image_url: replacement.imageUrl,
+      imageUrl: replacement.imageUrl,
+      local_path: replacement.localPath,
+      localPath: replacement.localPath,
+    }
+  })
+}
+
 export function useChapterAssetWorkflow(options: ChapterAssetWorkflowOptions) {
   const pendingCharImageIds = ref<number[]>([])
   const pendingSceneImageIds = ref<number[]>([])
   const replacingCharacterImageIds = ref<number[]>([])
   const replacingSceneImageIds = ref<number[]>([])
   const uploadingSceneReferenceIds = ref<number[]>([])
+  const characterImageReplacements = new Map<number, CharacterImageReplacement>()
+
+  function applyCharacterImageReplacements() {
+    options.chars.value = mergeCharacterImageReplacements(options.chars.value, characterImageReplacements)
+  }
 
   function isPendingCharImage(id: number) {
     return pendingCharImageIds.value.includes(id)
@@ -122,12 +153,14 @@ export function useChapterAssetWorkflow(options: ChapterAssetWorkflowOptions) {
         image_url: uploaded.url,
         local_path: uploaded.path,
       })
-      character.image_url = uploaded.url
-      character.imageUrl = uploaded.url
-      character.local_path = uploaded.path
-      character.localPath = uploaded.path
+      characterImageReplacements.set(id, {
+        imageUrl: uploaded.url,
+        localPath: uploaded.path,
+      })
+      applyCharacterImageReplacements()
       toast.success('角色图片已替换')
       await options.refresh()
+      applyCharacterImageReplacements()
     } catch (error: unknown) {
       toast.error(errorMessageFromUnknown(error, '角色图片替换失败'))
     } finally {

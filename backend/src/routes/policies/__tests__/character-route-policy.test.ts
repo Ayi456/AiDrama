@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 
 import {
+  buildCharacterImageSyncPatch,
   buildCharacterCreateValues,
   buildCharacterUpdatePatch,
   readCharacterCreateInput,
@@ -97,4 +98,24 @@ runTest('buildCharacterUpdatePatch lets explicit snake_case asset clearing win o
     updatedAt: '2026-06-24T00:03:00.000Z',
     characterAssetId: null,
   })
+})
+
+runTest('buildCharacterImageSyncPatch extracts only replaced image fields for same-name characters', () => {
+  const patch = buildCharacterImageSyncPatch(buildCharacterUpdatePatch({
+    image_url: '/static/new-lead.png',
+    local_path: 'static/new-lead.png',
+    description: 'keep this local edit scoped',
+  }, '2026-06-24T00:04:00.000Z'))
+
+  assert.deepEqual(patch, {
+    updatedAt: '2026-06-24T00:04:00.000Z',
+    imageUrl: '/static/new-lead.png',
+    localPath: 'static/new-lead.png',
+  })
+})
+
+runTest('buildCharacterImageSyncPatch returns null when no image changed', () => {
+  assert.equal(buildCharacterImageSyncPatch(buildCharacterUpdatePatch({
+    description: 'visual notes only',
+  }, '2026-06-24T00:05:00.000Z')), null)
 })

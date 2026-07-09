@@ -60,7 +60,7 @@ runTest('shot image preferences restore and persist valid size choices', async (
   }))
 })
 
-runTest('shot image reference options preserve all image-bearing characters and scenes', () => {
+runTest('shot image reference options prefer character images and preserve asset fallbacks', () => {
   const prefs = useChapterShotImagePreferences({
     dramaId: 7,
     chapterNumber: 2,
@@ -79,16 +79,36 @@ runTest('shot image reference options preserve all image-bearing characters and 
   assert.deepEqual(prefs.visualChars.value.map(char => char.id), [2, 3])
   assert.deepEqual(prefs.shotReferenceOptions.value.map(option => option.key), [
     'character-1',
-    'character-asset-2',
     'character-2',
     'character-3',
     'scene-9',
   ])
   assert.deepEqual(prefs.shotReferenceOptions.value.map(option => option.src), [
     'narrator.png',
-    'lead-asset.png',
     'lead.png',
     'support.png',
     'atrium.png',
+  ])
+})
+
+runTest('shot image reference options prefer replaced character images over stale bound assets', () => {
+  const prefs = useChapterShotImagePreferences({
+    dramaId: 7,
+    chapterNumber: 2,
+    epId: computed(() => 12),
+    chars: ref<ChapterCharacter[]>([
+      { id: 2, name: 'Lead', character_asset_image_url: 'old-bound-asset.png', image_url: 'new-replaced.png' },
+      { id: 3, name: 'Support', character_asset_image_url: 'support-asset.png' },
+    ]),
+    scenes: ref<ChapterScene[]>([]),
+  })
+
+  assert.deepEqual(prefs.shotReferenceOptions.value.map(option => option.key), [
+    'character-2',
+    'character-asset-3',
+  ])
+  assert.deepEqual(prefs.shotReferenceOptions.value.map(option => option.src), [
+    'new-replaced.png',
+    'support-asset.png',
   ])
 })

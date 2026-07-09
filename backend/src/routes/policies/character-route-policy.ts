@@ -36,6 +36,12 @@ export type CharacterUpdatePatch = {
   characterAssetId?: number | null
 }
 
+export type CharacterImageSyncPatch = {
+  updatedAt: string
+  imageUrl?: string | null
+  localPath?: string | null
+}
+
 export function readCharacterCreateInput(body: RouteBody): CharacterCreateInput {
   return {
     dramaId: readBodyId(body, 'drama_id', 'dramaId'),
@@ -87,6 +93,22 @@ export function buildCharacterUpdatePatch(body: RouteBody, updatedAt: string): C
   }
 
   return updates
+}
+
+export function buildCharacterImageSyncPatch(updates: CharacterUpdatePatch): CharacterImageSyncPatch | null {
+  const patch: CharacterImageSyncPatch = { updatedAt: updates.updatedAt }
+  let hasImageField = false
+
+  if ('imageUrl' in updates) {
+    patch.imageUrl = updates.imageUrl ?? null
+    hasImageField = true
+  }
+  if ('localPath' in updates) {
+    patch.localPath = updates.localPath ?? null
+    hasImageField = true
+  }
+
+  return hasImageField ? patch : null
 }
 
 export function readCharacterBindAssetId(body: RouteBody) {
