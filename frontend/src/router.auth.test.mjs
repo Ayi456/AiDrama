@@ -3,7 +3,9 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const routerSource = readFileSync(resolve('src/router.ts'), 'utf8')
-const apiSource = readFileSync(resolve('src/composables/useApi.ts'), 'utf8')
+const apiFacadeSource = readFileSync(resolve('src/composables/useApi.ts'), 'utf8')
+const authApiSource = readFileSync(resolve('src/api/auth.ts'), 'utf8')
+const apiClientSource = readFileSync(resolve('src/api/client.ts'), 'utf8')
 const mainSource = readFileSync(resolve('src/main.ts'), 'utf8')
 
 function runTest(name, fn) {
@@ -27,18 +29,19 @@ runTest('product routes require authentication', () => {
 })
 
 runTest('authAPI exposes login, register, session and sms code calls', () => {
-  assert.match(apiSource, /export const authAPI/)
-  assert.match(apiSource, /login:/)
-  assert.match(apiSource, /register:/)
-  assert.match(apiSource, /session:/)
-  assert.match(apiSource, /sendRegisterCode:/)
-  assert.match(apiSource, /logout:/)
+  assert.match(apiFacadeSource, /export \{ authAPI, uploadAPI \}/)
+  assert.match(authApiSource, /export const authAPI/)
+  assert.match(authApiSource, /login:/)
+  assert.match(authApiSource, /register:/)
+  assert.match(authApiSource, /session:/)
+  assert.match(authApiSource, /sendRegisterCode:/)
+  assert.match(authApiSource, /logout:/)
 })
 
 runTest('API requests include HttpOnly cookie credentials', () => {
-  assert.match(apiSource, /credentials:\s*['"]include['"]/)
-  assert.doesNotMatch(apiSource, /Authorization\s*=/)
-  assert.doesNotMatch(apiSource, /readAuthTokenFromStorage/)
+  assert.match(apiClientSource, /credentials:\s*['"]include['"]/)
+  assert.doesNotMatch(apiClientSource, /Authorization\s*=/)
+  assert.doesNotMatch(apiClientSource, /readAuthTokenFromStorage/)
 })
 
 runTest('app startup validates stored auth before mounting', () => {
