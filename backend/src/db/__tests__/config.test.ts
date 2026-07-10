@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 
-import { resolveMysqlConfig } from '../config.js'
+import { identifier, resolveMysqlConfig } from '../config.js'
 
 const fromUrl = resolveMysqlConfig({
   env: { DATABASE_URL: 'mysql://alice:secret@db.example:3307/drama' },
@@ -32,5 +32,7 @@ assert.throws(
   () => resolveMysqlConfig({ env: {}, looseEnv: {} }),
   /Missing MySQL database config: DB_HOST, DB_USER/,
 )
+assert.equal(identifier('video_generations'), '`video_generations`')
+assert.throws(() => identifier('video-generations'), /Invalid MySQL identifier/)
 
 console.log('PASS database config is resolved without I/O')

@@ -14,6 +14,13 @@ export type MysqlConfigSources = {
   looseEnv: Record<string, string | undefined>
 }
 
+export function identifier(value: string) {
+  if (!/^[A-Za-z0-9_]+$/.test(value)) {
+    throw new Error(`Invalid MySQL identifier: ${value}`)
+  }
+  return `\`${value}\``
+}
+
 function sourceValue(sources: MysqlConfigSources, ...keys: string[]) {
   for (const key of keys) {
     const value = sources.env[key] ?? sources.looseEnv[key]

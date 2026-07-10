@@ -15,16 +15,16 @@ function runTest(name: string, fn: () => void) {
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const dbIndexSourcePath = [
-  path.resolve(__dirname, '../index.ts'),
-  path.resolve(__dirname, '../index.js'),
+const migrationSourcePath = [
+  path.resolve(__dirname, '../migrations.ts'),
+  path.resolve(__dirname, '../migrations.js'),
 ].find(candidate => fs.existsSync(candidate))
 
-if (!dbIndexSourcePath) {
-  throw new Error('Unable to locate compiled or source db/index file')
+if (!migrationSourcePath) {
+  throw new Error('Unable to locate compiled or source db/migrations file')
 }
 
-const dbIndexSource = fs.readFileSync(dbIndexSourcePath, 'utf8')
+const migrationSource = fs.readFileSync(migrationSourcePath, 'utf8')
 
 runTest('image generation provider usage columns are backfilled for existing MySQL tables', () => {
   for (const column of [
@@ -33,7 +33,7 @@ runTest('image generation provider usage columns are backfilled for existing MyS
     'provider_usage_raw',
   ]) {
     assert.match(
-      dbIndexSource,
+      migrationSource,
       new RegExp(`ensureColumn\\(pool, database, 'image_generations', '${column}',`),
     )
   }
