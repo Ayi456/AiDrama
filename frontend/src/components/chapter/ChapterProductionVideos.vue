@@ -557,21 +557,10 @@ import { useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
 import { Camera, Check, CircleAlert, Film, History, Image as ImageIcon, Loader2, Music, ReceiptText, RefreshCw, Trash2, Wallet } from 'lucide-vue-next'
 import { uploadAPI } from '@/composables/useApi'
-import { buildAllMultimodalReferenceOptions, buildMultimodalReferenceOptions, getReferenceModeGuidance, shouldShowVideoPendingPlaceholder } from '@/composables/chapter/chapterShotMediaPolicy'
-import {
-  getCaptureSourceVideoUrl,
-  getCaptureTailFrameOptions,
-  getDefaultCaptureTailFrameUrl,
-  getPreviousStoryboard,
-} from '@/composables/chapter/chapterVideoCaptureTargets'
-import { captureVideoFrameFile } from '@/composables/chapter/chapterVideoFrameCapture'
-import {
-  removeKeyedValue,
-  setKeyedValue,
-  storyboardStateKey,
-  uniqueMediaByUrl,
-  uniqueStrings,
-} from '@/composables/chapter/chapterVideoWorkbenchPolicy'
+import { shouldShowVideoPendingPlaceholder } from '@/composables/chapter/chapterShotMediaPolicy'
+import { storyboardStateKey } from '@/composables/chapter/chapterVideoWorkbenchPolicy'
+import { useChapterVideoPromptDrafts } from '@/composables/chapter/useChapterVideoPromptDrafts'
+import { useChapterVideoReferences } from '@/composables/chapter/useChapterVideoReferences'
 import { assetUrl } from '@/utils/asset-url'
 
 const props = defineProps({
@@ -615,86 +604,80 @@ const isSelectedVideoPending = computed(() => (
     : false
 ))
 
-const promptDraft = ref('')
-const promptDraftShotKey = ref('')
-const promptDraftsByShot = ref({})
-const dirtyPromptDraftsByShot = ref({})
-const savingPromptDraftsByShot = ref({})
-const promptSavePromisesByShot = new Map()
-const referenceMode = ref('auto')
+const {
+  promptDraft,
+  isPromptSaving,
+  markPromptDraftDirty,
+  savePromptDraft,
+  applyDefaultPrompt,
+} = useChapterVideoPromptDrafts({
+  selectedShot,
+  selectedShotKey,
+  storyboards: () => props.state.sbs,
+  buildDefaultPrompt: shot => props.state.buildDefaultVideoPrompt(shot),
+  savePrompt: payload => props.handlers.handleShotFieldUpdate(payload),
+  reportError: message => toast.error(message),
+})
+
+const {
+  referenceMode,
+  captureSourceVideoEl,
+  isCapturingFrame,
+  imageUploadInput,
+  videoUploadInput,
+  audioUploadInput,
+  captureSourceVideoUrl,
+  captureSourceLabel,
+  tailFrameOptions,
+  capturedFrameUrl,
+  capturedFrameSourceLabel,
+  selectedTailFrameUrl,
+  activeFirstFrame,
+  activeLastFrame,
+  activeFirstFrameLabel,
+  activeFirstFrameEmptyText,
+  activeLastFrameLabel,
+  activeLastFrameEmptyText,
+  selectedReferenceImages,
+  selectedReferenceVideos,
+  selectedReferenceAudios,
+  characterReferenceOptions,
+  sceneReferenceOptions,
+  multimodalImageReferences,
+  multimodalImageUrls,
+  multimodalVideoUrls,
+  multimodalAudioUrls,
+  referenceCountLabel,
+  referenceModeGuidance,
+  activeReferenceSummary,
+  getReferenceSummary,
+  hasReferencePreview,
+  setReferenceMode,
+  selectTailFrame,
+  clearCapturedFrame,
+  captureCurrentFrame,
+  removeReference,
+  toggleReferenceImage,
+  isReferenceSelected,
+  isUploadingMedia,
+  uploadReferenceFiles,
+} = useChapterVideoReferences({
+  selectedShot,
+  selectedShotIndex,
+  selectedShotIndexLabel,
+  selectedShotKey,
+  storyboards: () => props.state.sbs,
+  characters: () => props.state.chars || props.state.visualChars || [],
+  scenes: () => props.state.scenes || [],
+  getFirstFrame: shot => String(props.state.getFirstFrame(shot) || ''),
+  getLastFrame: shot => String(props.state.getLastFrame(shot) || ''),
+  getDefaultReferenceSummary: shot => props.state.getVideoReferenceSummary(shot),
+  hasImage: shot => props.state.hasImg(shot),
+  upload: uploadAPI,
+  notify: toast,
+})
+
 const selectedVideoEl = ref(null)
-const captureSourceVideoEl = ref(null)
-const capturedFrameByShot = ref({})
-const capturedFrameSourceLabelByShot = ref({})
-const selectedTailFrameByShot = ref({})
-const isCapturingFrame = ref(false)
-const selectedReferenceImagesByShot = ref({})
-const selectedReferenceVideosByShot = ref({})
-const selectedReferenceAudiosByShot = ref({})
-const uploadingMediaTypes = ref([])
-const imageUploadInput = ref(null)
-const videoUploadInput = ref(null)
-const audioUploadInput = ref(null)
-
-const isPromptSaving = computed(() => Boolean(savingPromptDraftsByShot.value[selectedShotKey.value]))
-
-function getShotVideoPrompt(shot) {
-  return shot?.video_prompt || shot?.videoPrompt || ''
-}
-
-function getResolvedVideoPrompt(shot) {
-  return getShotVideoPrompt(shot) || props.state.buildDefaultVideoPrompt(shot)
-}
-
-function setMapValue(source, key, value) {
-  source.value = setKeyedValue(source.value, key, value)
-}
-
-function deleteMapKey(source, key) {
-  source.value = removeKeyedValue(source.value, key)
-}
-
-function setStoryboardVideoPrompt(storyboard, value) {
-  if (!storyboard) return
-  storyboard.video_prompt = value
-  storyboard.videoPrompt = value
-}
-
-function markPromptDraftDirty(value = promptDraft.value) {
-  if (!selectedShot.value) return
-  const key = selectedShotKey.value
-  const nextValue = String(value ?? '')
-  promptDraft.value = nextValue
-  promptDraftShotKey.value = key
-  setMapValue(promptDraftsByShot, key, nextValue)
-  setMapValue(dirtyPromptDraftsByShot, key, true)
-}
-
-watch(
-  () => [
-    selectedShot.value?.id || 0,
-    selectedShot.value?.video_prompt || selectedShot.value?.videoPrompt || '',
-  ],
-  () => {
-    const shot = selectedShot.value
-    if (!shot) {
-      promptDraftShotKey.value = ''
-      promptDraft.value = ''
-      return
-    }
-    const key = selectedShotKey.value
-    if (promptDraftShotKey.value !== key) {
-      promptDraftShotKey.value = key
-      promptDraft.value = dirtyPromptDraftsByShot.value[key]
-        ? String(promptDraftsByShot.value[key] ?? '')
-        : getResolvedVideoPrompt(shot)
-      return
-    }
-    if (dirtyPromptDraftsByShot.value[key] || savingPromptDraftsByShot.value[key]) return
-    promptDraft.value = getResolvedVideoPrompt(shot)
-  },
-  { immediate: true },
-)
 
 watch(
   () => selectedShot.value?.id || 0,
@@ -703,226 +686,6 @@ watch(
   },
   { immediate: true },
 )
-
-const firstFrame = computed(() => (
-  selectedShot.value ? props.state.getFirstFrame(selectedShot.value) : ''
-))
-
-const lastFrame = computed(() => (
-  selectedShot.value ? props.state.getLastFrame(selectedShot.value) : ''
-))
-
-const previousShot = computed(() => (
-  selectedShot.value ? getPreviousStoryboard(selectedShot.value, props.state.sbs) : null
-))
-
-const captureSourceVideoUrl = computed(() => (
-  selectedShot.value ? getCaptureSourceVideoUrl(selectedShot.value, props.state.sbs) : ''
-))
-
-const captureSourceLabel = computed(() => {
-  if (!previousShot.value || !captureSourceVideoUrl.value) return ''
-  const previousIndexLabel = selectedShotIndex.value > 0
-    ? String(selectedShotIndex.value).padStart(2, '0')
-    : ''
-  const base = previousIndexLabel ? `镜头 #${previousIndexLabel}` : '上一镜头'
-  return previousShot.value.title ? `${base} ${previousShot.value.title}` : base
-})
-
-const tailFrameOptions = computed(() => (
-  selectedShot.value ? getCaptureTailFrameOptions(selectedShot.value) : []
-))
-
-const capturedFrameUrl = computed(() => (
-  capturedFrameByShot.value[selectedShotKey.value] || ''
-))
-
-const capturedFrameSourceLabel = computed(() => (
-  capturedFrameSourceLabelByShot.value[selectedShotKey.value] || ''
-))
-
-const selectedTailFrameUrl = computed(() => {
-  if (!selectedShot.value) return ''
-  if (referenceMode.value !== 'capture') return lastFrame.value
-  return selectedTailFrameByShot.value[selectedShotKey.value] || getDefaultCaptureTailFrameUrl(selectedShot.value)
-})
-
-const selectedTailFrameLabel = computed(() => {
-  if (referenceMode.value !== 'capture') return '尾帧'
-  const match = tailFrameOptions.value.find(item => item.url === selectedTailFrameUrl.value)
-  return match?.label || '尾帧'
-})
-
-watch(
-  () => [selectedShotKey.value, tailFrameOptions.value.map(item => item.url).join('|')],
-  () => {
-    if (!selectedShot.value) return
-    const key = selectedShotKey.value
-    const current = selectedTailFrameByShot.value[key] || ''
-    const next = tailFrameOptions.value[0]?.url || ''
-    if (current && tailFrameOptions.value.some(item => item.url === current)) return
-    if (next) {
-      selectedTailFrameByShot.value = {
-        ...selectedTailFrameByShot.value,
-        [key]: next,
-      }
-      return
-    }
-    if (!current) return
-    const nextMap = { ...selectedTailFrameByShot.value }
-    delete nextMap[key]
-    selectedTailFrameByShot.value = nextMap
-  },
-  { immediate: true },
-)
-
-const activeFirstFrame = computed(() => (
-  referenceMode.value === 'capture' ? capturedFrameUrl.value : firstFrame.value
-))
-
-const activeLastFrame = computed(() => (
-  referenceMode.value === 'capture' ? selectedTailFrameUrl.value : lastFrame.value
-))
-
-const activeFirstFrameLabel = computed(() => (
-  referenceMode.value === 'capture'
-    ? '截帧'
-    : '首帧'
-))
-
-const activeFirstFrameEmptyText = computed(() => (
-  referenceMode.value === 'capture' ? '暂无截帧' : '暂无首帧'
-))
-
-const activeLastFrameLabel = computed(() => (
-  referenceMode.value === 'capture'
-    ? selectedTailFrameLabel.value
-    : '尾帧'
-))
-
-const activeLastFrameEmptyText = computed(() => (
-  referenceMode.value === 'capture'
-    ? '暂无当前镜头图片'
-    : '暂无尾帧'
-))
-
-const selectedReferenceImages = computed(() => (
-  selectedReferenceImagesByShot.value[selectedShotKey.value] || []
-))
-
-const selectedReferenceVideos = computed(() => (
-  selectedReferenceVideosByShot.value[selectedShotKey.value] || []
-))
-
-const selectedReferenceAudios = computed(() => (
-  selectedReferenceAudiosByShot.value[selectedShotKey.value] || []
-))
-
-const currentMultimodalReferenceOptions = computed(() => (
-  buildMultimodalReferenceOptions({
-    storyboard: selectedShot.value,
-    chars: props.state.chars || props.state.visualChars || [],
-    scenes: props.state.scenes || [],
-  })
-))
-
-const allMultimodalReferenceOptions = computed(() => (
-  buildAllMultimodalReferenceOptions({
-    chars: props.state.chars || props.state.visualChars || [],
-    scenes: props.state.scenes || [],
-  })
-))
-
-const characterReferenceOptions = computed(() => (
-  allMultimodalReferenceOptions.value.filter(item => item.source === 'character')
-))
-
-const sceneReferenceOptions = computed(() => (
-  allMultimodalReferenceOptions.value.filter(item => item.source === 'scene')
-))
-
-const multimodalImageReferences = computed(() => (
-  uniqueMediaByUrl([
-    capturedFrameUrl.value
-      ? {
-          label: capturedFrameSourceLabel.value || '上一镜头结尾帧',
-          url: capturedFrameUrl.value,
-          source: 'capture',
-        }
-      : null,
-    ...selectedReferenceImages.value,
-  ].filter(Boolean)).slice(0, 9)
-))
-
-const multimodalImageUrls = computed(() => (
-  multimodalImageReferences.value.map(item => item.url)
-))
-
-watch(
-  () => [selectedShotKey.value, currentMultimodalReferenceOptions.value.map(item => item.url).join('|')],
-  () => {
-    if (!selectedShot.value) return
-    const key = selectedShotKey.value
-    if (Object.prototype.hasOwnProperty.call(selectedReferenceImagesByShot.value, key)) return
-    if (!currentMultimodalReferenceOptions.value.length) return
-    selectedReferenceImagesByShot.value = {
-      ...selectedReferenceImagesByShot.value,
-      [key]: currentMultimodalReferenceOptions.value,
-    }
-  },
-  { immediate: true },
-)
-
-const multimodalVideoUrls = computed(() => (
-  uniqueStrings(selectedReferenceVideos.value.map(item => item.url)).slice(0, 3)
-))
-
-const multimodalAudioUrls = computed(() => (
-  uniqueStrings(selectedReferenceAudios.value.map(item => item.url)).slice(0, 3)
-))
-
-const referenceCountLabel = computed(() => {
-  if (referenceMode.value === 'multimodal') {
-    return `${multimodalImageUrls.value.length} 图 / ${multimodalVideoUrls.value.length} 视频 / ${multimodalAudioUrls.value.length} 音频`
-  }
-  let count = 0
-  if (activeFirstFrame.value) count += 1
-  if (activeLastFrame.value) count += 1
-  return `${count} 张`
-})
-
-const referenceModeGuidance = computed(() => getReferenceModeGuidance(referenceMode.value))
-
-function getReferenceSummary(storyboard) {
-  if (!storyboard) return '仅文本生成'
-  if (referenceMode.value === 'capture' && selectedShot.value?.id === storyboard.id) {
-    return activeReferenceSummary.value
-  }
-  return props.state.getVideoReferenceSummary(storyboard)
-}
-
-function hasReferencePreview(storyboard) {
-  if (!storyboard) return false
-  if (referenceMode.value === 'capture' && selectedShot.value?.id === storyboard.id) {
-    return Boolean(capturedFrameUrl.value || selectedTailFrameUrl.value)
-  }
-  return props.state.hasImg(storyboard)
-}
-
-const activeReferenceSummary = computed(() => {
-  if (!selectedShot.value) return '仅文本生成'
-  if (referenceMode.value !== 'capture') {
-    return props.state.getVideoReferenceSummary(selectedShot.value)
-  }
-  if (!captureSourceVideoUrl.value) return '当前没有上一镜头视频'
-  const firstLabel = capturedFrameUrl.value
-    ? (capturedFrameSourceLabel.value ? `首帧：${capturedFrameSourceLabel.value}` : '首帧：上一镜头视频')
-    : '首帧：待截取'
-  const tailLabel = selectedTailFrameUrl.value
-    ? `尾帧：${selectedTailFrameLabel.value}`
-    : '尾帧：待选择'
-  return `${firstLabel} / ${tailLabel}`
-})
 
 const videoGenerationProgress = computed(() => {
   if (!props.state.sbs.length) return 0
@@ -975,56 +738,6 @@ const billingAmountLabel = computed(() => {
   const value = Number(selectedBillingInfo.value.billingAmount || 0)
   return Number.isFinite(value) ? value.toFixed(2) : '0.00'
 })
-
-async function savePromptDraft(nextValue = promptDraft.value) {
-  if (!selectedShot.value) return false
-  const shot = selectedShot.value
-  const key = selectedShotKey.value
-  const existingSave = promptSavePromisesByShot.get(key)
-  if (existingSave) await existingSave.catch(() => false)
-  const value = String(nextValue ?? '').trim()
-  promptDraft.value = value
-  promptDraftShotKey.value = key
-  setMapValue(promptDraftsByShot, key, value)
-  setMapValue(savingPromptDraftsByShot, key, true)
-  const savePromise = (async () => {
-    await props.handlers.handleShotFieldUpdate({
-      sb: shot,
-      field: 'video_prompt',
-      value,
-    })
-    const latestShot = selectedShot.value?.id === shot.id
-      ? selectedShot.value
-      : props.state.sbs.find(item => item.id === shot.id)
-    setStoryboardVideoPrompt(shot, value)
-    setStoryboardVideoPrompt(latestShot, value)
-    if (String(promptDraftsByShot.value[key] ?? '') === value) {
-      deleteMapKey(dirtyPromptDraftsByShot, key)
-      deleteMapKey(promptDraftsByShot, key)
-    }
-    return true
-  })()
-  promptSavePromisesByShot.set(key, savePromise)
-  try {
-    return await savePromise
-  } catch (error) {
-    setMapValue(dirtyPromptDraftsByShot, key, true)
-    toast.error(error?.message || '视频提示词保存失败')
-    return false
-  } finally {
-    if (promptSavePromisesByShot.get(key) === savePromise) {
-      promptSavePromisesByShot.delete(key)
-    }
-    deleteMapKey(savingPromptDraftsByShot, key)
-  }
-}
-
-function applyDefaultPrompt() {
-  if (!selectedShot.value) return
-  const nextPrompt = props.state.buildDefaultVideoPrompt(selectedShot.value)
-  promptDraft.value = nextPrompt
-  void savePromptDraft(nextPrompt)
-}
 
 function selectShot(sb) {
   props.handlers.handleShotSelection(sb)
@@ -1119,30 +832,6 @@ function formatShotIndex(index) {
   return String(index + 1).padStart(2, '0')
 }
 
-function setReferenceMode(mode) {
-  referenceMode.value = mode
-}
-
-function selectTailFrame(url) {
-  if (!selectedShot.value || !url) return
-  selectedTailFrameByShot.value = {
-    ...selectedTailFrameByShot.value,
-    [selectedShotKey.value]: url,
-  }
-}
-
-function clearCapturedFrame() {
-  if (!selectedShot.value) return
-  const key = selectedShotKey.value
-  const nextCaptured = { ...capturedFrameByShot.value }
-  const nextSourceLabels = { ...capturedFrameSourceLabelByShot.value }
-  delete nextCaptured[key]
-  delete nextSourceLabels[key]
-  capturedFrameByShot.value = nextCaptured
-  capturedFrameSourceLabelByShot.value = nextSourceLabels
-}
-
-// 个别环境下原生 <video> 控件命中区失效，点击会落到容器上；这里兜底切换播放。
 function onResultBoxClick(event) {
   if (event.target !== event.currentTarget) return
   const video = selectedVideoEl.value
@@ -1151,144 +840,6 @@ function onResultBoxClick(event) {
     video.play().catch(() => {})
   } else {
     video.pause()
-  }
-}
-
-async function captureCurrentFrame() {
-  if (!captureSourceVideoEl.value || !selectedShot.value || !captureSourceVideoUrl.value) {
-    toast.error('当前没有上一镜头视频可截取')
-    return
-  }
-  if (referenceMode.value === 'multimodal' && !capturedFrameUrl.value && mediaItemsFor('image').length >= mediaLimit('image')) {
-    toast.error('参考图已达到上限，请先移除一张图片再截帧')
-    return
-  }
-  isCapturingFrame.value = true
-  try {
-    const file = await captureVideoFrameFile(captureSourceVideoEl.value, {
-      filenamePrefix: `shot-${selectedShotIndexLabel.value}-prev`,
-    })
-    const uploaded = await uploadAPI.image(file)
-    const nextCaptured = uploaded?.url || uploaded?.path || ''
-    if (!nextCaptured) throw new Error('截帧上传失败')
-    capturedFrameByShot.value = {
-      ...capturedFrameByShot.value,
-      [selectedShotKey.value]: nextCaptured,
-    }
-    capturedFrameSourceLabelByShot.value = {
-      ...capturedFrameSourceLabelByShot.value,
-      [selectedShotKey.value]: captureSourceLabel.value || '上一镜头视频',
-    }
-    if (referenceMode.value !== 'multimodal') referenceMode.value = 'capture'
-    toast.success('已截取上一镜头帧')
-  } catch (error) {
-    toast.error(error instanceof Error ? error.message : '截帧失败')
-  } finally {
-    isCapturingFrame.value = false
-  }
-}
-
-function mediaRefFor(type) {
-  if (type === 'video') return selectedReferenceVideosByShot
-  if (type === 'audio') return selectedReferenceAudiosByShot
-  return selectedReferenceImagesByShot
-}
-
-function mediaItemsFor(type) {
-  if (type === 'video') return selectedReferenceVideos.value
-  if (type === 'audio') return selectedReferenceAudios.value
-  return selectedReferenceImages.value
-}
-
-function mediaLimit(type) {
-  if (type === 'image') return 9
-  return 3
-}
-
-function mediaCount(type) {
-  const count = mediaItemsFor(type).length
-  if (type !== 'image' || referenceMode.value !== 'multimodal') return count
-  if (!capturedFrameUrl.value) return count
-  return mediaItemsFor(type).some(item => item.url === capturedFrameUrl.value) ? count : count + 1
-}
-
-function setReferenceItems(type, items) {
-  const targetRef = mediaRefFor(type)
-  targetRef.value = {
-    ...targetRef.value,
-    [selectedShotKey.value]: uniqueMediaByUrl(items).slice(0, mediaLimit(type)),
-  }
-}
-
-function addReference(type, item) {
-  if (!item?.url) return
-  const current = mediaItemsFor(type)
-  if (current.some(ref => ref.url === item.url)) return
-  if (mediaCount(type) >= mediaLimit(type)) {
-    toast.error(`参考${type === 'image' ? '图' : type === 'video' ? '视频' : '音频'}最多 ${mediaLimit(type)} 个`)
-    return
-  }
-  setReferenceItems(type, [...current, item])
-}
-
-function removeReference(type, url) {
-  setReferenceItems(type, mediaItemsFor(type).filter(item => item.url !== url))
-}
-
-function toggleReferenceImage(item) {
-  if (isReferenceSelected('image', item.url)) {
-    removeReference('image', item.url)
-    return
-  }
-  addReference('image', item)
-}
-
-function isReferenceSelected(type, url) {
-  return mediaItemsFor(type).some(item => item.url === url)
-}
-
-function isUploadingMedia(type) {
-  return uploadingMediaTypes.value.includes(type)
-}
-
-async function uploadReferenceFiles(type, event) {
-  const input = event?.target
-  const files = Array.from(input?.files || [])
-  if (input) input.value = ''
-  if (!files.length) return
-
-  const remaining = mediaLimit(type) - mediaCount(type)
-  if (remaining <= 0) {
-    toast.error(`参考${type === 'image' ? '图' : type === 'video' ? '视频' : '音频'}已达到上限`)
-    return
-  }
-
-  const selectedFiles = files.slice(0, remaining)
-  if (files.length > remaining) toast.info(`只添加前 ${remaining} 个文件`)
-
-  uploadingMediaTypes.value = uniqueStrings([...uploadingMediaTypes.value, type])
-  try {
-    for (const file of selectedFiles) {
-      if (type === 'image' && !file.type.startsWith('image/')) throw new Error('请选择图片文件')
-      if (type === 'video' && !file.type.startsWith('video/')) throw new Error('请选择视频文件')
-      if (type === 'audio' && !file.type.startsWith('audio/')) throw new Error('请选择音频文件')
-
-      const uploaded = type === 'image'
-        ? await uploadAPI.image(file)
-        : type === 'video'
-          ? await uploadAPI.video(file)
-          : await uploadAPI.audio(file)
-      addReference(type, {
-        label: file.name,
-        url: uploaded.url || `/${uploaded.path}`,
-        source: 'upload',
-      })
-    }
-    toast.success('参考素材已添加')
-  } catch (error) {
-    toast.error(error?.message || '上传参考素材失败')
-  } finally {
-    uploadingMediaTypes.value = uploadingMediaTypes.value.filter(item => item !== type)
   }
 }
 
