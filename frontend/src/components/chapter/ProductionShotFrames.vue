@@ -710,9 +710,9 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
 import { Loader2 } from 'lucide-vue-next'
 import BaseSelect from '@/components/BaseSelect.vue'
+import { useChapterShotImageEditor } from '@/composables/chapter/useChapterShotImageEditor'
 import { assetUrl } from '@/utils/asset-url'
 
 const props = defineProps({
@@ -815,266 +815,56 @@ function openStoryboard(sb) {
   emit('open-storyboard', sb)
 }
 
-function getFrameImage(sb, frameType) {
-  return frameType === 'last_frame' ? props.getLastFrame(sb) : props.getFirstFrame(sb)
-}
-
-function getShotCover(sb) {
-  return sb?.composed_image || sb?.composedImage || getFrameImage(sb, 'first_frame') || getFrameImage(sb, 'last_frame') || ''
-}
-
-function hasFrameByType(sb, frameType) {
-  return !!getFrameImage(sb, frameType)
-}
-
-function getFrameActionLabel(sb, frameType) {
-  if (props.isPendingShotFrame(sb.id, frameType)) return '生成中'
-  return hasFrameByType(sb, frameType) ? '重新生成' : '立即生成'
-}
-
-function getFrameStateText(sb, frameType) {
-  if (props.isPendingShotFrame(sb.id, frameType)) return '生成中'
-  return hasFrameByType(sb, frameType) ? '已出图' : '待出图'
-}
-
-function getFrameStateClass(sb, frameType) {
-  const text = getFrameStateText(sb, frameType)
-  if (text === '生成中') return 'is-pending'
-  if (text === '待出图') return 'is-empty'
-  return 'is-ready'
-}
-
-const frameCardAspectRatio = computed(() => {
-  const [width, height] = String(props.shotImageAspectRatio || '1:1').split(':').map(Number)
-  if (!width || !height) return '1 / 1'
-  return `${width} / ${height}`
+const {
+  frameCardAspectRatio,
+  selectedShot,
+  generationQuantity,
+  referencePickerOpen,
+  referencePickerTab,
+  selectedShotIndexLabel,
+  promptDraft,
+  negativePromptDraft,
+  selectedReferenceDisplayImages,
+  filteredReferenceOptions,
+  frameModeLabel,
+  shotGenerationProgress,
+  selectedResultCards,
+  selectedHistoryCards,
+  readyResultCount,
+  selectedShotPendingAny,
+  getFrameImage,
+  getShotCover,
+  getFrameActionLabel,
+  getFrameStateText,
+  getFrameStateClass,
+  savePromptDraft,
+  saveNegativePromptDraft,
+  applyDerivedPrompt,
+  addReferenceImage,
+  removeReferenceImage,
+  openFrameViewer,
+  generateFrame,
+  generateSingleFrame,
+  generateSelectedFrames,
+  restoreHistoryImage,
+} = useChapterShotImageEditor({
+  storyboards: () => props.sbs,
+  selectedStoryboardId: () => props.selectedSbId,
+  aspectRatio: () => props.shotImageAspectRatio,
+  frameMode: () => props.frameMode,
+  generatedCount: () => props.shotImgCount,
+  referenceOptions: () => props.referenceOptions,
+  history: () => props.shotImageHistory,
+  getFirstFrame: storyboard => String(props.getFirstFrame(storyboard) || ''),
+  getLastFrame: storyboard => String(props.getLastFrame(storyboard) || ''),
+  getReferenceImages: storyboard => props.getShotReferenceImages(storyboard) || [],
+  getManualReferenceImages: props.getShotManualReferenceImages,
+  isPendingFrame: (storyboardId, frameType) => props.isPendingShotFrame(storyboardId, frameType),
+  emit: (event, payload) => emit(event, payload),
+  openImage: openViewer,
+  resolveAssetUrl: assetUrl,
 })
 
-const selectedShot = computed(() => (
-  props.sbs.find(sb => sb.id === props.selectedSbId) || props.sbs[0] || null
-))
-
-const generationQuantity = ref(1)
-const referencePickerOpen = ref(false)
-const referencePickerTab = ref('character')
-
-const selectedShotIndex = computed(() => {
-  if (!selectedShot.value) return -1
-  return props.sbs.findIndex(sb => sb.id === selectedShot.value.id)
-})
-
-const selectedShotIndexLabel = computed(() => String(selectedShotIndex.value + 1).padStart(2, '0'))
-
-function deriveShotPrompt(sb) {
-  if (!sb) return ''
-
-  const characters = Array.isArray(sb.character_names)
-    ? sb.character_names
-    : String(sb.characterNames || sb.character_names || '').split(/[、,，]/).map(item => item.trim()).filter(Boolean)
-
-  return [
-    sb.title ? `镜头标题：${sb.title}` : '',
-    sb.description ? `画面描述：${sb.description}` : '',
-    sb.shot_type || sb.shotType ? `景别：${sb.shot_type || sb.shotType}` : '',
-    sb.angle ? `机位：${sb.angle}` : '',
-    sb.movement ? `运镜：${sb.movement}` : '',
-    sb.location ? `地点：${sb.location}` : '',
-    sb.time ? `时间：${sb.time}` : '',
-    sb.action ? `动作：${sb.action}` : '',
-    sb.atmosphere ? `氛围：${sb.atmosphere}` : '',
-    characters.length ? `角色：${characters.join('、')}` : '',
-    '请生成电影感强、构图清晰、主体明确的单帧画面。',
-  ].filter(Boolean).join('\n')
-}
-
-const promptDraft = ref('')
-const negativePromptDraft = ref('')
-
-watch(
-  () => [
-    selectedShot.value?.id || 0,
-    selectedShot.value?.image_prompt || selectedShot.value?.imagePrompt || '',
-  ],
-  () => {
-    const shot = selectedShot.value
-    if (!shot) {
-      promptDraft.value = ''
-      return
-    }
-    promptDraft.value = shot.image_prompt || shot.imagePrompt || deriveShotPrompt(shot)
-  },
-  { immediate: true },
-)
-
-watch(
-  () => [
-    selectedShot.value?.id || 0,
-    selectedShot.value?.negative_prompt || selectedShot.value?.negativePrompt || '',
-  ],
-  () => {
-    const shot = selectedShot.value
-    negativePromptDraft.value = shot?.negative_prompt || shot?.negativePrompt || ''
-  },
-  { immediate: true },
-)
-
-function savePromptDraft(nextValue = promptDraft.value) {
-  if (!selectedShot.value) return
-  const value = String(nextValue ?? '').trim()
-  promptDraft.value = value
-  emit('update-shot-field', {
-    sb: selectedShot.value,
-    field: 'image_prompt',
-    value,
-  })
-}
-
-function saveNegativePromptDraft(nextValue = negativePromptDraft.value) {
-  if (!selectedShot.value) return
-  const value = String(nextValue ?? '').trim()
-  negativePromptDraft.value = value
-  emit('update-shot-field', {
-    sb: selectedShot.value,
-    field: 'negative_prompt',
-    value,
-  })
-}
-
-function applyDerivedPrompt() {
-  if (!selectedShot.value) return
-  const nextPrompt = deriveShotPrompt(selectedShot.value)
-  promptDraft.value = nextPrompt
-  savePromptDraft(nextPrompt)
-}
-
-function saveReferenceImages(nextImages) {
-  if (!selectedShot.value) return
-  emit('update-shot-field', {
-    sb: selectedShot.value,
-    field: 'reference_images',
-    value: JSON.stringify(nextImages.slice(0, 6)),
-  })
-}
-
-const selectedManualReferenceImages = computed(() => (
-  selectedShot.value && props.getShotManualReferenceImages
-    ? props.getShotManualReferenceImages(selectedShot.value)
-    : []
-))
-
-const selectedReferenceImages = computed(() => (
-  selectedShot.value ? props.getShotReferenceImages(selectedShot.value) : []
-))
-
-const selectedReferenceDisplayImages = computed(() => {
-  if (!selectedShot.value) return []
-  const first = getFrameImage(selectedShot.value, 'first_frame')
-  const last = getFrameImage(selectedShot.value, 'last_frame')
-  return selectedReferenceImages.value.filter(src => src !== first && src !== last)
-})
-
-const filteredReferenceOptions = computed(() => (
-  props.referenceOptions.filter(option => option.type === referencePickerTab.value && option.src)
-))
-
-function addReferenceImage(src) {
-  if (!src) return
-  const next = [...selectedManualReferenceImages.value]
-  if (!next.includes(src)) next.unshift(src)
-  saveReferenceImages(next)
-}
-
-function removeReferenceImage(src) {
-  saveReferenceImages(selectedManualReferenceImages.value.filter(item => item !== src))
-}
-
-const frameModeLabel = computed(() => (
-  props.frameMode === 'first_last' ? '首尾帧' : '首帧模式'
-))
-
-const shotGenerationProgress = computed(() => {
-  if (!props.sbs.length) return 0
-  return Math.round((props.shotImgCount / props.sbs.length) * 100)
-})
-
-const selectedResultCards = computed(() => {
-  const frameTypes = props.frameMode === 'first_last'
-    ? ['first_frame', 'last_frame']
-    : ['first_frame']
-
-  if (!selectedShot.value) return []
-
-  return frameTypes.map((frameType) => {
-    const slotLabel = frameType === 'last_frame' ? '尾帧' : '首帧'
-    const imageSrc = getFrameImage(selectedShot.value, frameType)
-    const pending = props.isPendingShotFrame(selectedShot.value.id, frameType)
-    const stateText = getFrameStateText(selectedShot.value, frameType)
-
-    return {
-      key: `${selectedShot.value.id}-${frameType}`,
-      sb: selectedShot.value,
-      frameType,
-      imageSrc,
-      pending,
-      slotLabel,
-      viewerTitle: `镜头 #${selectedShotIndexLabel.value} ${slotLabel}`,
-      actionLabel: getFrameActionLabel(selectedShot.value, frameType),
-      stateText,
-      stateClass: getFrameStateClass(selectedShot.value, frameType),
-      stateNote: pending
-        ? `${slotLabel}正在生成中`
-        : imageSrc
-          ? `${slotLabel}已生成，可查看大图或重新生成`
-          : `当前还没有${slotLabel}，可以直接开始生成`,
-    }
-  })
-})
-
-const selectedHistoryCards = computed(() => {
-  if (!selectedShot.value) return []
-  const history = props.shotImageHistory?.[selectedShot.value.id] || []
-  return history.map((item, index) => ({
-    key: `${selectedShot.value.id}-${item.frameType}-${item.src}-${index}`,
-    ...item,
-    slotLabel: item.frameType === 'last_frame' ? '尾帧' : '首帧',
-  }))
-})
-
-const readyResultCount = computed(() => selectedResultCards.value.filter(card => card.imageSrc).length)
-
-const selectedShotPendingAny = computed(() => (
-  selectedResultCards.value.some(card => card.pending)
-))
-
-function openFrameViewer(card) {
-  if (!card.imageSrc) return
-  openViewer(assetUrl(card.imageSrc), card.viewerTitle)
-}
-
-function generateFrame(card) {
-  savePromptDraft()
-  emit('generate-shot-frame', { sb: card.sb, frameType: card.frameType, quantity: generationQuantity.value })
-}
-
-function generateSingleFrame(frameType) {
-  if (!selectedShot.value) return
-  savePromptDraft()
-  emit('generate-shot-frame', { sb: selectedShot.value, frameType, quantity: generationQuantity.value })
-}
-
-function generateSelectedFrames() {
-  if (!selectedShot.value) return
-  savePromptDraft()
-  emit('generate-shot-frame', { sb: selectedShot.value, frameType: 'first_frame', quantity: generationQuantity.value })
-  if (props.frameMode === 'first_last') {
-    emit('generate-shot-frame', { sb: selectedShot.value, frameType: 'last_frame', quantity: generationQuantity.value })
-  }
-}
-
-function restoreHistoryImage(item) {
-  if (!selectedShot.value || !item?.src || !item?.frameType) return
-  emit('restore-shot-frame', { sb: selectedShot.value, frameType: item.frameType, src: item.src })
-}
 </script>
 
 <style>
