@@ -8,8 +8,8 @@ const componentSource = fs.readFileSync(
   path.resolve(__dirname, '../chapter/ChapterProductionVideos.vue'),
   'utf8',
 )
-const shotFrameStyles = fs.readFileSync(
-  path.resolve(__dirname, '../../assets/production-shot-frames.css'),
+const videoWorkbenchStyles = fs.readFileSync(
+  path.resolve(__dirname, '../../assets/production-video-workbench.css'),
   'utf8',
 )
 
@@ -32,14 +32,14 @@ runTest('result box has a click fallback so missed hits still toggle playback', 
 
 runTest('result video and image render as block, not flex containers', () => {
   // display:flex 加在 <video> 这类替换元素上会破坏部分 Chromium 环境的原生控件命中区
-  const videoRule = shotFrameStyles.match(
+  const videoRule = videoWorkbenchStyles.match(
     /\.video-workbench__result video,\s*\.video-workbench__result img\s*\{[^}]+\}/,
   )?.[0]
   assert.ok(videoRule, 'expected a dedicated rule for result video/img')
   assert.match(videoRule, /display:\s*block/)
   assert.doesNotMatch(videoRule, /display:\s*flex/)
 
-  const emptyRule = shotFrameStyles.match(
+  const emptyRule = videoWorkbenchStyles.match(
     /\.video-workbench__result \.prod-cover-empty\s*\{[^}]+\}/,
   )?.[0]
   assert.ok(emptyRule, 'expected a dedicated rule for the empty cover state')

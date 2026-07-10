@@ -5,7 +5,11 @@ import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const episodeCss = readFileSync(resolve(root, 'assets/episode-studio.css'), 'utf8')
-const productionCss = readFileSync(resolve(root, 'assets/production-shot-frames.css'), 'utf8')
+const sharedCss = readFileSync(resolve(root, 'assets/production-shot-workbench.css'), 'utf8')
+const gridCss = readFileSync(resolve(root, 'assets/production-grid-tool.css'), 'utf8')
+const imageCss = readFileSync(resolve(root, 'assets/production-shot-images.css'), 'utf8')
+const videoCss = readFileSync(resolve(root, 'assets/production-video-workbench.css'), 'utf8')
+const productionCss = [sharedCss, gridCss, imageCss, videoCss].join('\n')
 
 function runTest(name: string, fn: () => void) {
   try {

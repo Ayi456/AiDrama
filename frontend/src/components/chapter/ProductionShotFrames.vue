@@ -711,5 +711,8 @@ const {
 </script>
 
 <style>
-@import url('@/assets/production-shot-frames.css');
+@import url('@/assets/production-shot-workbench.css');
+@import url('@/assets/production-grid-tool.css');
+@import url('@/assets/production-shot-images.css');
+@import url('@/assets/production-video-workbench.css');
 </style>
