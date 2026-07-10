@@ -2,33 +2,9 @@ import mysql, { type Pool, type PoolOptions, type RowDataPacket } from 'mysql2/p
 import { drizzle } from 'drizzle-orm/mysql2'
 import * as schema from './schema.js'
 import { eq } from 'drizzle-orm'
-import path from 'path'
-import { fileURLToPath } from 'url'
 import { backfillPersistedAssetUrls } from './asset-url-backfill.js'
 import { installQueryExecutionHelpers } from './query-helpers.js'
-import { ensureProjectEnvLoaded, parseLooseEnvFile } from '../utils/project-env.js'
-
-ensureProjectEnvLoaded()
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const PROJECT_ROOT = path.resolve(__dirname, '../../..')
-const DEFAULT_DB_NAME = 'AiDrama'
-
-const looseEnv = parseLooseEnvFile(path.join(PROJECT_ROOT, '.env'))
-
-function envValue(...keys: string[]) {
-  for (const key of keys) {
-    const value = process.env[key] ?? looseEnv[key]
-    if (value != null && String(value).trim()) return String(value).trim()
-  }
-  return ''
-}
-
-function numberEnv(defaultValue: number, ...keys: string[]) {
-  const raw = envValue(...keys)
-  const parsed = Number(raw)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultValue
-}
+import { DEFAULT_DB_NAME, mysqlConfig } from './config.js'
 
 function identifier(value: string) {
   if (!/^[A-Za-z0-9_]+$/.test(value)) {
@@ -36,49 +12,6 @@ function identifier(value: string) {
   }
   return `\`${value}\``
 }
-
-function getMysqlConfig(): PoolOptions {
-  const databaseUrl = envValue('DATABASE_URL', 'MYSQL_URL')
-  if (databaseUrl) {
-    const url = new URL(databaseUrl)
-    return {
-      host: url.hostname,
-      port: url.port ? Number(url.port) : 3306,
-      user: decodeURIComponent(url.username),
-      password: decodeURIComponent(url.password),
-      database: decodeURIComponent(url.pathname.replace(/^\/+/, '')) || DEFAULT_DB_NAME,
-      waitForConnections: true,
-      connectionLimit: numberEnv(10, 'DB_CONNECTION_LIMIT', 'MYSQL_CONNECTION_LIMIT'),
-      charset: 'utf8mb4',
-    }
-  }
-
-  const host = envValue('DB_HOST', 'MYSQL_HOST', '主机')
-  const user = envValue('DB_USER', 'MYSQL_USER', '用户名')
-  const password = envValue('DB_PASSWORD', 'MYSQL_PASSWORD', '密码')
-  const database = envValue('DB_NAME', 'MYSQL_DATABASE', 'DATABASE_NAME', '数据库') || DEFAULT_DB_NAME
-
-  const missing = [
-    !host && 'DB_HOST',
-    !user && 'DB_USER',
-  ].filter(Boolean)
-  if (missing.length) {
-    throw new Error(`Missing MySQL database config: ${missing.join(', ')}`)
-  }
-
-  return {
-    host,
-    port: numberEnv(3306, 'DB_PORT', 'MYSQL_PORT', '端口'),
-    user,
-    password,
-    database,
-    waitForConnections: true,
-    connectionLimit: numberEnv(10, 'DB_CONNECTION_LIMIT', 'MYSQL_CONNECTION_LIMIT'),
-    charset: 'utf8mb4',
-  }
-}
-
-const mysqlConfig = getMysqlConfig()
 
 async function ensureDatabaseExists(config: PoolOptions) {
   const database = String(config.database || DEFAULT_DB_NAME)
