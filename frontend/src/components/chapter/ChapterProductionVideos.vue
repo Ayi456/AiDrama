@@ -565,6 +565,13 @@ import {
   getPreviousStoryboard,
 } from '@/composables/chapter/chapterVideoCaptureTargets'
 import { captureVideoFrameFile } from '@/composables/chapter/chapterVideoFrameCapture'
+import {
+  removeKeyedValue,
+  setKeyedValue,
+  storyboardStateKey,
+  uniqueMediaByUrl,
+  uniqueStrings,
+} from '@/composables/chapter/chapterVideoWorkbenchPolicy'
 import { assetUrl } from '@/utils/asset-url'
 
 const props = defineProps({
@@ -589,7 +596,7 @@ const selectedShotIndex = computed(() => (
 ))
 
 const selectedShotIndexLabel = computed(() => String(selectedShotIndex.value + 1).padStart(2, '0'))
-const selectedShotKey = computed(() => String(selectedShot.value?.id || selectedShotIndex.value || 'current'))
+const selectedShotKey = computed(() => storyboardStateKey(selectedShot.value, selectedShotIndex.value))
 const selectedVideoHistory = computed(() => (
   selectedShot.value ? props.state.getVideoHistory(selectedShot.value.id) : []
 ))
@@ -640,17 +647,11 @@ function getResolvedVideoPrompt(shot) {
 }
 
 function setMapValue(source, key, value) {
-  source.value = {
-    ...source.value,
-    [key]: value,
-  }
+  source.value = setKeyedValue(source.value, key, value)
 }
 
 function deleteMapKey(source, key) {
-  if (!Object.prototype.hasOwnProperty.call(source.value, key)) return
-  const next = { ...source.value }
-  delete next[key]
-  source.value = next
+  source.value = removeKeyedValue(source.value, key)
 }
 
 function setStoryboardVideoPrompt(storyboard, value) {
@@ -841,7 +842,7 @@ const sceneReferenceOptions = computed(() => (
 ))
 
 const multimodalImageReferences = computed(() => (
-  uniqueByUrl([
+  uniqueMediaByUrl([
     capturedFrameUrl.value
       ? {
           label: capturedFrameSourceLabel.value || '上一镜头结尾帧',
@@ -1215,7 +1216,7 @@ function setReferenceItems(type, items) {
   const targetRef = mediaRefFor(type)
   targetRef.value = {
     ...targetRef.value,
-    [selectedShotKey.value]: uniqueByUrl(items).slice(0, mediaLimit(type)),
+    [selectedShotKey.value]: uniqueMediaByUrl(items).slice(0, mediaLimit(type)),
   }
 }
 
@@ -1291,18 +1292,6 @@ async function uploadReferenceFiles(type, event) {
   }
 }
 
-function uniqueStrings(values) {
-  return Array.from(new Set(values.map(item => String(item || '').trim()).filter(Boolean)))
-}
-
-function uniqueByUrl(items) {
-  const seen = new Set()
-  return items.filter((item) => {
-    if (!item.url || seen.has(item.url)) return false
-    seen.add(item.url)
-    return true
-  })
-}
 </script>
 
 <style>
