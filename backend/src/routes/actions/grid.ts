@@ -11,6 +11,14 @@ import { presentImageGenerationAsset } from '../../utils/public-asset.js'
 import { errorMessageFromUnknown } from '../../utils/error.js'
 import { readJsonBody, readBodyNumber, readBodyObjectArray } from '../shared/route-body.js'
 import { normalizeGridAssignments } from '../policies/grid-route-policy.js'
+import {
+  buildGridCellPrompts,
+  buildGridPrompt,
+  buildReferenceLegend,
+  findGridPayload,
+  parseGridJsonArray,
+  type GridReferenceAsset,
+} from '../policies/grid-prompt-policy.js'
 import { getCurrentUser } from '../../middleware/auth.js'
 import {
   findOwnedDrama,
@@ -21,47 +29,6 @@ import {
 const app = new Hono()
 
 type GridStoryboardsRow = typeof schema.storyboards.$inferSelect
-
-type GridReferenceAsset = {
-  path: string
-  label: string
-  kind: 'scene' | 'character' | 'storyboard'
-  sceneId?: number
-  characterId?: number
-  storyboardId?: number
-  imageIndex?: number
-  imageLabel?: string
-}
-
-type GridCellPrompt = {
-  shot_number: number
-  frame_type: string
-  prompt: string
-}
-
-type GridPayload = {
-  grid_prompt: string
-  cell_prompts: GridCellPrompt[]
-}
-
-function posLabel(i: number, _rows: number, cols: number) {
-  const r = Math.floor(i / cols), c = i % cols
-  return `row ${r + 1} col ${c + 1}`
-}
-
-function cellLabel(i: number, rows: number, cols: number) {
-  return `格${i + 1}（${posLabel(i, rows, cols)}）`
-}
-
-function safeParseJsonArray(value: unknown): string[] {
-  if (typeof value !== 'string' || !value.trim()) return []
-  try {
-    const parsed = JSON.parse(value)
-    return Array.isArray(parsed) ? parsed.filter(Boolean) : []
-  } catch {
-    return []
-  }
-}
 
 async function getStoryboardCharacterIds(storyboardIds: number[]) {
   if (!storyboardIds.length) return new Map<number, number[]>()
@@ -76,9 +43,10 @@ async function getStoryboardCharacterIds(storyboardIds: number[]) {
   return map
 }
 
-async function collectGridReferenceAssets(storyboards: GridStoryboardsRow[]) {
-  const storyboardIds = storyboards.map((sb) => sb.id)
-  const storyboardCharacterIds = await getStoryboardCharacterIds(storyboardIds)
+async function collectGridReferenceAssets(
+  storyboards: GridStoryboardsRow[],
+  storyboardCharacterIds: Map<number, number[]>,
+) {
   const sceneIds = [...new Set(storyboards.map((sb) => sb.sceneId).filter(Boolean))]
   const characterIds = [...new Set([...storyboardCharacterIds.values()].flat().filter(Boolean))]
 
@@ -113,7 +81,7 @@ async function collectGridReferenceAssets(storyboards: GridStoryboardsRow[]) {
     pushAsset(sb.firstFrameImage, `镜头${sb.storyboardNumber}首帧`, 'storyboard', { storyboardId: sb.id })
     pushAsset(sb.lastFrameImage, `镜头${sb.storyboardNumber}尾帧`, 'storyboard', { storyboardId: sb.id })
     pushAsset(sb.composedImage, `镜头${sb.storyboardNumber}镜头图`, 'storyboard', { storyboardId: sb.id })
-    for (const ref of safeParseJsonArray(sb.referenceImages)) {
+    for (const ref of parseGridJsonArray(sb.referenceImages)) {
       pushAsset(ref, `镜头${sb.storyboardNumber}参考图`, 'storyboard', { storyboardId: sb.id })
     }
   }
@@ -129,252 +97,6 @@ async function collectGridReferenceAssets(storyboards: GridStoryboardsRow[]) {
     imageIndex: index + 1,
     imageLabel: `图片${index + 1}`,
   }))
-}
-
-function buildReferenceLegend(referenceAssets: GridReferenceAsset[]) {
-  if (!referenceAssets.length) return ''
-  return referenceAssets.map((asset) => `${asset.imageLabel}=${asset.label}`).join('；')
-}
-
-function buildStoryboardReferenceHints(
-  sb: GridStoryboardsRow,
-  referenceAssets: GridReferenceAsset[],
-  storyboardCharacterIds: Map<number, number[]>,
-) {
-  const hints: string[] = []
-  const charIds = storyboardCharacterIds.get(sb.id) || []
-
-  for (const asset of referenceAssets) {
-    if (asset.kind === 'scene' && sb.sceneId && asset.sceneId === sb.sceneId) {
-      hints.push(`${asset.imageLabel}（${asset.label}）`)
-    }
-    if (asset.kind === 'character') {
-      if (asset.characterId && charIds.includes(asset.characterId)) {
-        hints.push(`${asset.imageLabel}（${asset.label}）`)
-      }
-    }
-    if (asset.kind === 'storyboard' && asset.storyboardId === sb.id) {
-      hints.push(`${asset.imageLabel}（${asset.label}）`)
-    }
-  }
-
-  return [...new Set(hints)].slice(0, 4)
-}
-
-// Build prompt based on mode
-async function buildGridPrompt(
-  mode: string,
-  storyboards: GridStoryboardsRow[],
-  rows: number,
-  cols: number,
-  dramaStyle: string,
-  referenceAssets: GridReferenceAsset[],
-): Promise<string> {
-  const style = dramaStyle || 'cinematic'
-  const storyboardCharacterIds = await getStoryboardCharacterIds(storyboards.map((sb) => sb.id))
-  const legend = buildReferenceLegend(referenceAssets)
-
-  if (mode === 'first_frame') {
-    // Each cell = one shot's first frame
-    const cells = storyboards.map((sb, i) => {
-      const desc = sb.imagePrompt || sb.description || sb.title || `shot ${i + 1}`
-      const refs = buildStoryboardReferenceHints(sb, referenceAssets, storyboardCharacterIds)
-      return `${cellLabel(i, rows, cols)}: ${refs.length ? `参考${refs.join('、')}，` : ''}${desc}`
-    })
-    return [
-      `${rows}x${cols} grid layout, consistent art style, ${style},`,
-      legend ? `参考图映射：${legend}` : '',
-      '当画面涉及角色或场景时，优先使用对应的图片编号来约束一致性。',
-      ...cells,
-      'high quality, cinematic lighting, no text, no watermark',
-    ].filter(Boolean).join('\n')
-  }
-
-  if (mode === 'first_last') {
-    // Fill the selected grid using first/last-frame style cues, but do not force Nx2 layout.
-    const totalCells = rows * cols
-    const cells = Array.from({ length: totalCells }, (_, i) => {
-      const sb = storyboards[i % storyboards.length]
-      const desc = sb.imagePrompt || sb.description || sb.title || `shot ${i + 1}`
-      const action = sb.action || sb.movement || ''
-      const refs = buildStoryboardReferenceHints(sb, referenceAssets, storyboardCharacterIds)
-      const frameHint = i % 2 === 0
-        ? 'opening moment'
-        : `${action ? `${action}, ` : ''}closing moment, subtle motion change`
-      return `${cellLabel(i, rows, cols)}: ${refs.length ? `参考${refs.join('、')}，` : ''}${desc}, ${frameHint}`
-    })
-    return [
-      `${rows}x${cols} grid layout, consistent art style, ${style},`,
-      legend ? `参考图映射：${legend}` : '',
-      'first/last frame visual rhythm, alternating opening and closing beats across the grid,',
-      ...cells,
-      'continuous motion implied between left and right, high quality, no text',
-    ].filter(Boolean).join('\n')
-  }
-
-  if (mode === 'multi_ref') {
-    // All cells are different angles/compositions of the same shot
-    const sb = storyboards[0]
-    const desc = sb.imagePrompt || sb.description || sb.title || 'scene'
-    const angles = [
-      'wide establishing shot', 'medium shot character focus',
-      'close-up detail', 'dramatic low angle', 'over-the-shoulder view',
-      'bird eye view', 'side profile', 'atmospheric detail',
-      'extreme close-up', 'dutch angle', 'silhouette shot',
-      'depth of field focus', 'symmetrical composition', 'leading lines',
-      'negative space', 'high angle looking down', 'ground level',
-      'panoramic wide', 'intimate two-shot', 'reflection shot',
-      'shadow play', 'backlit silhouette', 'macro detail',
-      'split lighting', 'rim light portrait',
-    ]
-    const totalCells = rows * cols
-    const cells = Array.from({ length: totalCells }, (_, i) => {
-      return `${cellLabel(i, rows, cols)}: ${legend ? `参考${legend}，` : ''}${desc}, ${angles[i % angles.length]}`
-    })
-    return [
-      `${rows}x${cols} grid layout, same scene different angles and compositions, ${style},`,
-      legend ? `参考图映射：${legend}` : '',
-      `main scene: ${desc},`,
-      ...cells,
-      'consistent lighting and color palette, high quality, no text',
-    ].filter(Boolean).join('\n')
-  }
-
-  return `${rows}x${cols} grid, ${style}, storyboard frames, high quality`
-}
-
-async function buildGridCellPrompts(
-  mode: string,
-  storyboards: GridStoryboardsRow[],
-  rows: number,
-  cols: number,
-  referenceAssets: GridReferenceAsset[],
-) {
-  if (!storyboards.length) return []
-  const storyboardCharacterIds = await getStoryboardCharacterIds(storyboards.map((sb) => sb.id))
-
-  if (mode === 'multi_ref') {
-    const sb = storyboards[0]
-    const desc = sb.imagePrompt || sb.description || sb.title || 'scene'
-    const angles = [
-      'wide establishing shot', 'medium shot character focus',
-      'close-up detail', 'dramatic low angle', 'over-the-shoulder view',
-      'bird eye view', 'side profile', 'atmospheric detail',
-      'extreme close-up', 'dutch angle', 'silhouette shot',
-      'depth of field focus', 'symmetrical composition', 'leading lines',
-      'negative space', 'high angle looking down', 'ground level',
-      'panoramic wide', 'intimate two-shot', 'reflection shot',
-      'shadow play', 'backlit silhouette', 'macro detail',
-      'split lighting', 'rim light portrait',
-    ]
-    return Array.from({ length: rows * cols }, (_, i) => ({
-      shot_number: sb.storyboardNumber,
-      frame_type: 'reference',
-      prompt: `${cellLabel(i, rows, cols)}: ${buildStoryboardReferenceHints(sb, referenceAssets, storyboardCharacterIds).join('、')}${buildStoryboardReferenceHints(sb, referenceAssets, storyboardCharacterIds).length ? '，' : ''}${desc}, ${angles[i % angles.length]}`,
-    }))
-  }
-
-  if (mode === 'first_last') {
-    return Array.from({ length: rows * cols }, (_, i) => {
-      const sb = storyboards[i % storyboards.length]
-      const desc = sb.imagePrompt || sb.description || sb.title || `shot ${sb.storyboardNumber || ''}`
-      const motion = sb.action || sb.movement || ''
-      const refs = buildStoryboardReferenceHints(sb, referenceAssets, storyboardCharacterIds)
-      const isFirst = i % 2 === 0
-      return {
-        shot_number: sb.storyboardNumber,
-        frame_type: isFirst ? 'first_frame' : 'last_frame',
-        prompt: isFirst
-          ? `${cellLabel(i, rows, cols)}，首帧：${refs.length ? `参考${refs.join('、')}，` : ''}${desc}${sb.location ? `, ${sb.location}` : ''}${sb.shotType ? `, ${sb.shotType}` : ''}`
-          : `${cellLabel(i, rows, cols)}，尾帧：${refs.length ? `参考${refs.join('、')}，` : ''}${desc}${motion ? `, ${motion}` : ''}${sb.location ? `, ${sb.location}` : ''}${sb.shotType ? `, ${sb.shotType}` : ''}`,
-      }
-    })
-  }
-
-  return storyboards.slice(0, rows * cols).map((sb, index) => {
-    const desc = sb.imagePrompt || sb.description || sb.title || `shot ${sb.storyboardNumber || ''}`
-    const refs = buildStoryboardReferenceHints(sb, referenceAssets, storyboardCharacterIds)
-    return {
-      shot_number: sb.storyboardNumber,
-      frame_type: 'first_frame',
-      prompt: `${cellLabel(index, rows, cols)}：${refs.length ? `参考${refs.join('、')}，` : ''}${desc}${sb.location ? `, ${sb.location}` : ''}${sb.shotType ? `, ${sb.shotType}` : ''}, opening scene`,
-    }
-  })
-}
-
-function extractJsonCandidate(text: string) {
-  const fenced = text.match(/```json\s*([\s\S]*?)```/i)
-  if (fenced?.[1]) return fenced[1].trim()
-
-  const plain = text.match(/\{[\s\S]*\}/)
-  return plain?.[0]?.trim() || ''
-}
-
-function normalizeGridPayload(payload: unknown): GridPayload | null {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
-  const record = payload as Record<string, unknown>
-  const gridPrompt = typeof record.grid_prompt === 'string'
-    ? record.grid_prompt.trim()
-    : typeof record.gridPrompt === 'string'
-      ? record.gridPrompt.trim()
-      : ''
-  const rawCells = Array.isArray(record.cell_prompts)
-    ? record.cell_prompts
-    : Array.isArray(record.cellPrompts)
-      ? record.cellPrompts
-      : []
-  const cellPrompts = rawCells
-    .filter((cell): cell is Record<string, unknown> => !!cell && typeof cell === 'object' && !Array.isArray(cell))
-    .map((cell) => ({
-      shot_number: Number(cell.shot_number ?? cell.shotNumber ?? 0) || 0,
-      frame_type: String(cell.frame_type ?? cell.frameType ?? 'first_frame'),
-      prompt: String(cell.prompt ?? '').trim(),
-    }))
-    .filter((cell) => cell.prompt)
-
-  if (!gridPrompt) return null
-  return { grid_prompt: gridPrompt, cell_prompts: cellPrompts }
-}
-
-function findGridPayload(value: unknown): GridPayload | null {
-  if (!value) return null
-
-  const normalized = normalizeGridPayload(value)
-  if (normalized) return normalized
-
-  if (typeof value === 'string') {
-    const trimmed = value.trim()
-    if (!trimmed || trimmed === 'null') return null
-    try {
-      const parsed = JSON.parse(trimmed)
-      return findGridPayload(parsed)
-    } catch {
-      const candidate = extractJsonCandidate(trimmed)
-      if (!candidate) return null
-      try {
-        return findGridPayload(JSON.parse(candidate))
-      } catch {
-        return null
-      }
-    }
-  }
-
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const found = findGridPayload(item)
-      if (found) return found
-    }
-    return null
-  }
-
-  if (typeof value === 'object') {
-    for (const nested of Object.values(value)) {
-      const found = findGridPayload(nested)
-      if (found) return found
-    }
-  }
-
-  return null
 }
 
 async function tryAgentGridPrompt(
@@ -452,7 +174,8 @@ app.post('/prompt', async (c) => {
   const actualCols = cols
   const actualRows = rows
   const resolvedEpisodeId = Number(episodeId || storyboards[0]?.episodeId || 0)
-  const referenceAssets = await collectGridReferenceAssets(storyboards)
+  const storyboardCharacterIds = await getStoryboardCharacterIds(storyboardIds)
+  const referenceAssets = await collectGridReferenceAssets(storyboards, storyboardCharacterIds)
   const referenceLegend = buildReferenceLegend(referenceAssets)
 
   if (!resolvedEpisodeId) {
@@ -496,8 +219,23 @@ app.post('/prompt', async (c) => {
     })
   }
 
-  const gridPrompt = await buildGridPrompt(mode, storyboards, actualRows, actualCols, dramaStyle, referenceAssets)
-  const cellPrompts = await buildGridCellPrompts(mode, storyboards, actualRows, actualCols, referenceAssets)
+  const gridPrompt = buildGridPrompt(
+    mode,
+    storyboards,
+    actualRows,
+    actualCols,
+    dramaStyle,
+    referenceAssets,
+    storyboardCharacterIds,
+  )
+  const cellPrompts = buildGridCellPrompts(
+    mode,
+    storyboards,
+    actualRows,
+    actualCols,
+    referenceAssets,
+    storyboardCharacterIds,
+  )
   logTaskProgress('GridPrompt', 'fallback-used', {
     episodeId: resolvedEpisodeId,
     dramaId,
@@ -551,8 +289,17 @@ app.post('/generate', async (c) => {
     dramaStyle = drama?.style || ''
   }
 
-  const referenceAssets = await collectGridReferenceAssets(storyboards)
-  const prompt = customPrompt || await buildGridPrompt(mode, storyboards, rows, cols, dramaStyle, referenceAssets)
+  const storyboardCharacterIds = await getStoryboardCharacterIds(storyboardIds)
+  const referenceAssets = await collectGridReferenceAssets(storyboards, storyboardCharacterIds)
+  const prompt = customPrompt || buildGridPrompt(
+    mode,
+    storyboards,
+    rows,
+    cols,
+    dramaStyle,
+    referenceAssets,
+    storyboardCharacterIds,
+  )
   const referenceImages = referenceAssets.map((asset) => asset.path)
 
   // Size: first_last mode uses Nx2 layout
@@ -642,7 +389,7 @@ app.post('/split', async (c) => {
       else if (frameType === 'last_frame') update.lastFrameImage = publicPath
       else if (frameType === 'reference') {
         const [sb] = (await db.select().from(schema.storyboards).where(eq(schema.storyboards.id, storyboardId)).all())
-        const existing = safeParseJsonArray(sb?.referenceImages).slice()
+        const existing = parseGridJsonArray(sb?.referenceImages).slice()
         existing.push(publicPath)
         update.referenceImages = JSON.stringify(existing)
       }
