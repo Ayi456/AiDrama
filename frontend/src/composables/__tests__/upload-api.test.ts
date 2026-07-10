@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict'
 
+import { uploadAPI } from '../../api/auth.ts'
 import { normalizeApiErrorMessage } from '../../api/errors.ts'
-import { uploadAPI } from '../useApi.ts'
+import { uploadAPI as facadeUploadAPI } from '../useApi.ts'
+
+assert.strictEqual(facadeUploadAPI, uploadAPI)
 
 function jsonResponse(status: number, payload: unknown) {
   return new Response(JSON.stringify(payload), {

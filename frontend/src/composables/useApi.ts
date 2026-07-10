@@ -39,12 +39,6 @@ export type AuthSmsCodePayload = {
   dev_code?: string
   expires_in?: number
 }
-type DirectUploadTarget = UploadResult & {
-  upload_url?: string
-  uploadUrl?: string
-  method?: string
-  headers?: Record<string, string>
-}
 export type Drama = ApiEntity & { title?: string; characters?: DramaCharacter[]; scenes?: Scene[] }
 export type Episode = ApiEntity & { drama_id?: number; dramaId?: number; title?: string }
 export type CharacterAsset = ApiEntity & {
@@ -387,36 +381,6 @@ async function req<T = ApiEntity>(method: ApiMethod, path: string, body?: ApiReq
   }
 }
 
-async function uploadReq<T = ApiEntity>(path: string, formData: FormData): Promise<T> {
-  const start = performance.now()
-  console.log(`%c[API] %cPOST %c${path}`, 'color:#888', 'color:#4fc3f7;font-weight:bold', 'color:#ccc', '[multipart]')
-
-  try {
-    const resp = await fetch(`${BASE}${path}`, {
-      method: 'POST',
-      credentials: 'include',
-      body: formData,
-    })
-    const json = await resp.json() as ApiEnvelope<T>
-    const ms = Math.round(performance.now() - start)
-
-    if (!resp.ok || (json.code && json.code >= 400)) {
-      console.log(`%c[API] %cPOST ${path} %c${resp.status} %c${ms}ms`, 'color:#888', 'color:#ef5350', 'color:#ef5350;font-weight:bold', 'color:#888', json.message || '')
-      throw new Error(normalizeApiErrorMessage(json.message || `${resp.status}`))
-    }
-
-    console.log(`%c[API] %cPOST ${path} %c${resp.status} %c${ms}ms`, 'color:#888', 'color:#66bb6a', 'color:#66bb6a;font-weight:bold', 'color:#888')
-    return (json.data ?? json) as T
-  } catch (err: unknown) {
-    const message = getErrorMessage(err)
-    if (!message.match(/^\d{3}$/)) {
-      const ms = Math.round(performance.now() - start)
-      console.log(`%c[API] %cPOST ${path} %cERROR %c${ms}ms`, 'color:#888', 'color:#ef5350', 'color:#ef5350;font-weight:bold', 'color:#888', message)
-    }
-    throw err
-  }
-}
-
 export const api = {
   get: <T = ApiEntity>(p: string) => req<T>('GET', p),
   post: <T = ApiEntity>(p: string, b?: ApiRequestBody) => req<T>('POST', p, b),
@@ -425,144 +389,17 @@ export const api = {
   del: <T = ApiEntity>(p: string) => req<T>('DELETE', p),
 }
 
-export const authAPI = {
-  login: (data: AuthLoginPayload) => api.post<AuthSession>('/auth/login', data),
-  register: (data: AuthRegisterPayload) => api.post<AuthSession>('/auth/register', data),
-  session: () => api.get<{ user: AuthUser }>('/auth/session'),
-  sendRegisterCode: (phone: string) => api.post<AuthSmsCodePayload>('/auth/sms-code', { phone }),
-  logout: () => api.post('/auth/logout', {}),
-}
+export { authAPI, uploadAPI } from '../api/auth.ts'
 
-function uploadImageMultipart(file: File) {
-  const formData = new FormData()
-  formData.append('file', file)
-  return uploadReq<UploadResult>('/upload/image', formData)
-}
-
-async function requestDirectImageUpload(file: File) {
-  return api.post<DirectUploadTarget>('/upload/image/direct', {
-    filename: file.name,
-    content_type: file.type,
-    size: file.size,
-  })
-}
-
-async function uploadToDirectTarget(file: File, target: DirectUploadTarget) {
-  const uploadUrl = target.upload_url || target.uploadUrl
-  if (!uploadUrl || !target.url || !target.path) {
-    throw new Error('Direct upload target is invalid')
-  }
-
-  const resp = await fetch(uploadUrl, {
-    method: target.method || 'PUT',
-    headers: target.headers || {},
-    body: file,
-  })
-  if (resp.ok) return
-
-  const text = await resp.text().catch(() => '')
-  const detail = text ? `: ${text.slice(0, 200)}` : ''
-  throw new Error(`COS direct upload failed ${resp.status}${detail}`)
-}
-
-export const uploadAPI = {
-  image: async (file: File) => {
-    let target: DirectUploadTarget
-    try {
-      target = await requestDirectImageUpload(file)
-    } catch (error) {
-      console.warn('[Upload] Direct image upload is unavailable, falling back to multipart upload.', error)
-      return uploadImageMultipart(file)
-    }
-
-    await uploadToDirectTarget(file, target)
-    return { url: target.url, path: target.path }
-  },
-  video: (file: File) => {
-    const formData = new FormData()
-    formData.append('file', file)
-    return uploadReq<UploadResult>('/upload/video', formData)
-  },
-  audio: (file: File) => {
-    const formData = new FormData()
-    formData.append('file', file)
-    return uploadReq<UploadResult>('/upload/audio', formData)
-  },
-}
-
-export const dramaAPI = {
-  list: () => api.get<ApiList<Drama>>('/dramas'),
-  get: (id: number) => api.get<Drama>(`/dramas/${id}`),
-  create: (data: ApiRequestBody) => api.post<Drama>('/dramas', data),
-  update: (id: number, data: ApiRequestBody) => api.put<Drama>(`/dramas/${id}`, data),
-  del: (id: number) => api.del(`/dramas/${id}`),
-}
-
-export const chapterAPI = {
-  create: (data: ApiRequestBody) => api.post<Episode>('/chapters', data),
-  update: (id: number, data: ApiRequestBody) => api.put<Episode>(`/chapters/${id}`, data),
-  characters: (id: number) => api.get<DramaCharacter[]>(`/chapters/${id}/characters`),
-  scenes: (id: number) => api.get<Scene[]>(`/chapters/${id}/scenes`),
-  storyboards: (id: number) => api.get<Storyboard[]>(`/chapters/${id}/storyboards`),
-  pipelineStatus: (id: number) => api.get(`/chapters/${id}/pipeline-status`),
-}
-
-export const storyboardAPI = {
-  create: (data: ApiRequestBody) => api.post<Storyboard>('/storyboards', data),
-  update: (id: number, data: ApiRequestBody) => api.put<Storyboard>(`/storyboards/${id}`, data),
-  del: (id: number) => api.del(`/storyboards/${id}`),
-}
-
-export const characterAPI = {
-  create: (data: ApiRequestBody) => api.post<DramaCharacter>('/characters', data),
-  update: (id: number, data: ApiRequestBody) => api.put<DramaCharacter>(`/characters/${id}`, data),
-  bindAsset: (id: number, assetId: number) => api.post(`/characters/${id}/bind-asset`, { character_asset_id: assetId }),
-  unbindAsset: (id: number) => api.del(`/characters/${id}/bind-asset`),
-  generateImage: (id: number, episodeId: number) => api.post<ImageGenerationStart>(`/characters/${id}/generate-image`, { episode_id: episodeId }),
-  batchImages: (ids: number[], episodeId: number) => api.post('/characters/batch-generate-images', { character_ids: ids, episode_id: episodeId }),
-}
-
-export const characterAssetAPI = {
-  list: () => api.get<CharacterAsset[]>('/character-assets'),
-  create: (data: ApiRequestBody) => api.post<CharacterAsset>('/character-assets', data),
-  update: (id: number, data: ApiRequestBody) => api.put<CharacterAsset>(`/character-assets/${id}`, data),
-  setDefault: (id: number) => api.post<CharacterAsset>(`/character-assets/${id}/default`),
-  del: (id: number) => api.del(`/character-assets/${id}`),
-}
-
-export const sceneAPI = {
-  create: (data: ApiRequestBody) => api.post<Scene>('/scenes', data),
-  update: (id: number, data: ApiRequestBody) => api.put<Scene>(`/scenes/${id}`, data),
-  generateImage: (id: number, episodeId: number) => api.post<ImageGenerationStart>(`/scenes/${id}/generate-image`, { episode_id: episodeId }),
-}
-
-export const imageAPI = {
-  generate: (d: ApiRequestBody) => api.post<ImageGeneration>('/images', d),
-  get: (id: number) => api.get<ImageGeneration>(`/images/${id}`),
-  list: (params?: { drama_id?: number; storyboard_id?: number }) => {
-    const query = new URLSearchParams()
-    if (params?.drama_id) query.set('drama_id', String(params.drama_id))
-    if (params?.storyboard_id) query.set('storyboard_id', String(params.storyboard_id))
-    return api.get<ImageGeneration[]>(`/images${query.size ? `?${query.toString()}` : ''}`)
-  },
-}
-export const gridAPI = {
-  prompt: (d: ApiRequestBody) => api.post<GridPromptResponse>('/grid/prompt', d),
-  generate: (d: ApiRequestBody) => api.post<GridGenerateResponse>('/grid/generate', d),
-  status: (id: number) => api.get<ImageGeneration>(`/grid/status/${id}`),
-  split: (d: ApiRequestBody) => api.post('/grid/split', d),
-}
-export const videoAPI = {
-  generate: (d: ApiRequestBody) => api.post<VideoGeneration>('/videos', d),
-  get: (id: number) => api.get<VideoGeneration>(`/videos/${id}`),
-  retryBilling: (id: number) => api.post<VideoGeneration>(`/videos/${id}/billing/retry`, {}),
-  list: (params?: { drama_id?: number; storyboard_id?: number }) => {
-    const query = new URLSearchParams()
-    if (params?.drama_id) query.set('drama_id', String(params.drama_id))
-    if (params?.storyboard_id) query.set('storyboard_id', String(params.storyboard_id))
-    return api.get<VideoGeneration[]>(`/videos${query.size ? `?${query.toString()}` : ''}`)
-  },
-}
+export {
+  chapterAPI,
+  characterAPI,
+  characterAssetAPI,
+  dramaAPI,
+  sceneAPI,
+  storyboardAPI,
+} from '../api/projects.ts'
+export { composeAPI, gridAPI, imageAPI, mergeAPI, videoAPI } from '../api/media.ts'
 function paginationQuery(params?: PaginationParams | number) {
   const query = new URLSearchParams()
   if (typeof params === 'number') {
@@ -596,20 +433,6 @@ export const paymentAPI = {
   },
   continueOrder: (orderNo: string) => api.post<RechargeOrder>(`/payments/orders/${encodeURIComponent(orderNo)}/pay`, {}),
   cancelOrder: (orderNo: string) => api.post<PaymentOrder>(`/payments/orders/${encodeURIComponent(orderNo)}/cancel`, {}),
-}
-export const composeAPI = {
-  shot: (id: number) => api.post(`/compose/storyboards/${id}/compose`),
-  all: (epId: number) => api.post(`/compose/chapters/${epId}/compose-all`),
-  status: (epId: number) => api.get(`/compose/chapters/${epId}/compose-status`),
-}
-export const mergeAPI = {
-  merge: (epId: number, storyboardIds?: number[], clips?: MergeClipSelection[]) => {
-    const body: Record<string, unknown> = {}
-    if (Array.isArray(storyboardIds)) body.storyboard_ids = storyboardIds
-    if (Array.isArray(clips)) body.clips = clips
-    return api.post(`/merge/chapters/${epId}/merge`, Object.keys(body).length ? body : undefined)
-  },
-  status: (epId: number) => api.get(`/merge/chapters/${epId}/merge`),
 }
 export const aiConfigAPI = {
   list: (t?: string) => api.get<AiConfig[]>(`/ai-configs${t ? `?service_type=${t}` : ''}`),
