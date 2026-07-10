@@ -1,5 +1,5 @@
 import { setVideoPricePerSecond } from '../services/billing/billing-settings.js'
-import { mysqlPool } from '../db/index.js'
+import { ensureDatabaseReady, mysqlPool } from '../db/index.js'
 
 const value = process.env.VIDEO_PRICE_PER_SECOND
 
@@ -8,6 +8,7 @@ if (!value) {
   process.exitCode = 1
 } else {
   try {
+    await ensureDatabaseReady()
     const saved = await setVideoPricePerSecond(value)
     console.log(`video_price_per_second=${saved}`)
   } catch (error) {
