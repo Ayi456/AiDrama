@@ -14,7 +14,7 @@ function latestImageJoin(
   frameCondition = '',
 ) {
   return `
-    SELECT ig.${ownerColumn}, ig.minio_url
+    SELECT ig.${ownerColumn}, ig.minio_url, ig.local_path
       FROM image_generations ig
       JOIN (
         SELECT ${ownerColumn}, MAX(id) AS id
@@ -76,7 +76,9 @@ export function buildAssetUrlBackfillSteps(now = new Date().toISOString()): Back
         JOIN (${latestImageJoin('character_id')}) latest ON latest.character_id = c.id
            SET c.image_url = latest.minio_url,
                c.updated_at = ?
-         WHERE c.image_url IS NULL OR c.image_url = '' OR c.image_url <> latest.minio_url
+         WHERE (c.image_url IS NULL OR c.image_url = '')
+            OR (c.image_url <> latest.minio_url
+                AND c.local_path = latest.local_path)
       `,
       params: [now],
     },
@@ -87,7 +89,9 @@ export function buildAssetUrlBackfillSteps(now = new Date().toISOString()): Back
         JOIN (${latestImageJoin('scene_id')}) latest ON latest.scene_id = s.id
            SET s.image_url = latest.minio_url,
                s.updated_at = ?
-         WHERE s.image_url IS NULL OR s.image_url = '' OR s.image_url <> latest.minio_url
+         WHERE (s.image_url IS NULL OR s.image_url = '')
+            OR (s.image_url <> latest.minio_url
+                AND s.local_path = latest.local_path)
       `,
       params: [now],
     },
@@ -164,7 +168,9 @@ export function buildAssetUrlBackfillCheckQuery(): string {
         SELECT 'characters.image_url' AS name, COUNT(*) AS remaining
           FROM characters c
           JOIN (${latestImageJoin('character_id')}) latest ON latest.character_id = c.id
-         WHERE c.image_url IS NULL OR c.image_url = '' OR c.image_url <> latest.minio_url
+         WHERE (c.image_url IS NULL OR c.image_url = '')
+            OR (c.image_url <> latest.minio_url
+                AND c.local_path = latest.local_path)
       `,
     },
     {
@@ -173,7 +179,9 @@ export function buildAssetUrlBackfillCheckQuery(): string {
         SELECT 'scenes.image_url' AS name, COUNT(*) AS remaining
           FROM scenes s
           JOIN (${latestImageJoin('scene_id')}) latest ON latest.scene_id = s.id
-         WHERE s.image_url IS NULL OR s.image_url = '' OR s.image_url <> latest.minio_url
+         WHERE (s.image_url IS NULL OR s.image_url = '')
+            OR (s.image_url <> latest.minio_url
+                AND s.local_path = latest.local_path)
       `,
     },
     {
