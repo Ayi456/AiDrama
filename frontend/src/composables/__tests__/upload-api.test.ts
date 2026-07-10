@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 
-import { normalizeApiErrorMessage, uploadAPI } from '../useApi.ts'
+import { normalizeApiErrorMessage } from '../../api/errors.ts'
+import { uploadAPI } from '../useApi.ts'
 
 function jsonResponse(status: number, payload: unknown) {
   return new Response(JSON.stringify(payload), {
