@@ -57,8 +57,26 @@ function splitOversizedPart(part: string, maxChars: number) {
   if (part.length <= maxChars) return [part]
 
   const chunks: string[] = []
-  for (let start = 0; start < part.length; start += maxChars) {
-    chunks.push(part.slice(start, start + maxChars).trim())
+  let start = 0
+  while (start < part.length) {
+    const hardEnd = Math.min(part.length, start + maxChars)
+    if (hardEnd === part.length) {
+      chunks.push(part.slice(start).trim())
+      break
+    }
+
+    const preferredFloor = start + Math.floor(maxChars * 0.55)
+    let end = hardEnd
+    for (let cursor = hardEnd; cursor > preferredFloor; cursor--) {
+      if (/[\n。！？；!?;]/.test(part[cursor - 1] || '')) {
+        end = cursor
+        break
+      }
+    }
+
+    const chunk = part.slice(start, end).trim()
+    if (chunk) chunks.push(chunk)
+    start = end
   }
   return chunks.filter(Boolean)
 }

@@ -51,6 +51,42 @@ function defaultUpdateChapter(id: number, payload: ChapterUpdatePayload) {
   return chapterAPI.update(id, payload)
 }
 
+function firstConfiguredModel(config: AiConfig | undefined) {
+  if (!config) return ''
+  if (Array.isArray(config.model)) return String(config.model[0] || '')
+  return String(config.model || '')
+}
+
+function configuredDurations(settings: Record<string, unknown>) {
+  const raw = settings.allowedDurations
+    || settings.allowed_durations
+    || settings.durationOptions
+    || settings.duration_options
+  if (!Array.isArray(raw)) return undefined
+  const values = raw
+    .map(Number)
+    .filter(value => Number.isInteger(value) && value >= 4 && value <= 15)
+  return values.length ? [...new Set(values)] : undefined
+}
+
+function buildVideoConstraints(config: AiConfig | undefined) {
+  const settings = config?.settings || {}
+  const control = settings.control && typeof settings.control === 'object' && !Array.isArray(settings.control)
+    ? settings.control
+    : undefined
+  return {
+    provider: config?.provider || 'default',
+    model: firstConfiguredModel(config) || 'default',
+    duration_seconds: {
+      min: 4,
+      max: 15,
+      allowed: configuredDurations(settings),
+    },
+    control,
+    instruction: '只依据这些已知约束规划，不要根据模型名称猜测未提供的能力。',
+  }
+}
+
 export function useChapterScriptDesk(options: ChapterScriptDeskOptions) {
   const localRaw = ref('')
   const localScript = ref('')
@@ -165,9 +201,10 @@ export function useChapterScriptDesk(options: ChapterScriptDeskOptions) {
   function doBreakdown() {
     const config = options.videoConfigs.value.find(item => item.id === options.lockedVideoConfigId.value)
     const label = config ? `${config.name} (${config.provider})` : '默认'
+    const constraints = buildVideoConstraints(config)
     options.runAgent(
       'storyboard_breaker',
-      `请拆解分镜并生成视频提示词。视频模型：${label}，请根据该模型的特性和时长限制生成合适的视频提示词。`,
+      `请拆解分镜并生成视频提示词。视频模型：${label}。严格依据以下 video_constraints，不要猜测未声明的模型能力：${JSON.stringify(constraints)}`,
       options.dramaId,
       options.epId.value,
       options.refresh,

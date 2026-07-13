@@ -50,8 +50,28 @@ export type ChapterStoryboard = Storyboard & {
   atmosphere?: string
   image_prompt?: string
   imagePrompt?: string
+  first_frame_prompt?: string
+  firstFramePrompt?: string
+  last_frame_prompt?: string
+  lastFramePrompt?: string
   video_prompt?: string
   videoPrompt?: string
+  transition_in?: string
+  transitionIn?: string
+  transition_out?: string
+  transitionOut?: string
+  screen_direction?: string
+  screenDirection?: string
+  audio_bridge?: string
+  audioBridge?: string
+  negative_prompt?: string
+  negativePrompt?: string
+  fallback_plan?: string
+  fallbackPlan?: string
+  handle_in_ms?: number
+  handleInMs?: number
+  handle_out_ms?: number
+  handleOutMs?: number
   character_ids?: number[]
   characterIds?: number[]
   scene_id?: number

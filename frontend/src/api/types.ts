@@ -91,6 +91,26 @@ export type Storyboard = ApiEntity & {
   emotionShift?: string | null
   dramatic_value?: string | null
   dramaticValue?: string | null
+  first_frame_prompt?: string | null
+  firstFramePrompt?: string | null
+  last_frame_prompt?: string | null
+  lastFramePrompt?: string | null
+  transition_in?: string | null
+  transitionIn?: string | null
+  transition_out?: string | null
+  transitionOut?: string | null
+  screen_direction?: string | null
+  screenDirection?: string | null
+  audio_bridge?: string | null
+  audioBridge?: string | null
+  negative_prompt?: string | null
+  negativePrompt?: string | null
+  fallback_plan?: string | null
+  fallbackPlan?: string | null
+  handle_in_ms?: number | null
+  handleInMs?: number | null
+  handle_out_ms?: number | null
+  handleOutMs?: number | null
   first_frame_image?: string
   firstFrameImage?: string
   last_frame_image?: string

@@ -258,19 +258,25 @@ function buildSubjectSceneText(storyboard: ChapterStoryboard) {
   return `${subject}在${scene}中完成本镜头动作；不要扩展到未写明的人物或地点。`
 }
 
-function buildMotionBeatText(input: {
-  title: string
-  description: string
-  action: string
-}) {
-  const { title, description, action } = input
-  const beats: string[] = []
-  if (description) beats.push(`镜头1：${description}`)
-  if (action && action !== description) {
-    beats.push(`镜头2：按动作描述推进，但停在结束画面前：${action}`)
+function buildTimedMotionText(storyboard: ChapterStoryboard, action: string, result: string) {
+  const duration = Math.min(15, Math.max(4, Math.round(Number(storyboard.duration) || 10)))
+  const readHandle = (value: unknown) => {
+    const milliseconds = Number(value)
+    return Number.isFinite(milliseconds) ? Math.min(1500, Math.max(0, milliseconds)) / 1000 : 0.5
   }
-  if (!beats.length) beats.push(`镜头1：${title || '按本镜头剧情自然推进'}`)
-  return beats.join('\n')
+  const handleIn = Math.min(readHandle(storyboard.handle_in_ms ?? storyboard.handleInMs), duration / 4)
+  const handleOut = Math.min(readHandle(storyboard.handle_out_ms ?? storyboard.handleOutMs), duration / 4)
+  const mainEnd = duration - handleOut
+  const time = (value: number) => value.toFixed(1)
+  const transitionIn = textValue(storyboard.transition_in || storyboard.transitionIn) || '保持首帧构图，仅有自然呼吸和环境微动'
+  const transitionOut = textValue(storyboard.transition_out || storyboard.transitionOut) || result || '保持可供下一镜头承接的尾帧状态'
+  const mainAction = action || '按本镜头描述自然推进，在尾帧状态前停止'
+
+  return [
+    handleIn > 0 ? `0.0-${time(handleIn)}秒：${transitionIn}。` : '',
+    `${time(handleIn)}-${time(mainEnd)}秒：${mainAction}；动作连续完成，但不提前进入下一镜头。`,
+    handleOut > 0 ? `${time(mainEnd)}-${time(duration)}秒：${transitionOut}；稳定保持尾帧，不继续下一动作。` : '',
+  ].filter(Boolean).join('')
 }
 
 function buildVideoGenerationPrompt(storyboard: ChapterStoryboard) {
@@ -279,20 +285,27 @@ function buildVideoGenerationPrompt(storyboard: ChapterStoryboard) {
   const action = textValue(storyboard.action)
   const result = textValue(storyboard.result)
   const atmosphere = textValue(storyboard.atmosphere)
-  const start = description || action || title || '保持本镜头开场状态'
-  const forbidden = buildForbiddenDirectives(storyboard).join('；')
+  const firstFrame = textValue(storyboard.first_frame_prompt || storyboard.firstFramePrompt) || description || action || title || '保持本镜头开场状态'
+  const lastFrame = textValue(storyboard.last_frame_prompt || storyboard.lastFramePrompt) || result || '停在本镜头动作的自然落点，保持可被下一镜头直接承接的状态'
+  const transitionIn = textValue(storyboard.transition_in || storyboard.transitionIn)
+  const transitionOut = textValue(storyboard.transition_out || storyboard.transitionOut)
+  const screenDirection = textValue(storyboard.screen_direction || storyboard.screenDirection) || '保持本镜头既定人物走位、视线轴和运动方向'
+  const audioBridge = textValue(storyboard.audio_bridge || storyboard.audioBridge) || '环境底噪连续，无额外声音桥'
+  const negativePrompt = textValue(storyboard.negative_prompt || storyboard.negativePrompt)
+  const fallbackPlan = textValue(storyboard.fallback_plan || storyboard.fallbackPlan) || '若精细交互不稳定，降低动作幅度并保持固定运镜；不得改变剧情结果和尾帧状态'
+  const forbidden = [...buildForbiddenDirectives(storyboard), negativePrompt].filter(Boolean).join('；')
 
   return [
     title ? `镜头标题：${title}` : '',
     `主体与场景：${buildSubjectSceneText(storyboard)}`,
-    `起始画面：${start}`,
-    `镜头限制：${buildShotLimitText(storyboard)}`,
-    `动作节奏：\n${buildMotionBeatText({ title, description, action })}`,
-    result ? `结束画面：${result}` : '结束画面：停在本镜头动作的自然落点，保持可被下一镜头直接承接的状态。',
-    atmosphere ? `氛围：${atmosphere}` : '',
+    `入场与首帧：${[transitionIn, firstFrame].filter(Boolean).join('；')}`,
+    `分秒时间轴：${buildTimedMotionText(storyboard, action || description, result)}`,
+    `运镜与画面：${buildShotLimitText(storyboard)}；${screenDirection}${atmosphere ? `；${atmosphere}` : ''}`,
+    `出场与尾帧：${[transitionOut, lastFrame].filter(Boolean).join('；')}`,
+    `声音与对白：${audioBridge}`,
     '画质与风格：高清，真实短剧电影感，色彩自然，光线稳定，人物面部和服装保持一致，动作低缓连续。',
     `约束与禁止项：${forbidden}`,
-    '请生成节奏自然、动作连贯、电影感强的单镜头视频；不要强行按精确秒数卡动作。',
+    `失败降级：${fallbackPlan}`,
   ].filter(Boolean).join('\n')
 }
 
@@ -477,7 +490,7 @@ function buildMultimodalReferenceBindingPrompt(input: {
 }
 
 function isVideoPromptSectionHeader(line: string) {
-  return /^(镜头标题|主体与场景|起始画面|镜头限制|原始镜头意图|动作节奏|结束画面|氛围|画质与风格|约束与禁止项|对白\/旁白)[:：]/.test(line)
+  return /^(镜头标题|主体与场景|入场与首帧|分秒时间轴|运镜与画面|出场与尾帧|声音与对白|画质与风格|约束与禁止项|失败降级|对白\/旁白)[:：]/.test(line)
 }
 
 function isReferenceBindingLine(line: string) {
@@ -533,14 +546,18 @@ export function buildShotImagePrompt(input: {
 }) {
   const { storyboard, frameType, aspectRatio, characterNames, sceneName } = input
   const title = storyboard.title || ''
-  const description = storyboard.image_prompt || storyboard.imagePrompt || storyboard.description || ''
+  const description = frameType === 'first_frame'
+    ? storyboard.first_frame_prompt || storyboard.firstFramePrompt || storyboard.image_prompt || storyboard.imagePrompt || storyboard.description || ''
+    : storyboard.last_frame_prompt || storyboard.lastFramePrompt || storyboard.image_prompt || storyboard.imagePrompt || storyboard.result || storyboard.description || ''
   const shotType = storyboard.shot_type || storyboard.shotType || ''
   const angle = storyboard.angle || ''
   const movement = storyboard.movement || ''
   const location = storyboard.location || sceneName
   const time = storyboard.time || ''
   const charactersText = characterNames.join('、')
-  const action = storyboard.action || ''
+  const action = frameType === 'first_frame'
+    ? storyboard.action || ''
+    : storyboard.result || storyboard.action || ''
   const atmosphere = storyboard.atmosphere || ''
   const frameHint = frameType === 'first_frame'
     ? '生成这个镜头的起始关键帧，突出建立关系和动作开始瞬间。'

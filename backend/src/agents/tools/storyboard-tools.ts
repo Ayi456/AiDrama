@@ -171,7 +171,17 @@ async function insertStoryboards(episodeId: number, dramaId: number, storyboards
       dramaticValue: storyboard.dramatic_value,
       atmosphere: storyboard.atmosphere,
       imagePrompt: storyboard.image_prompt,
+      firstFramePrompt: storyboard.first_frame_prompt,
+      lastFramePrompt: storyboard.last_frame_prompt,
       videoPrompt: appendDialogueToVideoPrompt(storyboard.video_prompt, storyboard.dialogue) || undefined,
+      transitionIn: storyboard.transition_in,
+      transitionOut: storyboard.transition_out,
+      screenDirection: storyboard.screen_direction,
+      audioBridge: storyboard.audio_bridge,
+      negativePrompt: storyboard.negative_prompt,
+      fallbackPlan: storyboard.fallback_plan,
+      handleInMs: storyboard.handle_in_ms,
+      handleOutMs: storyboard.handle_out_ms,
       bgmPrompt: storyboard.bgm_prompt,
       soundEffect: storyboard.sound_effect,
       sceneId: storyboard.scene_id,
@@ -197,12 +207,23 @@ async function updateEpisodeDurationFromStoryboards(episodeId: number) {
   return totalDuration
 }
 
-async function buildExistingStoryboardPayload(episodeId: number) {
+type StoryboardContextOptions = {
+  includeExistingStoryboards?: boolean
+  existingStoryboardLimit?: number
+}
+
+async function buildExistingStoryboardPayload(episodeId: number, limit?: number) {
   const existingStoryboards = (await db.select().from(schema.storyboards)
     .where(eq(schema.storyboards.episodeId, episodeId)).all())
 
-  return Promise.all(existingStoryboards
+  const orderedStoryboards = existingStoryboards
     .filter(storyboard => !storyboard.deletedAt)
+    .sort((left, right) => (left.storyboardNumber || 0) - (right.storyboardNumber || 0))
+  const selectedStoryboards = limit && limit > 0
+    ? orderedStoryboards.slice(-limit)
+    : orderedStoryboards
+
+  return Promise.all(selectedStoryboards
     .map(async storyboard => ({
       id: storyboard.id,
       shot_number: storyboard.storyboardNumber,
@@ -212,11 +233,30 @@ async function buildExistingStoryboardPayload(episodeId: number) {
         .where(eq(schema.storyboardCharacters.storyboardId, storyboard.id)).all())
         .map(link => link.characterId),
       shot_type: storyboard.shotType || '',
+      angle: storyboard.angle || '',
+      movement: storyboard.movement || '',
+      location: storyboard.location || '',
+      time: storyboard.time || '',
+      action: storyboard.action || '',
+      dialogue: storyboard.dialogue || '',
+      description: storyboard.description || '',
+      result: storyboard.result || '',
+      first_frame_prompt: storyboard.firstFramePrompt || '',
+      last_frame_prompt: storyboard.lastFramePrompt || '',
+      transition_in: storyboard.transitionIn || '',
+      transition_out: storyboard.transitionOut || '',
+      screen_direction: storyboard.screenDirection || '',
+      audio_bridge: storyboard.audioBridge || '',
       duration: storyboard.duration || 0,
     })))
 }
 
-export async function buildStoryboardContext(episodeId: number, dramaId: number, scriptChunk?: StoryboardChunk) {
+export async function buildStoryboardContext(
+  episodeId: number,
+  dramaId: number,
+  scriptChunk?: StoryboardChunk,
+  options: StoryboardContextOptions = {},
+) {
   const [episode] = (await db.select().from(schema.episodes)
     .where(eq(schema.episodes.id, episodeId)).all())
   if (!episode) throw new Error('Episode not found')
@@ -238,7 +278,9 @@ export async function buildStoryboardContext(episodeId: number, dramaId: number,
     .where(eq(schema.characters.dramaId, dramaId)).all())
   const scns = (await db.select().from(schema.scenes)
     .where(eq(schema.scenes.dramaId, dramaId)).all())
-  const existingStoryboards = await buildExistingStoryboardPayload(episodeId)
+  const existingStoryboards = options.includeExistingStoryboards === false
+    ? []
+    : await buildExistingStoryboardPayload(episodeId, options.existingStoryboardLimit)
 
   const characters = chars
     .filter(character => !character.deletedAt)
@@ -356,7 +398,12 @@ export function createStoryboardTools(episodeId: number, dramaId: number, option
     inputSchema: z.object({}),
     execute: async () => {
       try {
-        return await buildStoryboardContext(episodeId, dramaId, options.scriptChunk)
+        return await buildStoryboardContext(episodeId, dramaId, options.scriptChunk, {
+          // replace 模式下旧分镜会被整体覆盖，不能让旧内容触发模型跳过剧情；
+          // append 模式只提供紧邻的两镜作为跨 chunk 连续性锚点。
+          includeExistingStoryboards: !!options.appendMode && !options.clearBeforeAppend,
+          existingStoryboardLimit: 2,
+        })
       } catch (err) {
         return { error: err instanceof Error ? err.message : String(err) }
       }
@@ -418,7 +465,17 @@ export function createStoryboardTools(episodeId: number, dramaId: number, option
       dramatic_value: z.string().optional(),
       atmosphere: z.string().optional(),
       image_prompt: z.string().optional(),
+      first_frame_prompt: z.string().optional(),
+      last_frame_prompt: z.string().optional(),
       video_prompt: z.string().optional(),
+      transition_in: z.string().optional(),
+      transition_out: z.string().optional(),
+      screen_direction: z.string().optional(),
+      audio_bridge: z.string().optional(),
+      negative_prompt: z.string().optional(),
+      fallback_plan: z.string().optional(),
+      handle_in_ms: z.number().int().min(0).max(1500).optional(),
+      handle_out_ms: z.number().int().min(0).max(1500).optional(),
       bgm_prompt: z.string().optional(),
       sound_effect: z.string().optional(),
       description: z.string().optional(),
@@ -466,12 +523,22 @@ export function createStoryboardTools(episodeId: number, dramaId: number, option
       if ('dramatic_value' in fields) updates.dramaticValue = fields.dramatic_value
       if ('atmosphere' in fields) updates.atmosphere = fields.atmosphere
       if ('image_prompt' in fields) updates.imagePrompt = fields.image_prompt
+      if ('first_frame_prompt' in fields) updates.firstFramePrompt = fields.first_frame_prompt
+      if ('last_frame_prompt' in fields) updates.lastFramePrompt = fields.last_frame_prompt
       if ('video_prompt' in fields) {
         updates.videoPrompt = appendDialogueToVideoPrompt(
           fields.video_prompt,
           'dialogue' in fields ? fields.dialogue : storyboard.dialogue,
         )
       }
+      if ('transition_in' in fields) updates.transitionIn = fields.transition_in
+      if ('transition_out' in fields) updates.transitionOut = fields.transition_out
+      if ('screen_direction' in fields) updates.screenDirection = fields.screen_direction
+      if ('audio_bridge' in fields) updates.audioBridge = fields.audio_bridge
+      if ('negative_prompt' in fields) updates.negativePrompt = fields.negative_prompt
+      if ('fallback_plan' in fields) updates.fallbackPlan = fields.fallback_plan
+      if ('handle_in_ms' in fields) updates.handleInMs = fields.handle_in_ms
+      if ('handle_out_ms' in fields) updates.handleOutMs = fields.handle_out_ms
       if ('bgm_prompt' in fields) updates.bgmPrompt = fields.bgm_prompt
       if ('sound_effect' in fields) updates.soundEffect = fields.sound_effect
       if ('description' in fields) updates.description = fields.description

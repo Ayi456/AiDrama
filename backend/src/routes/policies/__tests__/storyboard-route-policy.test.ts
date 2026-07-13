@@ -132,6 +132,38 @@ runTest('buildStoryboardUpdatePatch maps director planning fields', () => {
   })
 })
 
+runTest('buildStoryboardUpdatePatch maps Seedance timing and continuity fields', () => {
+  const patch = buildStoryboardUpdatePatch(
+    {
+      first_frame_prompt: '动作开始前的稳定首帧',
+      last_frame_prompt: '动作结束后的稳定尾帧',
+      transition_in: '承接上一镜视线',
+      transition_out: '尾帧保持后切出',
+      screen_direction: '人物从左向右移动',
+      audio_bridge: '上一镜铃声延续 0.5 秒',
+      negative_prompt: '不要提前离开房间',
+      fallback_plan: '交互失败时改为小幅抬手',
+      handle_in_ms: 600,
+      handle_out_ms: 700,
+    },
+    '2026-05-08T00:01:00.000Z',
+  )
+
+  assert.deepEqual(patch, {
+    updatedAt: '2026-05-08T00:01:00.000Z',
+    firstFramePrompt: '动作开始前的稳定首帧',
+    lastFramePrompt: '动作结束后的稳定尾帧',
+    transitionIn: '承接上一镜视线',
+    transitionOut: '尾帧保持后切出',
+    screenDirection: '人物从左向右移动',
+    audioBridge: '上一镜铃声延续 0.5 秒',
+    negativePrompt: '不要提前离开房间',
+    fallbackPlan: '交互失败时改为小幅抬手',
+    handleInMs: 600,
+    handleOutMs: 700,
+  })
+})
+
 runTest('appendDialogueToVideoPrompt adds dialogue and narration to saved video prompts', () => {
   const prompt = appendDialogueToVideoPrompt(
     '前 3 秒推近山门，后 3 秒切到顾玄回头。',

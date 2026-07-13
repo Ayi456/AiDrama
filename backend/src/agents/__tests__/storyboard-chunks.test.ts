@@ -54,6 +54,18 @@ runTest('splitScriptIntoStoryboardChunks falls back to paragraph batches without
   assert.ok(chunks[1]?.script.includes('D'.repeat(10)))
 })
 
+runTest('splitScriptIntoStoryboardChunks prefers sentence boundaries for oversized sections', () => {
+  const sentence = '角色推开文件，停顿后看向门口。'
+  const script = sentence.repeat(80)
+
+  const chunks = splitScriptIntoStoryboardChunks(script, { maxChars: 220 })
+
+  assert.ok(chunks.length > 1)
+  assert.ok(chunks.every((chunk) => chunk.script.length <= 220))
+  assert.ok(chunks.slice(0, -1).every((chunk) => /[。！？；!?;]$/.test(chunk.script)))
+  assert.equal(chunks.map((chunk) => chunk.script).join(''), script)
+})
+
 runTest('renumberStoryboardsForAppend continues after the existing maximum shot number', () => {
   const nextNumber = getNextStoryboardNumber([
     { storyboardNumber: 1 },

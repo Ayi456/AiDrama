@@ -17,6 +17,17 @@ export type StoryboardCreateBody = RouteBody & {
   emotion_shift?: string | null
   dramatic_value?: string | null
   video_prompt?: string | null
+  image_prompt?: string | null
+  first_frame_prompt?: string | null
+  last_frame_prompt?: string | null
+  transition_in?: string | null
+  transition_out?: string | null
+  screen_direction?: string | null
+  audio_bridge?: string | null
+  negative_prompt?: string | null
+  fallback_plan?: string | null
+  handle_in_ms?: number | null
+  handle_out_ms?: number | null
   scene_id?: number | null
   duration?: number | null
   character_ids?: number[] | null
@@ -37,6 +48,16 @@ export type StoryboardUpdateBody = RouteBody & {
   duration?: number | null
   video_prompt?: string | null
   image_prompt?: string | null
+  first_frame_prompt?: string | null
+  last_frame_prompt?: string | null
+  transition_in?: string | null
+  transition_out?: string | null
+  screen_direction?: string | null
+  audio_bridge?: string | null
+  negative_prompt?: string | null
+  fallback_plan?: string | null
+  handle_in_ms?: number | null
+  handle_out_ms?: number | null
   scene_id?: number | null
   location?: string | null
   time?: string | null
@@ -62,6 +83,17 @@ export type StoryboardCreateValues = {
   emotionShift?: string | null
   dramaticValue?: string | null
   videoPrompt?: string | null
+  imagePrompt?: string | null
+  firstFramePrompt?: string | null
+  lastFramePrompt?: string | null
+  transitionIn?: string | null
+  transitionOut?: string | null
+  screenDirection?: string | null
+  audioBridge?: string | null
+  negativePrompt?: string | null
+  fallbackPlan?: string | null
+  handleInMs?: number | null
+  handleOutMs?: number | null
   sceneId?: number | null
   duration: number
   createdAt: string
@@ -83,6 +115,16 @@ type StoryboardPatchField =
   | 'duration'
   | 'videoPrompt'
   | 'imagePrompt'
+  | 'firstFramePrompt'
+  | 'lastFramePrompt'
+  | 'transitionIn'
+  | 'transitionOut'
+  | 'screenDirection'
+  | 'audioBridge'
+  | 'negativePrompt'
+  | 'fallbackPlan'
+  | 'handleInMs'
+  | 'handleOutMs'
   | 'sceneId'
   | 'location'
   | 'time'
@@ -110,6 +152,16 @@ export type StoryboardUpdatePatch = {
   duration?: number | null
   videoPrompt?: string | null
   imagePrompt?: string | null
+  firstFramePrompt?: string | null
+  lastFramePrompt?: string | null
+  transitionIn?: string | null
+  transitionOut?: string | null
+  screenDirection?: string | null
+  audioBridge?: string | null
+  negativePrompt?: string | null
+  fallbackPlan?: string | null
+  handleInMs?: number | null
+  handleOutMs?: number | null
   sceneId?: number | null
   location?: string | null
   time?: string | null
@@ -139,6 +191,16 @@ const STORYBOARD_UPDATE_FIELDS = [
   ['duration', 'duration'],
   ['video_prompt', 'videoPrompt'],
   ['image_prompt', 'imagePrompt'],
+  ['first_frame_prompt', 'firstFramePrompt'],
+  ['last_frame_prompt', 'lastFramePrompt'],
+  ['transition_in', 'transitionIn'],
+  ['transition_out', 'transitionOut'],
+  ['screen_direction', 'screenDirection'],
+  ['audio_bridge', 'audioBridge'],
+  ['negative_prompt', 'negativePrompt'],
+  ['fallback_plan', 'fallbackPlan'],
+  ['handle_in_ms', 'handleInMs'],
+  ['handle_out_ms', 'handleOutMs'],
   ['scene_id', 'sceneId'],
   ['location', 'location'],
   ['time', 'time'],
@@ -184,6 +246,17 @@ export function buildStoryboardCreateValues(body: StoryboardCreateBody, timestam
   if (hasOwn(body, 'audience_info_change')) values.audienceInfoChange = body.audience_info_change
   if (hasOwn(body, 'emotion_shift')) values.emotionShift = body.emotion_shift
   if (hasOwn(body, 'dramatic_value')) values.dramaticValue = body.dramatic_value
+  if (hasOwn(body, 'image_prompt')) values.imagePrompt = body.image_prompt
+  if (hasOwn(body, 'first_frame_prompt')) values.firstFramePrompt = body.first_frame_prompt
+  if (hasOwn(body, 'last_frame_prompt')) values.lastFramePrompt = body.last_frame_prompt
+  if (hasOwn(body, 'transition_in')) values.transitionIn = body.transition_in
+  if (hasOwn(body, 'transition_out')) values.transitionOut = body.transition_out
+  if (hasOwn(body, 'screen_direction')) values.screenDirection = body.screen_direction
+  if (hasOwn(body, 'audio_bridge')) values.audioBridge = body.audio_bridge
+  if (hasOwn(body, 'negative_prompt')) values.negativePrompt = body.negative_prompt
+  if (hasOwn(body, 'fallback_plan')) values.fallbackPlan = body.fallback_plan
+  if (hasOwn(body, 'handle_in_ms')) values.handleInMs = body.handle_in_ms
+  if (hasOwn(body, 'handle_out_ms')) values.handleOutMs = body.handle_out_ms
   const videoPrompt = appendDialogueToVideoPrompt(body.video_prompt, body.dialogue)
   if (videoPrompt) values.videoPrompt = videoPrompt
   return values

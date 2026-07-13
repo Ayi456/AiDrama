@@ -42,11 +42,16 @@ const STORYBOARD_DIRECT_DIRECTIVE = [
   '================ 输出格式（最高优先级）================',
   '本次为直连模式：不存在、也不要调用任何工具（read_storyboard_context / save_storyboards / append_storyboards 等都不可用）。请忽略上文中任何“调用工具/使用步骤”的说明。',
   '所需的剧本、角色（含 id）、场景（含 id）、项目风格、已有分镜，都已在用户消息的 JSON 中直接给出。',
+  'existing_storyboards 只表示当前 script 之前紧邻的连续性锚点：只读取最后一镜的 result、人物位置、场景与道具状态并从那里承接，不要复述或重新生成这些锚点。数组为空时直接从当前 script 开始。',
   '你必须只输出一个 JSON 对象，不要任何解释文字，不要 markdown 代码块（不要 ```）。结构严格如下：',
   '{"storyboards":[{"shot_number":1,"title":"","shot_type":"","angle":"","movement":"","location":"","time":"","action":"","dialogue":"","description":"","result":"","director_intent":"","audience_info_change":"","emotion_shift":"","dramatic_value":"","atmosphere":"","image_prompt":"","video_prompt":"","bgm_prompt":"","sound_effect":"","duration":10,"scene_id":null,"character_ids":[]}]}',
   '- shot_number 从 1 开始递增即可（系统会自动续接整集真实编号）。',
   '- director_intent / audience_info_change / emotion_shift / dramatic_value 必须说明本镜头的导演意图、观众信息变化、情绪变化和不可删除的戏剧价值。',
+  '- 物理过渡镜头允许 audience_info_change 写“无新增剧情信息”，但 dramatic_value 必须说明它完成了哪段不可省略的空间桥接。',
   '- scene_id 与 character_ids 必须取自用户消息中提供的 scenes / characters 的 id；没有合适的就用 null / 空数组，禁止编造 id。',
+  '- 除 dialogue 可在无台词时为空字符串外，示例结构中的文字字段都必须填写非空内容；duration 必须是 4-15 的整数。',
+  '- 当前视频模型为 Seedance 2.0。video_prompt 必须逐段包含：参考素材绑定、主体与场景、入场与首帧、分秒时间轴、运镜与画面、出场与尾帧、声音与对白、画质与风格、约束与禁止项、失败降级。时间轴从 0.0 秒连续覆盖到 duration，不能有空档或重叠，不要再使用“动作阶段1/2/3”。',
+  '- 每个镜头必须输出 first_frame_prompt、last_frame_prompt、transition_in、transition_out、screen_direction、audio_bridge、negative_prompt、fallback_plan、handle_in_ms、handle_out_ms；推荐入出场把手各 500-800 毫秒。',
   '- storyboards 至少包含 1 个镜头。',
 ].join('\n')
 
@@ -163,12 +168,46 @@ async function generateStoryboardsForChunk(input: {
   dramaId: number
   episodeId: number
   chunk: StoryboardChunk
+  rootChunk: StoryboardChunk
+  continuityStoryboards?: StoryboardInput[]
   message: string
   policy: StoryboardAdaptivePolicy
   attempt: number
 }): Promise<StoryboardInput[]> {
-  const { dramaId, episodeId, chunk, message, policy, attempt } = input
-  const context = await buildStoryboardContext(episodeId, dramaId, chunk)
+  const { dramaId, episodeId, chunk, rootChunk, continuityStoryboards = [], message, policy, attempt } = input
+  const context = await buildStoryboardContext(episodeId, dramaId, chunk, {
+    // 第一个根 chunk 会在成功生成后替换整集旧分镜。生成前不把旧分镜交给模型，
+    // 否则“不要重复 existing_storyboards”会让模型跳过本应重新生成的剧情。
+    includeExistingStoryboards: rootChunk.index !== 1,
+    // 后续 chunk 只需要前两镜的完整出点作为连续性锚点，避免把整集历史重复塞回上下文。
+    existingStoryboardLimit: 2,
+  })
+  if (continuityStoryboards.length) {
+    const draftAnchors = continuityStoryboards.slice(-2).map((storyboard, index) => ({
+      id: -(index + 1),
+      shot_number: storyboard.shot_number,
+      title: storyboard.title || '',
+      scene_id: storyboard.scene_id,
+      character_ids: storyboard.character_ids,
+      shot_type: storyboard.shot_type || '',
+      angle: storyboard.angle || '',
+      movement: storyboard.movement || '',
+      location: storyboard.location || '',
+      time: storyboard.time || '',
+      action: storyboard.action || '',
+      dialogue: storyboard.dialogue || '',
+      description: storyboard.description || '',
+      result: storyboard.result || '',
+      first_frame_prompt: storyboard.first_frame_prompt || '',
+      last_frame_prompt: storyboard.last_frame_prompt || '',
+      transition_in: storyboard.transition_in || '',
+      transition_out: storyboard.transition_out || '',
+      screen_direction: storyboard.screen_direction || '',
+      audio_bridge: storyboard.audio_bridge || '',
+      duration: storyboard.duration || 0,
+    }))
+    context.existing_storyboards = [...context.existing_storyboards, ...draftAnchors].slice(-2)
+  }
   const userContent = [
     message,
     `Storyboard chunk ${chunk.index}/${chunk.total}. Only process this chunk script; do not cover other chunks.`,
@@ -198,11 +237,12 @@ async function generateAdaptiveStoryboardChunk(input: {
   episodeId: number
   chunk: StoryboardChunk
   rootChunk: StoryboardChunk
+  continuityStoryboards?: StoryboardInput[]
   message: string
   policy: StoryboardAdaptivePolicy
   attempt: number
 }): Promise<AdaptiveStoryboardChunkDraft> {
-  const { dramaId, episodeId, chunk, rootChunk, message, policy, attempt } = input
+  const { dramaId, episodeId, chunk, rootChunk, continuityStoryboards = [], message, policy, attempt } = input
   logTaskProgress('Agent', 'storyboard-chunk-start', {
     episodeId,
     chunkIndex: rootChunk.index,
@@ -217,6 +257,8 @@ async function generateAdaptiveStoryboardChunk(input: {
       dramaId,
       episodeId,
       chunk,
+      rootChunk,
+      continuityStoryboards,
       message,
       policy,
       attempt,
@@ -240,17 +282,20 @@ async function generateAdaptiveStoryboardChunk(input: {
     })
 
     const results: AdaptiveStoryboardChunkDraft[] = []
+    let retryContinuity = continuityStoryboards.slice(-2)
     for (const retryChunk of retryChunks) {
       const result = await generateAdaptiveStoryboardChunk({
         dramaId,
         episodeId,
         chunk: retryChunk,
         rootChunk,
+        continuityStoryboards: retryContinuity,
         message,
         policy,
         attempt: attempt + 1,
       })
       results.push(result)
+      retryContinuity = [...retryContinuity, ...result.storyboards].slice(-2)
     }
 
     return {

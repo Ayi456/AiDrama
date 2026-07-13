@@ -208,7 +208,7 @@
               </label>
               <label class="field">
                 <span class="field-label">时长</span>
-                <input :value="selectedSb.duration || 10" class="input" type="number" min="1" max="60" @blur="updateSelected('duration', Number($event.target.value))" />
+                <input :value="selectedSb.duration || 10" class="input" type="number" min="4" max="15" @blur="updateSelected('duration', Number($event.target.value))" />
               </label>
             </div>
           </div>
@@ -248,13 +248,61 @@
               <span class="detail-section-copy">分别服务图片、视频、配乐和音效生成</span>
             </div>
             <label class="field">
-              <span class="field-label">静态画面提示词</span>
-              <textarea :value="selectedSb.image_prompt || selectedSb.imagePrompt || ''" class="textarea" rows="4" @blur="updateSelected('image_prompt', $event.target.value)" placeholder="用于首帧、尾帧和镜头图片的单帧画面提示词" />
+              <span class="field-label">静态视觉基底</span>
+              <textarea :value="selectedSb.image_prompt || selectedSb.imagePrompt || ''" class="textarea" rows="3" @blur="updateSelected('image_prompt', $event.target.value)" placeholder="首尾帧共用的人物、场景、光线、构图与风格" />
             </label>
+            <div class="field-grid field-grid-2">
+              <label class="field">
+                <span class="field-label">首帧提示词</span>
+                <textarea :value="selectedSb.first_frame_prompt || selectedSb.firstFramePrompt || ''" class="textarea" rows="4" @blur="updateSelected('first_frame_prompt', $event.target.value)" placeholder="动作开始前的稳定状态，作为本镜入点" />
+              </label>
+              <label class="field">
+                <span class="field-label">尾帧提示词</span>
+                <textarea :value="selectedSb.last_frame_prompt || selectedSb.lastFramePrompt || ''" class="textarea" rows="4" @blur="updateSelected('last_frame_prompt', $event.target.value)" placeholder="动作结束后的稳定落点，可作为下一镜衔接素材" />
+              </label>
+            </div>
             <label class="field">
-              <span class="field-label">视频提示词</span>
-              <textarea :value="selectedSb.video_prompt || selectedSb.videoPrompt || ''" class="textarea" rows="5" @blur="updateSelected('video_prompt', $event.target.value)" placeholder="按镜头1、镜头2描述动作节奏，并写清结束画面和禁止项..." />
+              <span class="field-label">Seedance 2.0 视频提示词</span>
+              <textarea :value="selectedSb.video_prompt || selectedSb.videoPrompt || ''" class="textarea" rows="10" @blur="updateSelected('video_prompt', $event.target.value)" placeholder="包含入场与首帧、连续分秒时间轴、运镜与画面、出场与尾帧、声音与对白、失败降级..." />
             </label>
+            <div class="field-grid field-grid-2">
+              <label class="field">
+                <span class="field-label">入场衔接</span>
+                <textarea :value="selectedSb.transition_in || selectedSb.transitionIn || ''" class="textarea" rows="3" @blur="updateSelected('transition_in', $event.target.value)" placeholder="如何承接上一镜的尾帧、构图、动作或声音" />
+              </label>
+              <label class="field">
+                <span class="field-label">出场衔接</span>
+                <textarea :value="selectedSb.transition_out || selectedSb.transitionOut || ''" class="textarea" rows="3" @blur="updateSelected('transition_out', $event.target.value)" placeholder="如何稳定停住并交给下一镜" />
+              </label>
+              <label class="field">
+                <span class="field-label">屏幕方向 / 视线轴</span>
+                <textarea :value="selectedSb.screen_direction || selectedSb.screenDirection || ''" class="textarea" rows="3" @blur="updateSelected('screen_direction', $event.target.value)" placeholder="例如人物从左向右移动，视线看向画外右侧" />
+              </label>
+              <label class="field">
+                <span class="field-label">声音桥</span>
+                <textarea :value="selectedSb.audio_bridge || selectedSb.audioBridge || ''" class="textarea" rows="3" @blur="updateSelected('audio_bridge', $event.target.value)" placeholder="环境底噪、对白抢入、动作声延续或无额外声音桥" />
+              </label>
+            </div>
+            <div class="field-grid field-grid-2">
+              <label class="field">
+                <span class="field-label">入场把手（毫秒）</span>
+                <input :value="selectedSb.handle_in_ms ?? selectedSb.handleInMs ?? 500" class="input" type="number" min="0" max="1500" step="100" @blur="updateSelected('handle_in_ms', Number($event.target.value))" />
+              </label>
+              <label class="field">
+                <span class="field-label">出场把手（毫秒）</span>
+                <input :value="selectedSb.handle_out_ms ?? selectedSb.handleOutMs ?? 500" class="input" type="number" min="0" max="1500" step="100" @blur="updateSelected('handle_out_ms', Number($event.target.value))" />
+              </label>
+            </div>
+            <div class="field-grid field-grid-2">
+              <label class="field">
+                <span class="field-label">本镜禁止项</span>
+                <textarea :value="selectedSb.negative_prompt || selectedSb.negativePrompt || ''" class="textarea" rows="3" @blur="updateSelected('negative_prompt', $event.target.value)" placeholder="不要提前完成下一镜动作、不要错位、不要新增人物等" />
+              </label>
+              <label class="field">
+                <span class="field-label">失败降级</span>
+                <textarea :value="selectedSb.fallback_plan || selectedSb.fallbackPlan || ''" class="textarea" rows="3" @blur="updateSelected('fallback_plan', $event.target.value)" placeholder="生成不稳时降低动作或运镜复杂度，但不改变剧情结果" />
+              </label>
+            </div>
             <div class="field-grid field-grid-2">
               <label class="field">
                 <span class="field-label">配乐提示词</span>

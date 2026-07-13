@@ -13,6 +13,10 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const extractToolsSource = fs.readFileSync(path.resolve(__dirname, '../tools/extract-tools.js'), 'utf8')
+const storyboardSkillSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../../skills/storyboard_breaker/SKILL.md'),
+  'utf8',
+)
 
 function runTest(name: string, fn: () => void) {
   try {
@@ -182,7 +186,7 @@ runTest('storyboard preset requires adjacent-shot continuity anchors', () => {
   assert.match(instructions, /入点/)
   assert.match(instructions, /出点/)
   assert.match(instructions, /不允许用一句“随后”“转眼”“来到”跳过关键物理动作/)
-  assert.match(instructions, /是否需要新增 1 个 3-6 秒过渡镜头/)
+  assert.match(instructions, /是否需要新增 1 个 4-6 秒过渡镜头/)
   assert.match(instructions, /饭盒、便利贴、手机、文件/)
 })
 
@@ -193,10 +197,13 @@ runTest('storyboard preset requires explicit shot boundary planning and structur
   assert.match(instructions, /结束状态/)
   assert.match(instructions, /下一镜头承接点/)
   assert.match(instructions, /禁止提前完成的下一镜头动作/)
-  assert.match(instructions, /不要作为 JSON 新字段输出/)
-  assert.match(instructions, /起始画面/)
-  assert.match(instructions, /镜头限制/)
-  assert.match(instructions, /结束画面/)
+  assert.match(instructions, /first_frame_prompt/)
+  assert.match(instructions, /last_frame_prompt/)
+  assert.match(instructions, /transition_in/)
+  assert.match(instructions, /transition_out/)
+  assert.match(instructions, /入场与首帧/)
+  assert.match(instructions, /运镜与画面/)
+  assert.match(instructions, /出场与尾帧/)
   assert.match(instructions, /禁止项/)
   assert.match(instructions, /如果 action、description 与 result 冲突/)
   assert.match(instructions, /参考素材绑定/)
@@ -206,11 +213,25 @@ runTest('storyboard preset requires explicit shot boundary planning and structur
   assert.match(instructions, /最终生成视频时，系统会按实际上传顺序自动补充图片1、图片2、图片3等编号/)
   assert.match(instructions, /不要使用 <role>、<location> 或 <voice>/)
   assert.doesNotMatch(instructions, /使用 <location>地点<\/location>、<role>角色名<\/role>、<voice>说话人<\/voice> 标签/)
-  assert.match(instructions, /镜头1/)
-  assert.match(instructions, /不要写 0-3秒/)
+  assert.match(instructions, /分秒时间轴/)
+  assert.match(instructions, /0\.0-0\.6秒/)
+  assert.match(instructions, /准确结束在 duration/)
+  assert.match(instructions, /不要使用“动作阶段1\/2\/3”/)
+  assert.doesNotMatch(instructions, /动作节奏：镜头1/)
   assert.match(instructions, /不要生成字幕、Logo、水印或 UI/)
   assert.match(instructions, /同款分身/)
   assert.doesNotMatch(instructions, /可以按 3 秒为一段/)
+})
+
+runTest('storyboard preset and editable skill keep hard generation rules aligned', () => {
+  const instructions = AIDRAMA_AGENT_PRESETS.storyboard_breaker.instructions
+
+  for (const source of [instructions, storyboardSkillSource]) {
+    assert.match(source, /分秒时间轴/)
+    assert.match(source, /4-6 秒过渡镜头|过渡镜头可 4-6 秒/)
+    assert.match(source, /4-15 的整数/)
+    assert.match(source, /existing_storyboards/)
+  }
 })
 
 runTest('visual prompt preset follows Seedream asset prompt conventions', () => {

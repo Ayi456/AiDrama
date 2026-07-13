@@ -117,6 +117,10 @@ await runTest('script desk dispatches rewrite, extraction, and breakdown agents'
   })
   assert.match(calls[1]?.prompt || '', /替换当前集/)
   assert.match(calls[2]?.prompt || '', /Video Fast \(vidu\)/)
+  assert.match(calls[2]?.prompt || '', /video_constraints/)
+  assert.match(calls[2]?.prompt || '', /"min":4/)
+  assert.match(calls[2]?.prompt || '', /"max":15/)
+  assert.match(calls[2]?.prompt || '', /不要猜测未声明的模型能力/)
 })
 
 await runTest('script desk notifies automation progress after one-click start succeeds', async () => {
