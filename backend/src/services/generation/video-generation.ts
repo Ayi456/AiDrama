@@ -51,6 +51,10 @@ import {
   settleCompletedVideo,
 } from '../billing/video-billing.js'
 import { shouldRefreshProviderTaskStatus } from '../automation/video-task-refresh-policy.js'
+import {
+  resolveVideoPollTimeoutMs,
+  resolveVideoSubmitTimeoutMs,
+} from './video-provider-timeout-policy.js'
 
 type GenerateVideoParams = VideoGenerationEnqueueParams
 export type VideoGenerationRefreshResult = 'missing' | 'idle' | 'processing' | 'completed' | 'failed'
@@ -77,17 +81,10 @@ export async function generateVideo(params: GenerateVideoParams): Promise<number
     config,
     params,
   }))
-  processVideoGeneration(lastId, config).catch((error: unknown) => {
-    logDetachedMediaJobError({
-      taskName: 'VideoTask',
-      event: 'process',
-      id: lastId,
-      error,
-    }, {
-      logError: logTaskError,
-    })
-    console.error(`Video generation ${lastId} failed:`, error)
-  })
+  // The provider submission handshake must finish before the request returns.
+  // Otherwise a serverless instance can be recycled before taskId is persisted,
+  // leaving a processing row that can never be refreshed.
+  await processVideoGeneration(lastId, config)
   return lastId
 }
 
@@ -138,6 +135,7 @@ async function processVideoGeneration(id: number, config: AIConfig) {
     const result = await submitProviderGenerationRequest({
       normalizedSpec,
       providerRequest,
+      timeoutMs: resolveVideoSubmitTimeoutMs(),
     }, {
       now,
       sendJsonRequest: sendProviderJsonRequest,
@@ -174,7 +172,17 @@ async function processVideoGeneration(id: number, config: AIConfig) {
       return
     }
 
-    pollVideoTask(id, config, taskId, buildVideoGenerationPollingContext(record))
+    void pollVideoTask(id, config, taskId, buildVideoGenerationPollingContext(record)).catch((error: unknown) => {
+      logDetachedMediaJobError({
+        taskName: 'VideoTask',
+        event: 'poll',
+        id,
+        error,
+      }, {
+        logError: logTaskError,
+      })
+      console.error(`Video generation ${id} polling failed:`, error)
+    })
   } catch (error: unknown) {
     await recordMediaJobFailure({
       taskName: 'VideoTask',
@@ -221,6 +229,7 @@ async function pollVideoTask(
 
       const providerPoll = await submitProviderPollAttempt({
         providerRequest: preparedPoll.providerRequest,
+        timeoutMs: resolveVideoPollTimeoutMs(),
       }, {
         now,
         isProviderApiError,
@@ -300,6 +309,7 @@ export async function refreshVideoGenerationStatus(id: number): Promise<VideoGen
 
   const providerPoll = await submitProviderPollAttempt({
     providerRequest: preparedPoll.providerRequest,
+    timeoutMs: resolveVideoPollTimeoutMs(),
   }, {
     now,
     isProviderApiError,
